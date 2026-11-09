@@ -1,0 +1,1 @@
+export type ActivationView = {id: string; name: string; version: number; features: {quotes: boolean; appointments: boolean}; ownerReady: boolean; request: null | {status: string; features?: {quotes: boolean; appointments: boolean}; reason: string; monitorInbox?: boolean; capacityReady?: boolean}};

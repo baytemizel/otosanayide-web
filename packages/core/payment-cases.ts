@@ -1,0 +1,11 @@
+import {z} from 'zod';
+export const paymentCaseId=z.string().regex(/^[a-f0-9]{64}$/);
+export const paymentCaseQuery=z.object({after:paymentCaseId.optional()}).strict();
+export const paymentCaseStatuses=['open','reviewing','refund_required','closed'] as const;
+export const paymentCaseAction=z.object({id:paymentCaseId,version:z.number().int().nonnegative(),status:z.enum(paymentCaseStatuses),note:z.string().trim().min(10).max(1000)}).strict();
+export const paymentCaseReasons:Record<string,string>={amount_or_capture:'Tutar, para birimi veya ödeme zamanı uyuşmuyor',additional_payment:'Ek ödeme alındı',expired_or_released:'Rezervasyon süresi dolmuş veya bırakılmış',eligibility_changed:'İşletme veya kampanya uygunluğu değişmiş',inventory:'Kapasite verisi uyuşmuyor',capacity_lost:'Ayrılan kapasite bulunamadı'};
+export function financeAllowed(u:Record<string,unknown>){return u.email_verified===true&&u.admin===true&&u.finance===true;}
+export function paymentCaseView(id:string,d:Record<string,unknown>){return {id,status:paymentCaseStatuses.includes(d.status as any)?d.status as typeof paymentCaseStatuses[number]:'open',version:Number.isSafeInteger(d.version)&&Number(d.version)>=0?Number(d.version):0,reason:typeof d.reason==='string'&&paymentCaseReasons[d.reason]?d.reason:'unknown',createdAtMs:typeof d.createdAtMs==='number'?d.createdAtMs:0,note:typeof d.note==='string'?d.note.slice(0,1000):''};}
+export type PaymentCaseView=ReturnType<typeof paymentCaseView>;
+export function changePaymentCase(d:Record<string,unknown>,input:z.infer<typeof paymentCaseAction>,now:number){const previous=paymentCaseView(input.id,d);if(previous.version!==input.version)throw Error('conflict');if(previous.status===input.status)throw Error('state');return {status:input.status,version:input.version+1,note:input.note,updatedAtMs:now};}
+export function paymentCaseAmounts(order:Record<string,unknown>|undefined,receipt:Record<string,unknown>|undefined){const money=(d:Record<string,unknown>|undefined,field:string)=>d&&Number.isSafeInteger(d[field])&&Number(d[field])>=0&&typeof d.currency==='string'&&/^[A-Z]{3}$/.test(d.currency)?{minor:Number(d[field]),currency:d.currency}:null;return {expected:money(order,'totalMinor'),received:money(receipt,'amountMinor')};}

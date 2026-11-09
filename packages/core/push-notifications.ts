@@ -1,0 +1,12 @@
+import {z} from 'zod';import {accountJson} from './account-client';import {searchOrigin} from './search-client';
+export const pushToken=z.string().regex(/^[A-Za-z0-9_:.-]{20,4096}$/);
+export const pushCommand=z.discriminatedUnion('action',[
+ z.object({action:z.literal('register'),deviceId:z.string().uuid(),token:pushToken,provider:z.literal('fcm'),platform:z.enum(['web','android','ios']),locale:z.enum(['tr','en']),appId:z.string().regex(/^1:\d+:(?:web|android|ios):[a-f0-9]+$/)}).strict(),
+ z.object({action:z.literal('revoke'),deviceId:z.string().uuid(),expectedVersion:z.number().int().positive().safe(),expectedGeneration:z.string().uuid()}).strict()
+]);
+export const pushDevice=z.object({generation:z.string().uuid(),deviceId:z.string().uuid(),platform:z.enum(['web','android','ios']),locale:z.enum(['tr','en']),enabled:z.boolean(),version:z.number().int().positive().safe(),updatedAtMs:z.number().int().nonnegative().safe()}).strict();
+export const pushDevices=z.object({devices:z.array(pushDevice).max(20)}).strict();
+export type PushDevice=z.infer<typeof pushDevice>;
+// A native SDK callback may arrive late or never. Deadline bounds UI waiting, not provider-side cancellation.
+export async function nativePushTask<T>(task:()=>Promise<T>,timeoutMs=15000){if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>15000)throw Error('push_timeout');let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([Promise.resolve().then(task),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('push_timeout')),timeoutMs);})]);}finally{clearTimeout(timer);}}
+export async function fetchPushDevices(options:{origin:string;token:()=>Promise<string>;guard:()=>void;locale:string;request?:typeof fetch},command?:unknown){let token='';const input=command===undefined?undefined:pushCommand.parse(command);const result=await accountJson({guard:options.guard,token:async()=>{token=await options.token();return token;},request:signal=>(options.request??fetch)(searchOrigin(options.origin)+'/api/me/push',{method:input?'POST':'GET',signal,cache:'no-store',redirect:'error',credentials:'omit',headers:{Authorization:'Bearer '+token,Accept:'application/json','Accept-Language':options.locale,...(input?{'Content-Type':'application/json'}:{})},...(input?{body:JSON.stringify(input)}:{})}),decode:raw=>pushDevices.parse(raw)});result.check();return result.value;}

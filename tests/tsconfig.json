@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "baseUrl": "..",
+    "paths": {
+      "@otosanayide/core": ["packages/core/index.ts"],
+      "@otosanayide/core/*": ["packages/core/*"],
+      "~/*": ["app/*"]
+    }
+  }
+}

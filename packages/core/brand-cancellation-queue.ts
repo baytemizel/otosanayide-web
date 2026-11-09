@@ -1,0 +1,10 @@
+import {z} from 'zod';
+import {brandCancellationView} from './brand-cancellation';
+export const cancellationFilters=['pending','approved','rejected','requires_review','needs_review','refunded','all'] as const;
+export const cancellationFilterLabels={pending:'İptal incelemede',approved:'İptal onaylandı',rejected:'İptal reddedildi',requires_review:'İade incelemesi bekliyor',needs_review:'İade uyuşmazlığı incelenmeli',refunded:'Tam iade doğrulandı',all:'Tüm iptal dosyaları'};
+export const cancellationQueueQuery=z.object({filter:z.enum(cancellationFilters).default('pending'),after:z.string().uuid().optional()}).strict();
+export const cancellationQueueResponse=z.object({filter:z.enum(cancellationFilters),items:z.array(brandCancellationView).max(20),next:z.string().uuid().nullable()}).strict();
+export const cancellationHistoryQuery=z.object({reservationId:z.string().uuid(),after:z.string().regex(/^\d{1,16}_[A-Za-z0-9-]{1,128}$/).optional()}).strict().refine(v=>!v.after||Number.isSafeInteger(Number(v.after.split('_')[0])));
+export const cancellationHistoryItem=z.object({reviewEventId:z.string().regex(/^[A-Za-z0-9-]{1,128}$/).optional(),action:z.enum(['requested','approved','rejected','refund_checked']),createdAtMs:z.number().int().nonnegative().safe(),note:z.string().max(1000),outcome:z.enum(['needs_review','refunded']).nullable(),reason:z.enum(['','amount_or_time','additional_refund']),amountMinor:z.number().int().positive().safe().nullable(),currency:z.string().regex(/^[A-Z]{3}$/).nullable()}).strict();
+export const cancellationHistoryResponse=z.object({reservationId:z.string().uuid(),items:z.array(cancellationHistoryItem).max(20),next:z.string().nullable()}).strict();
+export const cancellationHistoryLabels={requested:'İptal talebi açıldı',approved:'İptal onaylandı',rejected:'İptal reddedildi',refund_checked:'İade kanıtı kontrol edildi'};

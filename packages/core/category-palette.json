@@ -1,0 +1,86 @@
+{
+  "auto-expertise": {
+    "background": "#eaf2f5",
+    "ink": "#355f72"
+  },
+  "mechanical": {
+    "background": "#edf2f5",
+    "ink": "#526e82"
+  },
+  "detailing": {
+    "background": "#eef4f2",
+    "ink": "#426d60"
+  },
+  "body": {
+    "background": "#f7f0eb",
+    "ink": "#936248"
+  },
+  "tyres": {
+    "background": "#eef0f2",
+    "ink": "#55616d"
+  },
+  "motorcycle": {
+    "background": "#f0eff5",
+    "ink": "#6c6285"
+  },
+  "exhaust": {
+    "background": "#f4eee8",
+    "ink": "#865633"
+  },
+  "turbo": {
+    "background": "#e9f2f5",
+    "ink": "#2c6a81"
+  },
+  "suspension": {
+    "background": "#eef2e6",
+    "ink": "#536b32"
+  },
+  "transmission": {
+    "background": "#eeedf6",
+    "ink": "#625387"
+  },
+  "car-audio": {
+    "background": "#e8f3f1",
+    "ink": "#28695d"
+  },
+  "tuning": {
+    "background": "#faece5",
+    "ink": "#a34825"
+  },
+  "facelift": {
+    "background": "#f2edf3",
+    "ink": "#80577f"
+  },
+  "electrical": {
+    "background": "#e9f1fa",
+    "ink": "#315780"
+  },
+  "glass": {
+    "background": "#e7f3f6",
+    "ink": "#286579"
+  },
+  "protection": {
+    "background": "#edf0fa",
+    "ink": "#47598d"
+  },
+  "climate": {
+    "background": "#e9f4f6",
+    "ink": "#2b6474"
+  },
+  "electric-vehicle": {
+    "background": "#e8f4eb",
+    "ink": "#2c6646"
+  },
+  "accessories": {
+    "background": "#f5eee8",
+    "ink": "#795339"
+  },
+  "assistance": {
+    "background": "#fbefe3",
+    "ink": "#8b511f"
+  },
+  "dent": {
+    "background": "#f2edf3",
+    "ink": "#775378"
+  }
+}

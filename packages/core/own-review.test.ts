@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {ownReview} from './own-review';
+const review={userId:'u',businessId:'b',text:'Test deneyimi',rating:3,status:'rejected',reason:'İlgisiz içerik',reviewedBy:'secret-admin',automatic:{}};
+test('own review requires both author and business match',()=>{assert.equal(ownReview('other','b','r',review),null);assert.equal(ownReview('u','other','r',review),null);assert.equal(ownReview('u','b','r',undefined),null);});
+test('own review gives decision reason but excludes moderation identities and internal analysis',()=>{assert.deepEqual(ownReview('u','b','r',review),{id:'r',text:'Test deneyimi',rating:3,status:'rejected',reason:'İlgisiz içerik',version:1,resolved:'unknown',wc:'unknown',canEdit:true,canWithdraw:true});assert.equal(ownReview('u','b','r',{...review,status:'unexpected'})?.status,'unknown');});

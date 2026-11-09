@@ -1,0 +1,1 @@
+export type CatalogueItem = {id: string; name: string; city: string; district: string; address: string; phone: string; website: string; categories: string[]; services: string[]; latitude: number | null; longitude: number | null; published: boolean; version: number; profileVersion: number};

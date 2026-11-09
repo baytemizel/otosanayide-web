@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {decimalHundredths} from './ad-form';
+test('decimal form input converts both local separators without floating point errors',()=>{assert.equal(decimalHundredths('123,45'),12345);assert.equal(decimalHundredths('123.45'),12345);assert.equal(decimalHundredths('0.01'),1);assert.equal(decimalHundredths('1,2'),120);assert.equal(decimalHundredths(' 100 '),10000);});
+test('decimal form input rejects thousands grouping, precision loss and exponent injection',()=>{for(const v of ['1.000,00','1,000','1.001','1e4','-1','NaN','','10000000','0x10'])assert.equal(decimalHundredths(v),null);});

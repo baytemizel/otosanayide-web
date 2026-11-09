@@ -1,0 +1,1 @@
+export type OwnReviewView = {id: string; text: string; rating: number | null; status: string; reason: string; version: number; resolved: string; wc: string; quality?: number; payment?: number; cleanliness?: number; wcCleanliness?: number; canEdit: boolean; canWithdraw: boolean};

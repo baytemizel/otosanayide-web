@@ -1,0 +1,3 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {searchSuggestions} from './search-suggestions';
+test('suggestions normalize Turkish letters and include brands',()=>{assert.ok(searchSuggestions('gocuk').includes('Boyasız göçük'));assert.ok(searchSuggestions('MERC').includes('Mercedes-Benz'));assert.ok(searchSuggestions('İÇ').includes('İç temizlik'));});
+test('suggestions avoid empty-query noise and bound results',()=>{assert.deepEqual(searchSuggestions(''),[]);assert.deepEqual(searchSuggestions('a'),[]);assert.ok(searchSuggestions('ar').length<=8);assert.deepEqual(searchSuggestions('zzzzzz'),[]);});

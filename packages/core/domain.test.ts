@@ -1,0 +1,13 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {sampleBusinesses,searchBusinesses,featureAvailable,vehicleSchema,maintenanceSchema,reviewSchema,reminderStatus,mayManageBusiness,distanceKm} from './index';
+test('Türkçe sorgu, alias ve çoklu filtre',()=>{assert.equal(searchBusinesses(sampleBusinesses,{q:'elektirik BMW',city:'İstanbul'})[0]?.id,'sample-motor');assert.equal(searchBusinesses(sampleBusinesses,{category:'body',brand:'BMW'}).length,0);});
+test('Bilinmeyen ödeme kart kabulü sayılmaz',()=>{const r=searchBusinesses(sampleBusinesses,{card:true});assert.ok(r.length>0);assert.ok(r.every(x=>x.cardPayment===true));});
+test('Doğrulanmamış koordinat yakınlık sonucu üretmez',()=>assert.equal(searchBusinesses(sampleBusinesses,{center:{latitude:41,longitude:29}}).length,0));
+test('Sahiplik ve her iki aktivasyon koşulu gereklidir',()=>{const b={...sampleBusinesses[0],ownership:'verified' as const,ownerReady:true,features:{quotes:true,appointments:false}};assert.equal(featureAvailable(b,'quotes'),true);assert.equal(featureAvailable(b,'appointments'),false);assert.equal(featureAvailable({...b,ownership:'unclaimed'},'quotes'),false);assert.equal(featureAvailable({...b,ownerReady:false},'quotes'),false);});
+test('Şube yetkisi başka işletmeye taşınmaz',()=>{assert.equal(mayManageBusiness({role:'owner',businessIds:['a']},'b'),false);assert.equal(mayManageBusiness({role:'consumer',businessIds:['a']},'a'),false);});
+test('Araç ve bakım sınırları',()=>{assert.equal(vehicleSchema.safeParse({brand:'BMW',model:'320',year:2020,fuel:'Dizel',mileage:-1}).success,false);assert.equal(maintenanceSchema.safeParse({vehicleId:'v',title:'Bakım',date:'2099-01-01',mileage:1,amount:10}).success,false);});
+test('WC yoksa temizlik puanı verilemez',()=>assert.equal(reviewSchema.safeParse({businessId:'a',rating:5,resolved:'yes',wc:'no',wcCleanliness:1,text:'Deneyim açıklaması.'}).success,false));
+test('Kilometre veya tarih bakım hatırlatmasını tetikler',()=>{assert.equal(reminderStatus({id:'r',vehicleId:'v',title:'Bakım',dueKm:80000},{id:'v',brand:'BMW',model:'320',year:2020,fuel:'Benzin',mileage:81000},'2026-10-18').overdue,true);});
+test('Mesafe hesabı aynı noktada sıfırdır',()=>assert.equal(distanceKm({latitude:41,longitude:29},{latitude:41,longitude:29}),0));
+test('Fotoğraf varlığı sıralamayı değiştirmez',()=>{const a=searchBusinesses(sampleBusinesses,{city:'İstanbul'}).map(b=>b.id);const b=searchBusinesses(sampleBusinesses.map(x=>({...x,image:x.image?undefined:'/different.png'})),{city:'İstanbul'}).map(b=>b.id);assert.deepEqual(a,b);});
+test('Şehir filtresi başka şehirden işletme getirmez',()=>{const r=searchBusinesses(sampleBusinesses,{city:'Ankara'});assert.equal(r.length,1);assert.equal(r[0].city,'Ankara');});

@@ -1,0 +1,6 @@
+import {z} from 'zod';import {cities,categories} from './index';
+export const brandDeliveryInput=z.object({reservationId:z.string().uuid(),placement:z.enum(['home_banner','category_banner']),city:z.string().refine(v=>cities.includes(v)),category:z.string().refine(v=>v===''||categories.some(c=>c.id===v))}).strict().refine(v=>v.placement!=='category_banner'||!!v.category);
+export type BrandDeliveryReason='disabled'|'invalid'|'acceptance'|'campaign'|'schedule'|'targeting'|'payment'|'capacity'|'media'|'eligible';
+
+export const brandDeliveryLabels:Record<BrandDeliveryReason,string>={disabled:'Yayın uygunluğu önizlemesi kapalı.',invalid:'Şehir, kategori veya reklam referansı geçersiz.',acceptance:'Geçerli kesin kabul kaydı bulunamadı.',campaign:'Kampanya onayı veya sürümü uygun değil.',schedule:'Reklam şu an yayın tarihleri dışında.',targeting:'Reklam seçilen şehir veya kategoriye uygun değil.',payment:'Ödeme doğrulaması güncel veya tutarlı değil.',capacity:'Ayrılmış reklam kapasitesi doğrulanamadı.',media:'Bağlı banner görseli doğrulanamadı.',eligible:'Seçilen kapsamda yayın koşulları uygun.'};
+export function parseBrandPreviewQuery(params:URLSearchParams){if([...params.keys()].some(k=>params.getAll(k).length!==1))throw Error('query');return brandDeliveryInput.parse(Object.fromEntries(params));}

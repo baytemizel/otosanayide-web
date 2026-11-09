@@ -1,0 +1,17 @@
+{
+  "İki adımlı doğrulama": "Two-step verification",
+  "Kimlik doğrulama uygulamandaki 6 haneli kodu gir.": "Enter the 6-digit code from your authenticator app.",
+  "Doğrulama kodu": "Verification code",
+  "Doğrula": "Verify",
+  "Kod doğrulanamadı. Kodu kontrol edip tekrar dene.": "The code could not be verified. Check it and try again.",
+  "Girişe dön": "Back to sign in",
+  "E-posta doğrulama": "Email verification",
+  "E-posta adresin doğrulanıyor…": "Verifying your email address…",
+  "E-posta adresin doğrulandı.": "Your email address is verified.",
+  "Bağlantı geçersiz veya süresi dolmuş.": "This link is invalid or has expired.",
+  "Şifreni yenile": "Reset your password",
+  "Yeni şifre": "New password",
+  "Şifreyi güncelle": "Update password",
+  "Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.": "Your password is updated. You can sign in with your new password.",
+  "Şifre güncellenemedi. Bağlantıyı ve şifreni kontrol et.": "The password could not be updated. Check the link and your password."
+}

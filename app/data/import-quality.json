@@ -1,0 +1,504 @@
+{
+  "schemaVersion": 1,
+  "total": 36432,
+  "published": 0,
+  "ownershipVerified": 0,
+  "coordinateVerified": 0,
+  "coordinateEvidence": 36270,
+  "phone": 32632,
+  "phoneTypes": {
+    "e164": 32563,
+    "national444": 69
+  },
+  "website": 12871,
+  "email": 1687,
+  "scopeIncluded": 31595,
+  "duplicateGroups": 37,
+  "duplicateRows": 74,
+  "flags": {
+    "category_review": 854,
+    "coordinates_missing": 162,
+    "duplicate_candidate": 74,
+    "encoding_review": 1,
+    "missing_address": 184,
+    "missing_district": 2629,
+    "phone_invalid": 36,
+    "phone_missing": 3764,
+    "possibly_closed": 1,
+    "qc_address_conflict": 5819,
+    "qc_closed_listing": 510,
+    "qc_coordinates_city_mismatch": 290,
+    "qc_coordinates_conflict": 1328,
+    "qc_district_conflict": 728,
+    "qc_google_unverified": 36432,
+    "qc_no_identity_match": 9859,
+    "qc_phone_conflict": 1010,
+    "qc_scope_unconfirmed": 3588,
+    "qc_shared_map_identity": 969,
+    "qc_website_identity_unconfirmed": 5757,
+    "qc_website_unavailable": 4081,
+    "scope_review": 4837,
+    "website_invalid": 8
+  },
+  "cities": [
+    {
+      "city": "Adana",
+      "total": 1281,
+      "phone": 1178,
+      "website": 381,
+      "email": 48,
+      "coordinateEvidence": 1278,
+      "reviewFlags": 1281
+    },
+    {
+      "city": "Afyonkarahisar",
+      "total": 417,
+      "phone": 417,
+      "website": 70,
+      "email": 8,
+      "coordinateEvidence": 417,
+      "reviewFlags": 417
+    },
+    {
+      "city": "Ağrı",
+      "total": 133,
+      "phone": 133,
+      "website": 15,
+      "email": 1,
+      "coordinateEvidence": 133,
+      "reviewFlags": 133
+    },
+    {
+      "city": "Ankara",
+      "total": 2883,
+      "phone": 2624,
+      "website": 1324,
+      "email": 194,
+      "coordinateEvidence": 2872,
+      "reviewFlags": 2883
+    },
+    {
+      "city": "Antalya",
+      "total": 1859,
+      "phone": 1621,
+      "website": 616,
+      "email": 82,
+      "coordinateEvidence": 1850,
+      "reviewFlags": 1859
+    },
+    {
+      "city": "Aydın",
+      "total": 640,
+      "phone": 573,
+      "website": 183,
+      "email": 19,
+      "coordinateEvidence": 640,
+      "reviewFlags": 640
+    },
+    {
+      "city": "Balıkesir",
+      "total": 1206,
+      "phone": 834,
+      "website": 294,
+      "email": 33,
+      "coordinateEvidence": 1199,
+      "reviewFlags": 1206
+    },
+    {
+      "city": "Batman",
+      "total": 188,
+      "phone": 188,
+      "website": 39,
+      "email": 2,
+      "coordinateEvidence": 188,
+      "reviewFlags": 188
+    },
+    {
+      "city": "Bitlis",
+      "total": 108,
+      "phone": 108,
+      "website": 21,
+      "email": 1,
+      "coordinateEvidence": 108,
+      "reviewFlags": 108
+    },
+    {
+      "city": "Bolu",
+      "total": 207,
+      "phone": 207,
+      "website": 47,
+      "email": 3,
+      "coordinateEvidence": 207,
+      "reviewFlags": 207
+    },
+    {
+      "city": "Bursa",
+      "total": 1691,
+      "phone": 1562,
+      "website": 696,
+      "email": 86,
+      "coordinateEvidence": 1686,
+      "reviewFlags": 1691
+    },
+    {
+      "city": "Denizli",
+      "total": 766,
+      "phone": 697,
+      "website": 248,
+      "email": 44,
+      "coordinateEvidence": 764,
+      "reviewFlags": 766
+    },
+    {
+      "city": "Diyarbakır",
+      "total": 441,
+      "phone": 380,
+      "website": 146,
+      "email": 13,
+      "coordinateEvidence": 437,
+      "reviewFlags": 441
+    },
+    {
+      "city": "Düzce",
+      "total": 258,
+      "phone": 258,
+      "website": 45,
+      "email": 12,
+      "coordinateEvidence": 258,
+      "reviewFlags": 258
+    },
+    {
+      "city": "Erzurum",
+      "total": 303,
+      "phone": 264,
+      "website": 96,
+      "email": 8,
+      "coordinateEvidence": 303,
+      "reviewFlags": 303
+    },
+    {
+      "city": "Eskişehir",
+      "total": 634,
+      "phone": 589,
+      "website": 234,
+      "email": 36,
+      "coordinateEvidence": 632,
+      "reviewFlags": 634
+    },
+    {
+      "city": "Gaziantep",
+      "total": 742,
+      "phone": 674,
+      "website": 251,
+      "email": 27,
+      "coordinateEvidence": 738,
+      "reviewFlags": 742
+    },
+    {
+      "city": "Hakkâri",
+      "total": 56,
+      "phone": 56,
+      "website": 6,
+      "email": 1,
+      "coordinateEvidence": 56,
+      "reviewFlags": 56
+    },
+    {
+      "city": "Hatay",
+      "total": 549,
+      "phone": 504,
+      "website": 173,
+      "email": 15,
+      "coordinateEvidence": 547,
+      "reviewFlags": 549
+    },
+    {
+      "city": "İstanbul",
+      "total": 8021,
+      "phone": 7249,
+      "website": 3444,
+      "email": 447,
+      "coordinateEvidence": 7967,
+      "reviewFlags": 8021
+    },
+    {
+      "city": "İzmir",
+      "total": 2212,
+      "phone": 2018,
+      "website": 850,
+      "email": 129,
+      "coordinateEvidence": 2209,
+      "reviewFlags": 2212
+    },
+    {
+      "city": "Kahramanmaraş",
+      "total": 436,
+      "phone": 384,
+      "website": 132,
+      "email": 12,
+      "coordinateEvidence": 435,
+      "reviewFlags": 436
+    },
+    {
+      "city": "Kayseri",
+      "total": 800,
+      "phone": 737,
+      "website": 288,
+      "email": 50,
+      "coordinateEvidence": 799,
+      "reviewFlags": 800
+    },
+    {
+      "city": "Kocaeli",
+      "total": 1528,
+      "phone": 1403,
+      "website": 496,
+      "email": 67,
+      "coordinateEvidence": 1522,
+      "reviewFlags": 1528
+    },
+    {
+      "city": "Konya",
+      "total": 1545,
+      "phone": 1421,
+      "website": 558,
+      "email": 68,
+      "coordinateEvidence": 1539,
+      "reviewFlags": 1545
+    },
+    {
+      "city": "Malatya",
+      "total": 386,
+      "phone": 344,
+      "website": 92,
+      "email": 15,
+      "coordinateEvidence": 384,
+      "reviewFlags": 386
+    },
+    {
+      "city": "Manisa",
+      "total": 658,
+      "phone": 573,
+      "website": 199,
+      "email": 23,
+      "coordinateEvidence": 657,
+      "reviewFlags": 658
+    },
+    {
+      "city": "Mardin",
+      "total": 348,
+      "phone": 293,
+      "website": 90,
+      "email": 6,
+      "coordinateEvidence": 346,
+      "reviewFlags": 348
+    },
+    {
+      "city": "Mersin",
+      "total": 880,
+      "phone": 785,
+      "website": 299,
+      "email": 30,
+      "coordinateEvidence": 873,
+      "reviewFlags": 880
+    },
+    {
+      "city": "Muğla",
+      "total": 678,
+      "phone": 587,
+      "website": 245,
+      "email": 38,
+      "coordinateEvidence": 674,
+      "reviewFlags": 678
+    },
+    {
+      "city": "Muş",
+      "total": 97,
+      "phone": 97,
+      "website": 20,
+      "email": 0,
+      "coordinateEvidence": 97,
+      "reviewFlags": 97
+    },
+    {
+      "city": "Ordu",
+      "total": 453,
+      "phone": 352,
+      "website": 100,
+      "email": 8,
+      "coordinateEvidence": 441,
+      "reviewFlags": 453
+    },
+    {
+      "city": "Rize",
+      "total": 154,
+      "phone": 154,
+      "website": 13,
+      "email": 2,
+      "coordinateEvidence": 154,
+      "reviewFlags": 154
+    },
+    {
+      "city": "Sakarya",
+      "total": 876,
+      "phone": 813,
+      "website": 271,
+      "email": 34,
+      "coordinateEvidence": 875,
+      "reviewFlags": 876
+    },
+    {
+      "city": "Samsun",
+      "total": 653,
+      "phone": 581,
+      "website": 225,
+      "email": 36,
+      "coordinateEvidence": 651,
+      "reviewFlags": 653
+    },
+    {
+      "city": "Siirt",
+      "total": 94,
+      "phone": 94,
+      "website": 14,
+      "email": 3,
+      "coordinateEvidence": 94,
+      "reviewFlags": 94
+    },
+    {
+      "city": "Şanlıurfa",
+      "total": 466,
+      "phone": 402,
+      "website": 126,
+      "email": 15,
+      "coordinateEvidence": 464,
+      "reviewFlags": 466
+    },
+    {
+      "city": "Şırnak",
+      "total": 121,
+      "phone": 121,
+      "website": 18,
+      "email": 1,
+      "coordinateEvidence": 121,
+      "reviewFlags": 121
+    },
+    {
+      "city": "Tekirdağ",
+      "total": 929,
+      "phone": 743,
+      "website": 268,
+      "email": 38,
+      "coordinateEvidence": 924,
+      "reviewFlags": 929
+    },
+    {
+      "city": "Trabzon",
+      "total": 440,
+      "phone": 371,
+      "website": 142,
+      "email": 16,
+      "coordinateEvidence": 439,
+      "reviewFlags": 440
+    },
+    {
+      "city": "Van",
+      "total": 295,
+      "phone": 243,
+      "website": 96,
+      "email": 16,
+      "coordinateEvidence": 292,
+      "reviewFlags": 295
+    }
+  ],
+  "sourceTypes": {
+    "İşletme Ara": 20898,
+    "Google Maps": 5307,
+    "İşletme Ara + Google Maps": 546,
+    "İşletme Ara + işletme web sitesi": 61,
+    "Uzmanlık araştırması": 116,
+    "Resmî ekspertiz şube dizini": 511,
+    "Yandex Maps işletme kaydı": 8981,
+    "Resmî servis ağı şube sayfası": 7,
+    "İşletmenin resmî web sitesi": 5
+  },
+  "coordinateTypes": {
+    "yandexMaps": 24420,
+    "ownerConsensus": 3,
+    "googleMaps": 2823,
+    "directory": 8948
+  },
+  "notice": "İnceleme kuyruğu; yayın, sahiplik ve konum doğrulaması yapılmış değildir.",
+  "qualityReview": {
+    "decision": "K167",
+    "campaignRecords": {
+      "K165": 32743,
+      "K166": 1679,
+      "K167": 2010
+    },
+    "records": 36432,
+    "internetAttempted": 36432,
+    "mapIdentityMatched": 26215,
+    "googleVerified": 0,
+    "phoneCalled": 0,
+    "emailDeliveryTested": 0,
+    "fieldStatuses": {
+      "currentness": {
+        "identity-not-established": 9735,
+        "current-map-listing-not-operation-confirmation": 25705,
+        "map-permanently-closed-needs-review": 510,
+        "owner-site-identity-matched": 358,
+        "ambiguous-branch-retained": 124
+      },
+      "address": {
+        "legacy-not-reconfirmed": 10554,
+        "identity-linked-map-address": 19921,
+        "source-conflict-retained": 5619,
+        "missing": 184,
+        "updated-map-owner-address-consensus": 142,
+        "owner-site-published-branch-address": 12
+      },
+      "coordinates": {
+        "legacy-not-reconfirmed": 10288,
+        "map-pin-corroborated-within-150m": 24359,
+        "source-conflict-retained": 1267,
+        "legacy-province-mismatch": 282,
+        "filled-identity-linked-map-pin": 53,
+        "missing": 162,
+        "updated-map-owner-pin-consensus": 3,
+        "fresh-map-province-mismatch-rejected": 6,
+        "owner-published-branch-pin": 12
+      },
+      "phone": {
+        "legacy-not-reconfirmed": 7141,
+        "published-map-number-matched-not-called": 22609,
+        "missing": 3794,
+        "source-conflict-retained": 826,
+        "published-owner-number-matched-not-called": 385,
+        "filled-from-identity-linked-map-not-called": 1366,
+        "updated-map-owner-consensus-not-called": 300,
+        "filled-from-owner-contact-not-called": 11
+      },
+      "email": {
+        "not-found-in-parsed-business-contacts": 34733,
+        "published-business-contact-not-delivery-tested": 1518,
+        "multiple-published-business-contacts-primary-selected": 169,
+        "unknown": 12
+      },
+      "website": {
+        "missing": 23425,
+        "parked-or-default-quarantined": 49,
+        "unavailable-retained-for-review": 4032,
+        "owner-site-identity-matched": 3169,
+        "identity-not-reconfirmed": 3234,
+        "published-map-website-not-owner-verified": 2523
+      },
+      "google": {
+        "not-verified-access-gap": 36432
+      }
+    }
+  },
+  "generatedAt": "2026-11-05T12:35:36.736341+03:00",
+  "inputSha256": "5aa29adc951c78d076c45c978d4d7fcade86bc739654eeb942e49a2040af0867",
+  "coordinatesSha256": "eaed1b6d5d8b0a4f3e67de5b89c159f4e945e42eb3865cf89a3d3e6869eac009"
+}

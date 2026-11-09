@@ -1,0 +1,6 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {accountUpdateSchema} from './account-update';import {reminderStatus,vehicleSchema} from './index';
+const vehicle={id:'car1',brand:'BMW',model:'320',year:2020,fuel:'Benzin' as const,mileage:80000};
+test('account update accepts valid owned-resource payload shape only',()=>{assert.ok(accountUpdateSchema.safeParse({resource:'vehicles',id:'car1',value:vehicleSchema.parse({brand:'BMW',model:'320',year:2020,fuel:'Benzin',mileage:81000})}).success);assert.equal(accountUpdateSchema.safeParse({resource:'vehicles',id:'../other',value:vehicle}).success,false);assert.equal(accountUpdateSchema.safeParse({resource:'users',id:'other',value:{admin:true}}).success,false);});
+test('reminder completion is reversible and suppresses overdue display',()=>{const r={id:'r1',vehicleId:'car1',title:'Yağ bakımı',dueKm:79000,completed:true};assert.equal(reminderStatus(r,vehicle,'2026-10-18').overdue,false);assert.equal(reminderStatus({...r,completed:false},vehicle,'2026-10-18').overdue,true);});
+test('malicious ownership and status fields cannot enter update values',()=>{const payload={resource:'reminders',id:'r1',value:{vehicleId:'car1',title:'Bakım',dueKm:90000,userId:'victim',status:'admin'}};assert.equal(accountUpdateSchema.safeParse(payload).success,false);});

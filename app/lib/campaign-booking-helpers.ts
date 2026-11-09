@@ -1,0 +1,2 @@
+export type ReservationView = {id: string; status: string; expiresAtMs: number; currency: string; subtotalMinor: number; taxMinor: number; totalMinor: number; tariffVersion: number; campaignVersion: number};
+export type QuoteView = {currency: string; subtotalMinor: number; taxMinor: number; totalMinor: number; tariffVersion: number; campaignVersion: number; expiresAtMs: number; dates: string[]; reservation: ReservationView | null};

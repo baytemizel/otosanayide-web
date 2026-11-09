@@ -1,0 +1,1 @@
+export type ReviewView = {id: string; rating: number; text: string; resolved: string; wc: string; quality?: number; payment?: number; cleanliness?: number; wcCleanliness?: number; reply?: {text: string}; photoIds?: string[]};

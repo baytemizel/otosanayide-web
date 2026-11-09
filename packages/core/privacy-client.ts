@@ -1,0 +1,8 @@
+import {boundedBytes} from './bounded-body';
+import {garageApiUrl} from './garage-transfer';
+import {privacyOwnerAction,privacyOwnerResponse} from './privacy-requests';
+export async function fetchPrivacyRequest(options:{origin:string;token:()=>Promise<string>;guard:()=>void;locale:string;input?:unknown;request?:typeof fetch;timeoutMs?:number}){
+ const {guard}=options;guard();const url=garageApiUrl(options.origin).replace(/\/garage$/,'/privacy'),payload=options.input===undefined?undefined:privacyOwnerAction.parse(options.input);const controller=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
+ const timeout=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('privacy_timeout'));},options.timeoutMs??15_000);});
+ try{return await Promise.race([timeout,(async()=>{const token=await options.token();guard();if(controller.signal.aborted)throw Error('privacy_timeout');const response=await(options.request??fetch)(url,{method:payload?'POST':'GET',redirect:'error',signal:controller.signal,headers:{Authorization:`Bearer ${token}`,'Accept-Language':options.locale,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{})});guard();if(!response.ok)throw Error(response.status===428?'privacy_recent_login':response.status===409?'privacy_conflict':response.status===401?'session_expired':response.status===403?'email_unverified':response.status===503?'privacy_disabled':'privacy_request');const bytes=await boundedBytes(response,4096);guard();const value=privacyOwnerResponse.parse(JSON.parse(new TextDecoder().decode(bytes)));guard();return value;})()]);}finally{clearTimeout(timer);}
+}

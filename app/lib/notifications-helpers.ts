@@ -1,0 +1,1 @@
+export type Notice = {id: string; requestId?: string; status?: string; kind?: 'reminder'; vehicleLabel?: string; title?: string; phase?: string; dueDate?: string | null; dueKm?: number | null; createdAtMs: number; read: boolean};

@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {sampleBusinesses,searchBusinesses} from './index';
+test('district filters respect city and Turkish normalization',()=>{const result=searchBusinesses(sampleBusinesses,{city:'İstanbul',district:'umraniye'});assert.deepEqual(result.map(b=>b.id),['sample-motor']);assert.equal(searchBusinesses(sampleBusinesses,{city:'Ankara',district:'Ümraniye'}).length,0);});
+test('district requires a city; clearing it widens only within the city',()=>{assert.equal(searchBusinesses(sampleBusinesses,{district:'Ümraniye'}).length,0);const result=searchBusinesses(sampleBusinesses,{city:'İstanbul',district:''});assert.equal(result.length,5);assert.ok(result.every(b=>b.city==='İstanbul'));});
+test('unpublished businesses stay excluded from district search',()=>{assert.equal(searchBusinesses([{...sampleBusinesses[0],published:false}],{city:'İstanbul',district:'Ümraniye'}).length,0);});

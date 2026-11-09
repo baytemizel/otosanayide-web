@@ -1,0 +1,1 @@
+export type RequestItem = {id: string; businessId: string; businessName: string; kind: 'quotes' | 'appointments'; service: string; vehicle: string; message: string; preferredDate?: string; status: string; version: number; offer?: {text: string; price?: number; startsAt?: string; expiresAtMs: number}; resolution?: string};
