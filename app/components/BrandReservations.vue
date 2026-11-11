@@ -10,6 +10,7 @@ import BrandOrderPanel from '~/components/BrandOrderPanel.vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
+import {brandCapacitySaved, brandQuoteResponse, brandReservationReleased, brandReservationSaved, brandReservationsResponse, brandTariffResponse, readAdResponse} from '~/lib/ads-client';
 import {apiFetch} from '~/lib/api';
 
 type Capacity={enabled:boolean;capacity:number;version:number};
@@ -46,10 +47,20 @@ useClientEffect(()=>[hold.value,quote.value],()=>{
   return()=>clearInterval(id);
 });
 
+/** Each admin path answers one checked shape (ads-client); anything else is an error, never a half-read panel. */
+const decoders:Record<string,(raw:unknown)=>any>={
+  'GET brand-reservations':raw=>brandReservationsResponse.parse(raw),
+  'POST brand-reservations':raw=>brandReservationSaved.parse(raw),
+  'DELETE brand-reservations':raw=>brandReservationReleased.parse(raw),
+  'PATCH brand-capacities':raw=>brandCapacitySaved.parse(raw),
+  'GET brand-tariffs':raw=>brandTariffResponse.parse(raw),
+  'POST brand-quote':raw=>brandQuoteResponse.parse(raw),
+};
 async function api(path:string,method='GET',payload?:unknown){
-  const r=await apiFetch('/api/admin/'+path,{method,headers:{Authorization:`Bearer ${await app.user?.getIdToken()}`,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'}),d=await r.json();
-  if(!r.ok)throw Error(d.error);
-  return d;
+  const r=await apiFetch('/api/admin/'+path,{method,headers:{Authorization:`Bearer ${await app.user?.getIdToken()}`,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
+  const decode=decoders[method+' '+path.split('?')[0]];
+  if(!decode)throw Error('decoder');
+  return readAdResponse(r,decode);
 }
 
 async function run(fn:()=>Promise<void>){
@@ -157,47 +168,47 @@ function cancelled(){
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="sec ds-col ds-g12">
     <h4>{{ t('Banner Kapasitesi ve Rezervasyon') }}</h4>
     <p>{{ t(item.creative.placement==='home_banner'?'Ana sayfa banner':'Kategori banner') }}</p>
-    <p class="notice">{{ t('Bu kapasite tüm il ve kategoriler arasında ortaktır. Değişiklik aynı yerleşimdeki bütün marka kampanyalarını etkiler.') }}</p>
+    <p class="ds-note info ds-col">{{ t('Bu kapasite tüm il ve kategoriler arasında ortaktır. Değişiklik aynı yerleşimdeki bütün marka kampanyalarını etkiler.') }}</p>
     <p v-if="blocked">{{ t('Rezervasyon için kampanya değişikliklerini kaydet.') }}</p>
     <template v-else>
-      <button class="button secondary" :disabled="busy||disabled||changed" @click="refresh()">{{ t('Kapasiteyi ve rezervasyonu yenile') }}</button>
+      <button class="ds-btn s" :disabled="busy||disabled||changed" @click="refresh()">{{ t('Kapasiteyi ve rezervasyonu yenile') }}</button>
       <template v-if="loaded">
-        <fieldset class="form-grid" :disabled="busy||disabled" :style="{border:0,padding:0,minWidth:0}">
-          <label>{{ t('Günlük banner kapasitesi (1–20)') }}<input inputmode="numeric" :value="count" @input="count=($event.target as HTMLInputElement).value;quote=null"/></label>
-          <label class="row"><input type="checkbox" :checked="enabled" @change="enabled=($event.target as HTMLInputElement).checked;quote=null"/>{{ t('Kapasite yeni rezervasyonlara açık') }}</label>
-          <label class="span-all">{{ t('Kapasite değişiklik gerekçesi') }}<textarea v-model="reason" maxlength="1000"></textarea></label>
+        <fieldset class="grid fs" :disabled="busy||disabled">
+          <label class="fld"><span class="ds-label">{{ t('Günlük banner kapasitesi (1–20)') }}</span><input class="ds-field" inputmode="numeric" :value="count" @input="count=($event.target as HTMLInputElement).value;quote=null"/></label>
+          <label class="ck"><input class="ds-check" type="checkbox" :checked="enabled" @change="enabled=($event.target as HTMLInputElement).checked;quote=null"/><span>{{ t('Kapasite yeni rezervasyonlara açık') }}</span></label>
+          <label class="fld all"><span class="ds-label">{{ t('Kapasite değişiklik gerekçesi') }}</span><textarea class="ds-field" v-model="reason" maxlength="1000"></textarea></label>
         </fieldset>
-        <p class="small muted">{{ t('Kapasiteyi azaltmak veya kapatmak mevcut rezervasyonları iptal etmez.') }}</p>
+        <p class="ds-small ds-muted">{{ t('Kapasiteyi azaltmak veya kapatmak mevcut rezervasyonları iptal etmez.') }}</p>
         <p v-if="changed" role="status">{{ t('Kaydedilmemiş kapasite değişiklikleri var.') }}</p>
-        <div class="row" :style="{flexWrap:'wrap'}">
-          <button class="button primary" :disabled="busy||disabled||reason.trim().length<10" @click="saveCapacity()">{{ t(demo?'Örnek kapasiteyi hazırla':'Kapasiteyi kaydet') }}</button>
-          <button class="button secondary" :disabled="busy||disabled||!changed" @click="revertCapacity()">{{ t('Kapasite değişikliklerini geri al') }}</button>
+        <div class="ds-row ds-g8 ds-wrap">
+          <button class="ds-btn p" :disabled="busy||disabled||reason.trim().length<10" @click="saveCapacity()">{{ t(demo?'Örnek kapasiteyi hazırla':'Kapasiteyi kaydet') }}</button>
+          <button class="ds-btn s" :disabled="busy||disabled||!changed" @click="revertCapacity()">{{ t('Kapasite değişikliklerini geri al') }}</button>
         </div>
-        <p v-if="!live||demo" class="notice">{{ t('Canlı rezervasyon kapalı. Bu ekranda ödeme veya yayın başlatılmaz.') }}</p>
+        <p v-if="!live||demo" class="ds-note warn ds-col">{{ t('Canlı rezervasyon kapalı. Bu ekranda ödeme veya yayın başlatılmaz.') }}</p>
         <p v-if="item.status!=='approved'">{{ t('Rezervasyon için kreatif onayı gerekir.') }}</p>
-        <div v-if="hold" class="notice" role="status">
+        <div v-if="hold" class="ds-note info ds-col" role="status">
           <strong>{{ t(hold.status==='committed'?'Reklam alanı kesin ayrıldı':hold.status==='released'?'Rezervasyon iptal edildi':held?'Yer geçici olarak ayrıldı':'Rezervasyonun süresi doldu') }}</strong>
           <p>{{ hold.id }}</p>
           <p>{{ t('Toplam') }}: {{ money(hold.totalMinor) }}</p>
           <p>{{ t('Geçerlilik sonu') }}: {{ time(hold.committedUntilMs??hold.expiresAtMs) }} · {{ t('İstanbul saati') }}</p>
         </div>
-        <div class="row" :style="{flexWrap:'wrap'}">
-          <button class="button secondary" :disabled="demo||!live||busy||disabled||changed||!capacity?.enabled||held||item.status!=='approved'" @click="fetchQuote()">{{ t('Rezervasyon ön hesabını getir') }}</button>
-          <button v-if="hold?.status==='held'" class="button secondary" :disabled="busy||disabled||demo" @click="releaseHold()">{{ t('Rezervasyonu iptal et') }}</button>
+        <div class="ds-row ds-g8 ds-wrap">
+          <button class="ds-btn s" :disabled="demo||!live||busy||disabled||changed||!capacity?.enabled||held||item.status!=='approved'" @click="fetchQuote()">{{ t('Rezervasyon ön hesabını getir') }}</button>
+          <button v-if="hold?.status==='held'" class="ds-btn s" :disabled="busy||disabled||demo" @click="releaseHold()">{{ t('Rezervasyonu iptal et') }}</button>
         </div>
         <template v-if="quote&&!changed">
           <p v-if="now>=quote.expiresAtMs" role="status">{{ t('Teklifin süresi doldu. Yeniden hesapla.') }}</p>
-          <div v-else class="notice stack">
+          <div v-else class="ds-note info ds-col">
             <strong>{{ t('Ön hesap · Ödeme değildir') }}</strong>
             <span>{{ quote.startDate }} → {{ quote.endDate }}</span>
             <span>{{ t('Ara toplam') }}: {{ money(quote.subtotalMinor) }} · {{ t('Vergi') }}: {{ money(quote.taxMinor) }}</span>
             <strong>{{ t('Toplam') }}: {{ money(quote.totalMinor) }}</strong>
             <span>{{ t('Geçerlilik sonu') }}: {{ time(quote.expiresAtMs) }} · {{ t('İstanbul saati') }}</span>
-            <button class="button primary" :disabled="busy||disabled||!live||demo||held||!capacity?.enabled" @click="reserve()">{{ t('15 dakikalık yer ayır') }}</button>
-            <small>{{ t('Yanıt alınamazsa aynı düğmeyle tekrar dene veya rezervasyonu yenile. Tekrar istek süreyi uzatmaz.') }}</small>
+            <button class="ds-btn p" :disabled="busy||disabled||!live||demo||held||!capacity?.enabled" @click="reserve()">{{ t('15 dakikalık yer ayır') }}</button>
+            <small class="ds-xs ds-muted">{{ t('Yanıt alınamazsa aynı düğmeyle tekrar dene veya rezervasyonu yenile. Tekrar istek süreyi uzatmaz.') }}</small>
           </div>
         </template>
       </template>
@@ -206,7 +217,22 @@ function cancelled(){
     <BrandAcceptance v-if="!blocked" :key="hold?.id??'empty'" :id="hold?.id" :demo="demo" :disabled="disabled||busy||changed" :onBusy="childBusy" :onAccepted="accepted"/>
     <BrandCancellation v-if="!blocked" :key="`cancel-${hold?.id??'empty'}`" :id="hold?.id" :demo="demo" :disabled="disabled||busy||changed" :onBusy="childBusy" :onCancelled="cancelled"/>
     <BrandPreview v-if="!blocked" :key="`preview-${hold?.id??'empty'}-${hold?.status??'empty'}`" :id="hold?.id" :demo="demo" :disabled="disabled||busy||changed" :onBusy="childBusy"/>
-    <p v-if="error" class="error" role="alert">{{ t(error) }}</p>
+    <p v-if="error" class="ds-note err" role="alert">{{ t(error) }}</p>
     <p v-if="message" role="status">{{ t(message) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+.all{grid-column:1/-1}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+input.ds-check{min-height:0;padding:0;width:20px}
+.fs{border:0;padding:0;margin:0;min-width:0}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

@@ -51,28 +51,34 @@ async function reply(c: Claim, text: string) {
 </script>
 
 <template>
-  <section v-if="app.demo" class="panel">
-    <h2>{{ i18nT('Başvuru takibi') }}</h2>
-    <p>{{ i18nT('Önizleme başvuruları gerçek kurumsal hesap oluşturmaz. Canlı hesabında başvurunun durumunu, inceleme gerekçesini ve ek bilgi taleplerini burada göreceksin.') }}</p>
+  <section v-if="app.demo" class="ds-card ds-pad24 ds-col ds-g8">
+    <h3>{{ i18nT('Başvuru takibi') }}</h3>
+    <p class="ds-small ds-muted">{{ i18nT('Önizleme başvuruları gerçek kurumsal hesap oluşturmaz. Canlı hesabında başvurunun durumunu, inceleme gerekçesini ve ek bilgi taleplerini burada göreceksin.') }}</p>
   </section>
-  <section v-else-if="!app.user" class="panel">
+  <section v-else-if="!app.user" class="ds-card ds-pad24 ds-col ds-g12">
     <p>{{ i18nT('Başvurularını takip etmek için giriş yap.') }}</p>
+    <div><NuxtLink class="ds-btn s sm" to="/isletme/giris">{{ i18nT('Giriş yap') }}</NuxtLink></div>
   </section>
-  <section v-else>
-    <div class="row between">
-      <h2>{{ i18nT('Başvurularım') }}</h2>
-      <button class="button secondary compact" :disabled="loading" @click="reload++">{{ i18nT('Başvuruları yenile') }}</button>
+  <section v-else class="ds-col ds-g16">
+    <div class="ds-row ds-sb ds-wrap ds-g12">
+      <h3>{{ i18nT('Başvurularım') }}</h3>
+      <button class="ds-btn s sm" :disabled="loading" @click="reload++">{{ i18nT('Başvuruları yenile') }}</button>
     </div>
-    <p v-if="message" role="status" class="notice">{{ i18nT(message) }}</p>
-    <p v-if="error" role="alert" class="error">{{ i18nT(error) }}</p>
-    <p v-if="loading" role="status">{{ i18nT('Başvurular yükleniyor…') }}</p>
+    <div v-if="message" role="status" class="ds-note ok">{{ i18nT(message) }}</div>
+    <div v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</div>
+    <p v-if="loading" role="status" class="ds-small ds-muted">{{ i18nT('Başvurular yükleniyor…') }}</p>
     <template v-else>
-      <div v-for="c in claims" :key="c.id">
+      <div v-for="c in claims" :key="c.id" class="ds-col ds-g12">
         <ClaimReply :claim="c" :onReply="(text: string) => reply(c, text)"/>
         <ClaimEvidence :claimId="c.id" :canUpload="['submitted','needs_information'].includes(c.status)"/>
       </div>
     </template>
-    <p v-if="!loading&&!error&&!claims.length">{{ i18nT('Henüz başvurun yok.') }}</p>
-    <p v-if="claims.length===50" class="notice">{{ i18nT('İlk 50 başvuru gösteriliyor. Daha eski kayıtlar için destek ekibine başvur.') }}</p>
+    <p v-if="!loading&&!error&&!claims.length" class="ds-small ds-muted">{{ i18nT('Henüz başvurun yok.') }}</p>
+    <div v-if="claims.length===50" class="ds-note">{{ i18nT('İlk 50 başvuru gösteriliyor. Daha eski kayıtlar için destek ekibine başvur.') }}</div>
   </section>
 </template>
+
+<style scoped>
+p {margin: 0;}
+h3 {margin: 0;}
+</style>

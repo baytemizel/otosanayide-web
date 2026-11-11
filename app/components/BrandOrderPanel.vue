@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
+import {Clock, X} from '@lucide/vue';
 import HostedCheckoutButton from '~/components/HostedCheckoutButton.vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
+import {brandOrderPrepared, brandOrderResponse, readAdResponse} from '~/lib/ads-client';
 import {apiFetch} from '~/lib/api';
 import type {brandOrderView} from '@otosanayide/core/brand-orders';
 
@@ -38,8 +40,7 @@ async function run(method: 'GET' | 'POST') {
   props.onBusy?.(true);
   error.value = '';
   try {
-    const r = await apiFetch('/api/admin/brand-orders' + (method === 'GET' ? '?' + new URLSearchParams({reservationId: hold.id}) : ''), {method, headers: {Authorization: `Bearer ${await app.user?.getIdToken()}`, ...(method === 'POST' ? {'Content-Type': 'application/json'} : {})}, body: method === 'POST' ? JSON.stringify({reservationId: hold.id}) : undefined, cache: 'no-store'}), d = await r.json();
-    if (!r.ok) throw Error(d.error);
+    const r = await apiFetch('/api/admin/brand-orders' + (method === 'GET' ? '?' + new URLSearchParams({reservationId: hold.id}) : ''), {method, headers: {Authorization: `Bearer ${await app.user?.getIdToken()}`, ...(method === 'POST' ? {'Content-Type': 'application/json'} : {})}, body: method === 'POST' ? JSON.stringify({reservationId: hold.id}) : undefined, cache: 'no-store'}), d = await readAdResponse(r, raw => (method === 'GET' ? brandOrderResponse.parse(raw) : {enabled: undefined, checkoutEnabled: undefined, ...brandOrderPrepared.parse(raw)})) as {enabled?: boolean; checkoutEnabled?: boolean; order: Order | null};
     if (d.order && (d.order.reservationId !== hold.id || d.order.id !== hold.id || d.order.payable !== false || !['prepared', 'expired', 'cancelled', 'invalidated'].includes(d.order.status))) throw Error(t('Reklam ödeme kaydı doğrulanamadı. Yenile.'));
     order.value = d.order;
     loaded.value = true;
@@ -64,29 +65,47 @@ const time = (v: number) => new Date(v).toLocaleString(localeTag.value, {timeZon
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="sec ds-col ds-g12">
     <h4>{{ t('Reklam Rezervasyonu ve Ödeme Durumu') }}</h4>
-    <p class="notice">{{ t('Bu kayıt yalnız banner reklamının ödeme hazırlığıdır. Henüz tahsilat veya yayın başlatılmaz.') }}</p>
+    <p class="ds-note info ds-col">{{ t('Bu kayıt yalnız banner reklamının ödeme hazırlığıdır. Henüz tahsilat veya yayın başlatılmaz.') }}</p>
     <p v-if="demo||!hold">{{ t(demo?'Demo modunda gerçek reklam ödeme kaydı oluşturulmaz.':'Ödeme durumunu görmek için reklam rezervasyonunu yükle.') }}</p>
     <template v-else>
-      <button class="button secondary" :disabled="busy||disabled" @click="void run('GET')">{{ t('Reklam ödeme durumunu yenile') }}</button>
+      <button class="ds-btn s" :disabled="busy||disabled" @click="void run('GET')">{{ t('Reklam ödeme durumunu yenile') }}</button>
       <p v-if="loaded&&!enabled">{{ t('Reklam ödeme hazırlığı kapalı. Mevcut kayıtlar okunabilir.') }}</p>
       <p v-if="loaded&&!order&&!error">{{ t('Bu reklam rezervasyonu için ödeme hazırlığı yapılmadı.') }}</p>
-      <button v-if="loaded&&enabled&&!order" class="button primary" :disabled="busy||disabled||hold.status!=='held'||hold.expiresAtMs<=now" @click="void run('POST')">{{ t('Reklam ödeme kaydını hazırla') }}</button>
-      <div v-if="order&&status" class="notice stack" role="status">
-        <strong>{{ t(labels[status]) }}</strong>
-        <small :style="{overflowWrap:'anywhere'}">{{ t('Reklam ödeme referansı') }}: {{ order.id }}</small>
+      <button v-if="loaded&&enabled&&!order" class="ds-btn p" :disabled="busy||disabled||hold.status!=='held'||hold.expiresAtMs<=now" @click="void run('POST')">{{ t('Reklam ödeme kaydını hazırla') }}</button>
+      <div v-if="order&&status" class="res" role="status">
+        <span :class="['ic',status==='prepared'?'i-warn':'i-err']"><component :is="status==='prepared'?Clock:X" :size="34" :stroke-width="1.8" aria-hidden="true"/></span>
+        <strong class="ttl">{{ t(labels[status]) }}</strong>
+        <small class="ds-xs ds-muted brk">{{ t('Reklam ödeme referansı') }}: {{ order.id }}</small>
         <span>{{ t('Ara toplam') }}: {{ money(order.subtotalMinor) }}</span>
         <span>{{ t('Vergi') }}: {{ money(order.taxMinor) }}</span>
         <strong>{{ t('Kayıtlı toplam') }}: {{ money(order.totalMinor) }}</strong>
-        <small>{{ t('Geçerlilik sonu') }}: {{ time(order.expiresAtMs) }} · {{ t('İstanbul saati') }}</small>
+        <small class="ds-xs ds-muted">{{ t('Geçerlilik sonu') }}: {{ time(order.expiresAtMs) }} · {{ t('İstanbul saati') }}</small>
         <p v-if="status!=='prepared'">{{ t('Bu kayıtla işlem yapılamaz. Güncel rezervasyon ve koşulları kontrol et.') }}</p>
       </div>
       <HostedCheckoutButton v-if="checkoutReady&&order&&status==='prepared'&&hold?.status==='held'" kind="brand" :reservationId="hold.id" :disabled="busy||disabled"/>
-      <small v-if="checked>0">{{ t('Son sunucu kontrolü') }}: {{ time(checked) }} · {{ t('İstanbul saati') }}</small>
-      <p class="small muted">{{ t('Durum istek üzerine yenilenir. Yanıt kaybolursa yenile veya aynı düğmeyle tekrar dene; ödeme kaydı çoğaltılmaz.') }}</p>
+      <small class="ds-xs ds-muted" v-if="checked>0">{{ t('Son sunucu kontrolü') }}: {{ time(checked) }} · {{ t('İstanbul saati') }}</small>
+      <p class="ds-small ds-muted">{{ t('Durum istek üzerine yenilenir. Yanıt kaybolursa yenile veya aynı düğmeyle tekrar dene; ödeme kaydı çoğaltılmaz.') }}</p>
     </template>
     <p v-if="busy" role="status">{{ t('Yükleniyor…') }}</p>
-    <p v-if="error" class="error" role="alert">{{ t(error) }}</p>
+    <p v-if="error" class="ds-note err" role="alert">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+.brk{overflow-wrap:anywhere}
+.res{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:36px 28px;border:1px solid #dfe5eb;border-radius:14px;background:#fff}
+.ttl{font-size:19px;line-height:1.3}
+.ic{width:72px;height:72px;border-radius:36px;display:flex;align-items:center;justify-content:center}
+.i-ok{background:#e8f4ee;color:#21684e}
+.i-warn{background:#fff6df;color:#8a5a00}
+.i-err{background:#fdecea;color:#b42318}
+.i-neu{background:#f0f2f5;color:#536276}
+@media(max-width:480px){.res{padding:24px 16px}}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

@@ -14,5 +14,5 @@ useClientEffect(() => [], () => {
 </script>
 
 <template>
-  <dialog ref="dialogEl" class="garage-photo-dialog" :aria-label="t('İşletme fotoğrafı')" @close="close()"><button autofocus class="button secondary" @click="dialogEl?.close()">{{ t('Kapat') }}</button><p v-if="failed" role="alert">{{ t('Fotoğraf şu anda görüntülenemiyor.') }}</p><img :hidden="failed" :src="src" :alt="t('İşletme fotoğrafı')" :style="{maxHeight:'75dvh',maxWidth:'100%',objectFit:'contain'}" @error="failed=true"/></dialog>
+  <dialog ref="dialogEl" class="garage-photo-dialog" :aria-label="t('İşletme fotoğrafı')" @close="close()"><button autofocus class="ds-btn s sm" @click="dialogEl?.close()">{{ t('Kapat') }}</button><p v-if="failed" role="alert">{{ t('Fotoğraf şu anda görüntülenemiyor.') }}</p><img :hidden="failed" :src="src" :alt="t('İşletme fotoğrafı')" :style="{maxHeight:'75dvh',maxWidth:'100%',objectFit:'contain'}" @error="failed=true"/></dialog>
 </template>

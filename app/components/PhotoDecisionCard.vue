@@ -56,20 +56,27 @@ function reject() {
 </script>
 
 <template>
-  <section class="panel stack">
-    <h3>{{ i18nT('Yorum fotoğrafı') }}</h3>
-    <p>{{ photo.width }} × {{ photo.height }} · {{ Math.ceil(photo.bytes/1024) }} KB</p>
-    <button class="button secondary" :disabled="busy" @click="openPhoto">{{ i18nT('Fotoğrafı tam boyutta incele') }}</button>
+  <section class="ds-card ds-pad24 ds-col ds-g16">
+    <div class="ds-col ds-g4">
+      <h3 style="margin:0">{{ i18nT('Yorum fotoğrafı') }}</h3>
+      <div class="ds-xs ds-muted">{{ photo.width }} × {{ photo.height }} · {{ Math.ceil(photo.bytes/1024) }} KB</div>
+    </div>
+    <div><button class="ds-btn s sm" :disabled="busy" @click="openPhoto">{{ i18nT('Fotoğrafı tam boyutta incele') }}</button></div>
     <PhotoDialog v-if="url" :src="url" :onClose="closePhoto"/>
-    <p class="small muted">{{ i18nT('Yüz, plaka, kişisel belge, uygunsuz içerik ve işletmeyle ilgisiz görüntü açısından incele. Görsel AI kontrolü bu akışta etkin değildir.') }}</p>
-    <form @submit="submit">
-      <label>{{ i18nT('İnceleme gerekçesi') }}<textarea v-model="reason" required minlength="10" maxlength="1000" :disabled="busy"/></label>
-      <label v-if="photo.status==='pending'" class="evidence-attestation"><input v-model="attested" type="checkbox" :disabled="busy||!viewed"/>{{ i18nT('Fotoğrafı açıp kişisel bilgi ve yayın uygunluğunu kontrol ettim.') }}</label>
-      <div class="row">
-        <button class="button primary" :disabled="busy||(photo.status==='pending'&&(!viewed||!attested))">{{ photo.status==='approved'?i18nT('Yayından kaldır'):i18nT('Fotoğrafı yayımla') }}</button>
-        <button v-if="photo.status==='pending'" type="button" class="button secondary" :disabled="busy||reason.trim().length<10" @click="reject">{{ i18nT('Gerekçeyle reddet') }}</button>
+    <div class="ds-note">{{ i18nT('Yüz, plaka, kişisel belge, uygunsuz içerik ve işletmeyle ilgisiz görüntü açısından incele. Görsel AI kontrolü bu akışta etkin değildir.') }}</div>
+    <form class="ds-col ds-g16" @submit="submit">
+      <label class="ds-col"><span class="ds-label">{{ i18nT('İnceleme gerekçesi') }}</span><textarea v-model="reason" class="ds-field" required minlength="10" maxlength="1000" :disabled="busy"/></label>
+      <label v-if="photo.status==='pending'" class="ds-row ds-as ds-g10 ds-small"><input v-model="attested" class="ds-check" type="checkbox" :disabled="busy||!viewed"/>{{ i18nT('Fotoğrafı açıp kişisel bilgi ve yayın uygunluğunu kontrol ettim.') }}</label>
+      <div class="ds-row ds-wrap ds-g10">
+        <button class="ds-btn" :class="photo.status==='approved'?'d':'n'" :disabled="busy||(photo.status==='pending'&&(!viewed||!attested))">{{ photo.status==='approved'?i18nT('Yayından kaldır'):i18nT('Fotoğrafı yayımla') }}</button>
+        <button v-if="photo.status==='pending'" type="button" class="ds-btn d" :disabled="busy||reason.trim().length<10" @click="reject">{{ i18nT('Gerekçeyle reddet') }}</button>
       </div>
     </form>
-    <p v-if="error" role="alert" class="error">{{ i18nT(error) }}</p>
+    <div v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</div>
   </section>
 </template>
+
+<style scoped>
+input.ds-check{width:20px;height:20px;min-height:0;padding:0}
+@media(max-width:480px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;text-align:center}}
+</style>

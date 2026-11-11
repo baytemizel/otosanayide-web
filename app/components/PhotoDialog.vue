@@ -15,7 +15,7 @@ useClientEffect(() => [], () => {
 
 <template>
   <dialog ref="dialog" class="garage-photo-dialog" :aria-label="i18nT('Yorum fotoğrafı')" @close="onClose">
-    <button class="button secondary" autofocus @click="dialog?.close()">{{ i18nT('Kapat') }}</button>
+    <button class="ds-btn s sm" autofocus @click="dialog?.close()">{{ i18nT('Kapat') }}</button>
     <img :src="src" :alt="i18nT('Yorum fotoğrafı')" :style="{maxHeight:'75dvh',objectFit:'contain'}"/>
   </dialog>
 </template>

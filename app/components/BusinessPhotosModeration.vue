@@ -23,9 +23,9 @@ function reload() {
 </script>
 
 <template>
-  <section class="stack">
-    <h2>{{ t('İşletme fotoğrafları') }}</h2>
-    <label>{{ t('Fotoğraf durumu') }}<select :value="state" @change="changeState"><option value="pending">{{ t('İnceleme bekleyenler') }}</option><option value="approved">{{ t('Yayımlananlar') }}</option></select></label>
+  <section class="ds-col ds-g16">
+    <h3 style="margin:0">{{ t('İşletme fotoğrafları') }}</h3>
+    <label class="ds-col" style="max-width:320px"><span class="ds-label">{{ t('Fotoğraf durumu') }}</span><select class="ds-field" :value="state" @change="changeState"><option value="pending">{{ t('İnceleme bekleyenler') }}</option><option value="approved">{{ t('Yayımlananlar') }}</option></select></label>
     <BusinessPhotosModerationPage :key="state+':'+after+':'+revision" :state="state" :after="after" :options="options" :guard="guard" :next="next" :reload="reload"/>
   </section>
 </template>

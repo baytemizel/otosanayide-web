@@ -2,11 +2,12 @@
 import {computed,ref} from 'vue';
 import {categories} from '@otosanayide/core';
 import type {BrandView} from '@otosanayide/core/brand-campaigns';
-import {brandPrice,brandTariffUpdate,brandTariffView,type BrandTariff} from '@otosanayide/core/brand-pricing';
+import {brandPrice,brandTariffUpdate,type BrandTariff} from '@otosanayide/core/brand-pricing';
 import {decimalHundredths} from '@otosanayide/core/ad-form';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
+import {brandQuoteResponse, brandTariffResponse, readAdResponse} from '~/lib/ads-client';
 import {apiFetch} from '~/lib/api';
 
 type Quote=ReturnType<typeof brandPrice>;
@@ -42,9 +43,7 @@ useClientEffect(()=>[quote.value],()=>{
 
 async function request(path:string,method='GET',payload?:unknown){
   const r=await apiFetch('/api/admin/'+path,{method,headers:{Authorization:`Bearer ${await app.user?.getIdToken()}`,...(payload?{'Content-Type':'application/json'}:{})},body:payload?JSON.stringify(payload):undefined,cache:'no-store'});
-  const d=await r.json();
-  if(!r.ok)throw Error(d.error);
-  return d;
+  return readAdResponse(r,(raw):any=>path.startsWith('brand-quote')?brandQuoteResponse.parse(raw):brandTariffResponse.parse(raw));
 }
 
 async function run(fn:()=>Promise<void>){
@@ -86,7 +85,7 @@ function openTariff(){
 function saveTariff(){
   void run(async()=>{
     const a=brandTariffUpdate.parse({version:tariff.value?.version??0,value:{market:market.value,enabled:enabled.value,dailyMinor:decimalHundredths(daily.value),taxBasisPoints:decimalHundredths(tax.value)},reason:reason.value});
-    const next=props.demo?{...a.value,version:a.version+1}:brandTariffView((await request('brand-tariffs','PATCH',a)).tariff);
+    const next=props.demo?{...a.value,version:a.version+1}:(await request('brand-tariffs','PATCH',a)).tariff;
     setTariff(next);
     message.value=props.demo?'Örnek tarife hazır. Sunucuya kaydedilmedi.':'Tarife kaydedildi.';
   });
@@ -110,41 +109,56 @@ function calculateQuote(){
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="sec ds-col ds-g12">
     <h4>{{ t('Marka Tarifesi ve Teklif') }}</h4>
     <p>{{ t(c.placement==='home_banner'?'Ana sayfa banner':'Kategori banner') }} · {{ c.city||t('Kapsamdaki tüm iller') }} · {{ t(categories.find(x=>x.id===c.category)?.name??'Tüm kategoriler') }}</p>
-    <p class="small muted">{{ t('Bu kapsama özel günlük tarife. Ön hesap rezervasyon veya ödeme değildir.') }}</p>
-    <p v-if="blocked" class="notice">{{ t('Teklif için önce kampanya değişikliklerini kaydet.') }}</p>
+    <p class="ds-small ds-muted">{{ t('Bu kapsama özel günlük tarife. Ön hesap rezervasyon veya ödeme değildir.') }}</p>
+    <p v-if="blocked" class="ds-note info ds-col">{{ t('Teklif için önce kampanya değişikliklerini kaydet.') }}</p>
     <template v-else>
-      <button class="button secondary" :disabled="busy||disabled||changed" @click="openTariff()">{{ t('Tarifeyi aç / Yenile') }}</button>
+      <button class="ds-btn s" :disabled="busy||disabled||changed" @click="openTariff()">{{ t('Tarifeyi aç / Yenile') }}</button>
       <template v-if="loaded">
-        <fieldset :disabled="busy||disabled" class="form-grid" :style="{border:0,padding:0,minWidth:0}">
-          <label>{{ t('Günlük ücret (TL)') }}<input inputmode="decimal" :value="daily" @input="daily=($event.target as HTMLInputElement).value;quote=null"/></label>
-          <label>{{ t('Vergi oranı (%)') }}<input inputmode="decimal" :value="tax" @input="tax=($event.target as HTMLInputElement).value;quote=null"/></label>
-          <label class="row"><input type="checkbox" :checked="enabled" @change="enabled=($event.target as HTMLInputElement).checked;quote=null"/>{{ t('Tarife hesaplamaya açık') }}</label>
-          <label class="span-all">{{ t('Tarife değişiklik gerekçesi') }}<textarea v-model="reason" maxlength="1000"></textarea></label>
+        <fieldset :disabled="busy||disabled" class="grid fs">
+          <label class="fld"><span class="ds-label">{{ t('Günlük ücret (TL)') }}</span><input class="ds-field" inputmode="decimal" :value="daily" @input="daily=($event.target as HTMLInputElement).value;quote=null"/></label>
+          <label class="fld"><span class="ds-label">{{ t('Vergi oranı (%)') }}</span><input class="ds-field" inputmode="decimal" :value="tax" @input="tax=($event.target as HTMLInputElement).value;quote=null"/></label>
+          <label class="ck"><input class="ds-check" type="checkbox" :checked="enabled" @change="enabled=($event.target as HTMLInputElement).checked;quote=null"/><span>{{ t('Tarife hesaplamaya açık') }}</span></label>
+          <label class="fld all"><span class="ds-label">{{ t('Tarife değişiklik gerekçesi') }}</span><textarea class="ds-field" v-model="reason" maxlength="1000"></textarea></label>
         </fieldset>
-        <p v-if="demo" class="notice">{{ t('Demo: girdiğin fiyat yalnız bu ekranda örnek hesap için kullanılır.') }}</p>
+        <p v-if="demo" class="ds-note info ds-col">{{ t('Demo: girdiğin fiyat yalnız bu ekranda örnek hesap için kullanılır.') }}</p>
         <p v-if="changed" role="status">{{ t('Kaydedilmemiş tarife değişiklikleri var.') }}</p>
-        <div class="row" :style="{flexWrap:'wrap'}">
-          <button class="button primary" :disabled="busy||disabled||reason.trim().length<10" @click="saveTariff()">{{ t(demo?'Örnek tarifeyi hazırla':'Tarifeyi kaydet') }}</button>
-          <button class="button secondary" :disabled="busy||disabled||!changed" @click="revertTariff()">{{ t('Tarife değişikliklerini geri al') }}</button>
-          <button class="button secondary" :disabled="busy||disabled||changed||!tariff?.enabled" @click="calculateQuote()">{{ t('Teklifi hesapla') }}</button>
+        <div class="ds-row ds-g8 ds-wrap">
+          <button class="ds-btn p" :disabled="busy||disabled||reason.trim().length<10" @click="saveTariff()">{{ t(demo?'Örnek tarifeyi hazırla':'Tarifeyi kaydet') }}</button>
+          <button class="ds-btn s" :disabled="busy||disabled||!changed" @click="revertTariff()">{{ t('Tarife değişikliklerini geri al') }}</button>
+          <button class="ds-btn s" :disabled="busy||disabled||changed||!tariff?.enabled" @click="calculateQuote()">{{ t('Teklifi hesapla') }}</button>
         </div>
         <template v-if="quote">
-          <p v-if="now>=quote.expiresAtMs" role="status" class="notice">{{ t('Teklifin süresi doldu. Yeniden hesapla.') }}</p>
-          <div v-else class="notice stack" role="status">
+          <p v-if="now>=quote.expiresAtMs" role="status" class="ds-note warn ds-col">{{ t('Teklifin süresi doldu. Yeniden hesapla.') }}</p>
+          <div v-else class="ds-note info ds-col" role="status">
             <strong>{{ t(demo?'Örnek teklif · Satış fiyatı değildir':'Ön hesap · Ödeme değildir') }}</strong>
             <span>{{ quote.startDate }} → {{ quote.endDate }} · {{ t('Süre (gün)') }}: {{ quote.days }}</span>
             <span>{{ t('Ara toplam') }}: {{ money(quote.subtotalMinor) }}</span>
             <span>{{ t('Vergi') }}: {{ money(quote.taxMinor) }}</span>
             <strong>{{ t('Toplam') }}: {{ money(quote.totalMinor) }}</strong>
-            <small>{{ t('Geçerlilik sonu') }}: {{ new Date(quote.expiresAtMs).toLocaleString(localeTag,{timeZone:'Europe/Istanbul'}) }} · {{ t('İstanbul saati') }}</small>
+            <small class="ds-xs ds-muted">{{ t('Geçerlilik sonu') }}: {{ new Date(quote.expiresAtMs).toLocaleString(localeTag,{timeZone:'Europe/Istanbul'}) }} · {{ t('İstanbul saati') }}</small>
           </div>
         </template>
       </template>
     </template>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
     <p v-if="message" role="status">{{ t(message) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+.all{grid-column:1/-1}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+input.ds-check{min-height:0;padding:0;width:20px}
+.fs{border:0;padding:0;margin:0;min-width:0}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

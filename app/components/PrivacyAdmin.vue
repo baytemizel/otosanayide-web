@@ -94,29 +94,41 @@ function prepare(item: Queue['items'][number], action: PendingAction) {
 </script>
 
 <template>
-  <section class="panel stack">
-    <h2>{{ t('Veri talepleri') }}</h2>
-    <p class="muted">{{ t('Bu ekran yalnız silme taleplerinin kapsam incelemesini yönetir. Kalıcı silme çalıştırmaz; tamamlandı veya silindi kararı verilemez.') }}</p>
-    <label>{{ t('Talep durumu') }}<select :value="status" :disabled="busy" @change="changeStatus"><option v-for="s in statuses" :key="s" :value="s">{{ t(privacyLabels[s]) }}</option></select></label>
-    <button class="button secondary" :disabled="busy" @click="void perform()">{{ t('Kuyruğu yükle') }}</button>
-    <p v-if="queue&&queue.items.length===0">{{ t('Bu durumda bekleyen talep yok.') }}</p>
-    <article v-for="item in queue?.items" :key="item.id" class="panel stack">
-      <h3>{{ t(privacyScopeLabels[item.scope]) }}</h3>
-      <p>{{ t(privacyLabels[item.status]) }} · {{ t('Sürüm') }} {{ item.version }}</p>
-      <p class="small muted" :style="{overflowWrap:'anywhere'}">{{ t('Hesap referansı') }}: {{ item.ownerUid }} · {{ item.id }}</p>
-      <p v-if="item.reason">{{ t(privacyReasonLabels[item.reason]) }}</p>
-      <button v-if="item.status==='submitted'" class="button secondary" :disabled="busy||!!pending" @click="prepare(item,'start_review')">{{ t('İncelemeye al') }}</button>
-      <button v-if="item.status==='reviewing'" class="button secondary" :disabled="busy||!!pending" @click="prepare(item,'request_confirmation')">{{ t('Kullanıcıdan kapsam onayı iste') }}</button>
+  <section class="ds-card ds-pad24 ds-col ds-g16">
+    <div class="ds-col ds-g4">
+      <h3 style="margin:0">{{ t('Veri talepleri') }}</h3>
+      <div class="ds-small ds-muted">{{ t('Bu ekran yalnız silme taleplerinin kapsam incelemesini yönetir. Kalıcı silme çalıştırmaz; tamamlandı veya silindi kararı verilemez.') }}</div>
+    </div>
+    <div class="ds-row ds-wrap ds-g12" style="align-items:flex-end">
+      <label class="ds-col ds-f1" style="max-width:320px;min-width:200px"><span class="ds-label">{{ t('Talep durumu') }}</span><select class="ds-field" :value="status" :disabled="busy" @change="changeStatus"><option v-for="s in statuses" :key="s" :value="s">{{ t(privacyLabels[s]) }}</option></select></label>
+      <button class="ds-btn s" :disabled="busy" @click="void perform()">{{ t('Kuyruğu yükle') }}</button>
+    </div>
+    <div v-if="queue&&queue.items.length===0" class="ds-small ds-muted">{{ t('Bu durumda bekleyen talep yok.') }}</div>
+    <article v-for="item in queue?.items" :key="item.id" class="ds-card ds-pad16 ds-col ds-g8">
+      <h4 style="font-size:16px;margin:0">{{ t(privacyScopeLabels[item.scope]) }}</h4>
+      <div class="ds-row ds-wrap ds-g8"><span class="ds-badge neu">{{ t(privacyLabels[item.status]) }}</span><span class="ds-xs ds-muted">{{ t('Sürüm') }} {{ item.version }}</span></div>
+      <div class="ds-xs ds-muted" :style="{overflowWrap:'anywhere'}">{{ t('Hesap referansı') }}: {{ item.ownerUid }} · {{ item.id }}</div>
+      <div v-if="item.reason" class="ds-small">{{ t(privacyReasonLabels[item.reason]) }}</div>
+      <div v-if="item.status==='submitted'||item.status==='reviewing'">
+        <button v-if="item.status==='submitted'" class="ds-btn s sm" :disabled="busy||!!pending" @click="prepare(item,'start_review')">{{ t('İncelemeye al') }}</button>
+        <button v-if="item.status==='reviewing'" class="ds-btn s sm" :disabled="busy||!!pending" @click="prepare(item,'request_confirmation')">{{ t('Kullanıcıdan kapsam onayı iste') }}</button>
+      </div>
     </article>
-    <button v-if="queue?.next" class="button secondary" :disabled="busy||!!pending" @click="void perform(queue!.next)">{{ t('Sonraki talepler') }}</button>
-    <section v-if="pending" class="panel stack">
-      <h3>{{ t('İnceleme işlemini onayla') }}</h3>
-      <p>{{ t(privacyScopeLabels[pending.item.scope]) }}</p>
-      <p>{{ t('Bu işlem yalnız talebin durumunu değiştirir; verileri silmez.') }}</p>
-      <label v-if="pending.action==='request_confirmation'">{{ t('Kapsam onayı gerekçesi') }}<select v-model="reason" :disabled="busy"><option value="">{{ t('Gerekçe seç') }}</option><option v-for="[key,value] in Object.entries(privacyReasonLabels)" :key="key" :value="key">{{ t(value) }}</option></select></label>
-      <button class="button primary" :disabled="busy||pending.action==='request_confirmation'&&!reason" @click="void perform(undefined,true)">{{ t('Onayla ve durumu güncelle') }}</button>
-      <button class="button secondary" :disabled="busy" @click="pending=null">{{ t('Vazgeç') }}</button>
+    <div v-if="queue?.next"><button class="ds-btn s sm" :disabled="busy||!!pending" @click="void perform(queue!.next)">{{ t('Sonraki talepler') }}</button></div>
+    <section v-if="pending" class="ds-card ds-surface ds-pad16 ds-col ds-g12">
+      <h4 style="font-size:16px;margin:0">{{ t('İnceleme işlemini onayla') }}</h4>
+      <div class="ds-small">{{ t(privacyScopeLabels[pending.item.scope]) }}</div>
+      <div class="ds-small ds-muted">{{ t('Bu işlem yalnız talebin durumunu değiştirir; verileri silmez.') }}</div>
+      <label v-if="pending.action==='request_confirmation'" class="ds-col"><span class="ds-label">{{ t('Kapsam onayı gerekçesi') }}</span><select v-model="reason" class="ds-field" :disabled="busy"><option value="">{{ t('Gerekçe seç') }}</option><option v-for="[key,value] in Object.entries(privacyReasonLabels)" :key="key" :value="key">{{ t(value) }}</option></select></label>
+      <div class="ds-row ds-wrap ds-g10">
+        <button class="ds-btn n" :disabled="busy||pending.action==='request_confirmation'&&!reason" @click="void perform(undefined,true)">{{ t('Onayla ve durumu güncelle') }}</button>
+        <button class="ds-btn s" :disabled="busy" @click="pending=null">{{ t('Vazgeç') }}</button>
+      </div>
     </section>
-    <p v-if="!!notice" role="status">{{ t(notice) }}</p>
+    <div v-if="!!notice" class="ds-note" role="status">{{ t(notice) }}</div>
   </section>
 </template>
+
+<style scoped>
+@media(max-width:480px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;text-align:center}}
+</style>

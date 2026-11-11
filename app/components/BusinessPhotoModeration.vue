@@ -8,6 +8,6 @@ const {locale, t} = useLocale();
 </script>
 
 <template>
-  <section v-if="app.demo" class="panel"><h2>{{ t('İşletme fotoğrafları') }}</h2><p>{{ t('Önizlemede gerçek görsel yüklenmez veya yayımlanmaz. Fotoğraflar bağımsız inceleme sonrası görünür.') }}</p></section>
+  <section v-if="app.demo" class="ds-card ds-pad24 ds-col ds-g8"><h3 style="margin:0">{{ t('İşletme fotoğrafları') }}</h3><div class="ds-small ds-muted">{{ t('Önizlemede gerçek görsel yüklenmez veya yayımlanmaz. Fotoğraflar bağımsız inceleme sonrası görünür.') }}</div></section>
   <BusinessPhotosModeration v-else-if="app.user" :key="app.user.uid+':'+locale"/>
 </template>

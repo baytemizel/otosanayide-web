@@ -69,15 +69,22 @@ async function inspect() {
 </script>
 
 <template>
-  <article class="panel stack business-media">
-    <h3>{{ t('İşletme fotoğrafı') }} · {{ photo.businessId }}</h3>
-    <p>{{ photo.width }}×{{ photo.height }} · {{ Math.ceil(photo.bytes/1024) }} KB</p>
-    <button class="button secondary" :disabled="busy || locked" @click="inspect">{{ t('Fotoğrafı tam boyutta incele') }}</button>
+  <article class="ds-card ds-pad24 ds-col ds-g16 business-media">
+    <div class="ds-col ds-g4">
+      <h3 style="margin:0">{{ t('İşletme fotoğrafı') }} · {{ photo.businessId }}</h3>
+      <div class="ds-xs ds-muted">{{ photo.width }}×{{ photo.height }} · {{ Math.ceil(photo.bytes/1024) }} KB</div>
+    </div>
+    <div><button class="ds-btn s sm" :disabled="busy || locked" @click="inspect">{{ t('Fotoğrafı tam boyutta incele') }}</button></div>
     <BusinessPhotosDialog v-if="uri" :src="uri" :close="()=>{uri=''}"/>
-    <p>{{ t('Yüz, plaka, kişisel belge, uygunsuz içerik ve işletmeyle ilgisiz görüntü açısından incele. Görsel AI kontrolü bu akışta etkin değildir.') }}</p>
-    <label>{{ t('İnceleme gerekçesi') }}<textarea v-model="reason" maxlength="1000" :disabled="busy || locked"/></label>
-    <label><input v-model="attest" type="checkbox" :disabled="!viewed || busy || locked"/>{{ t('Fotoğrafı açıp kişisel bilgi ve yayın uygunluğunu kontrol ettim.') }}</label>
-    <div class="row"><button class="button primary" :disabled="busy || locked || reason.trim().length<10 || (photo.status==='pending' && (!viewed || !attest))" @click="decide(photo.status==='approved'?'hide':'approve')">{{ t(photo.status==='approved' ? 'Yayından kaldır' : 'Fotoğrafı yayımla') }}</button><button v-if="photo.status==='pending'" class="button secondary" :disabled="busy || locked || reason.trim().length<10" @click="decide('reject')">{{ t('Gerekçeyle reddet') }}</button></div>
-    <p v-if="error" role="alert">{{ t('İşlem sonucu belirsiz. Yeni işlemden önce galeriyi yenile; yükleme otomatik tekrarlanmaz.') }}</p>
+    <div class="ds-note">{{ t('Yüz, plaka, kişisel belge, uygunsuz içerik ve işletmeyle ilgisiz görüntü açısından incele. Görsel AI kontrolü bu akışta etkin değildir.') }}</div>
+    <label class="ds-col"><span class="ds-label">{{ t('İnceleme gerekçesi') }}</span><textarea v-model="reason" class="ds-field" maxlength="1000" :disabled="busy || locked"/></label>
+    <label class="ds-row ds-as ds-g10 ds-small"><input v-model="attest" class="ds-check" type="checkbox" :disabled="!viewed || busy || locked"/>{{ t('Fotoğrafı açıp kişisel bilgi ve yayın uygunluğunu kontrol ettim.') }}</label>
+    <div class="ds-row ds-wrap ds-g10"><button class="ds-btn" :class="photo.status==='approved'?'d':'n'" :disabled="busy || locked || reason.trim().length<10 || (photo.status==='pending' && (!viewed || !attest))" @click="decide(photo.status==='approved'?'hide':'approve')">{{ t(photo.status==='approved' ? 'Yayından kaldır' : 'Fotoğrafı yayımla') }}</button><button v-if="photo.status==='pending'" class="ds-btn d" :disabled="busy || locked || reason.trim().length<10" @click="decide('reject')">{{ t('Gerekçeyle reddet') }}</button></div>
+    <div v-if="error" class="ds-note err" role="alert">{{ t('İşlem sonucu belirsiz. Yeni işlemden önce galeriyi yenile; yükleme otomatik tekrarlanmaz.') }}</div>
   </article>
 </template>
+
+<style scoped>
+input.ds-check{width:20px;height:20px;min-height:0;padding:0}
+@media(max-width:480px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;text-align:center}}
+</style>

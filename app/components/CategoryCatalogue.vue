@@ -11,11 +11,13 @@ function previewOf(c: (typeof categories)[number]): Business {
 </script>
 
 <template>
-  <section>
-    <h2>{{ i18nT('Hizmet kategorileri') }}</h2>
-    <p class="muted">{{ i18nT('Fotoğrafsız kart tasarımları. Bunlar işletme kaydı değildir; hizmet ve görsel önizlemeleridir.') }}</p>
+  <section class="ds-col ds-g16">
+    <div class="ds-col ds-g4">
+      <h3 style="margin:0">{{ i18nT('Hizmet kategorileri') }}</h3>
+      <div class="ds-small ds-muted">{{ i18nT('Fotoğrafsız kart tasarımları. Bunlar işletme kaydı değildir; hizmet ve görsel önizlemeleridir.') }}</div>
+    </div>
     <div class="category-catalogue">
-      <article v-for="c in categories" :key="c.id" class="category-preview">
+      <article v-for="c in categories" :key="c.id" class="category-preview ds-card">
         <div class="card-media"><BusinessVisual :business="previewOf(c)"/></div>
         <div class="card-body">
           <h3>{{ i18nT(c.name) }}</h3>

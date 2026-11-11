@@ -10,17 +10,17 @@ const checks: Record<string, string> = {rights: 'Kaynağı kullanma hakkı', ide
 </script>
 
 <template>
-  <div class="stack">
-    <article v-for="item in items" :key="item.id" class="notice">
+  <div class="ds-col ds-g8">
+    <article v-for="item in items" :key="item.id" class="ds-card ds-pad16 ds-col ds-g4 ds-small">
       <strong>{{ i18nT(kinds[item.kind]??kinds.other!) }}</strong>
-      <p v-if="item.action">{{ i18nT(actions[item.action]??item.action) }}</p>
-      <p class="small muted"><time v-if="item.createdAt" :datetime="item.createdAt">{{ new Intl.DateTimeFormat(localeTag,{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Istanbul'}).format(new Date(item.createdAt)) }}</time><template v-else>{{ i18nT('Tarih bilgisi yok') }}</template>{{ ' · ' }}{{ i18nT('Türkiye saati') }}</p>
-      <p v-if="item.profileVersion!==null">{{ i18nT('Profil sürümü') }}: {{ item.profileVersion }}</p>
-      <p v-if="item.publicationVersion!==null">{{ i18nT('Yayın sürümü') }}: {{ item.publicationVersion }}</p>
-      <p v-if="item.reason" :style="{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}">{{ item.reason }}</p>
+      <div v-if="item.action">{{ i18nT(actions[item.action]??item.action) }}</div>
+      <div class="ds-xs ds-muted"><time v-if="item.createdAt" :datetime="item.createdAt">{{ new Intl.DateTimeFormat(localeTag,{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Istanbul'}).format(new Date(item.createdAt)) }}</time><template v-else>{{ i18nT('Tarih bilgisi yok') }}</template>{{ ' · ' }}{{ i18nT('Türkiye saati') }}</div>
+      <div v-if="item.profileVersion!==null">{{ i18nT('Profil sürümü') }}: {{ item.profileVersion }}</div>
+      <div v-if="item.publicationVersion!==null">{{ i18nT('Yayın sürümü') }}: {{ item.publicationVersion }}</div>
+      <div v-if="item.reason" :style="{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}">{{ item.reason }}</div>
       <details v-if="item.checks.length>0">
-        <summary>{{ i18nT('Karara ait inceleme referansları') }}</summary>
-        <p v-for="check in item.checks" :key="check.key" :style="{overflowWrap:'anywhere'}"><strong>{{ i18nT(checks[check.key]??check.key) }}</strong><br/>{{ check.reference }}</p>
+        <summary class="ds-b" style="cursor:pointer">{{ i18nT('Karara ait inceleme referansları') }}</summary>
+        <p v-for="check in item.checks" :key="check.key" :style="{overflowWrap:'anywhere',margin:'8px 0 0'}"><strong>{{ i18nT(checks[check.key]??check.key) }}</strong><br/>{{ check.reference }}</p>
       </details>
     </article>
   </div>

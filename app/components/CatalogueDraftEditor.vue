@@ -5,6 +5,7 @@ import CatalogueDraftPanel from '~/components/CatalogueDraftPanel.vue';
 import {useApp} from '~/composables/useApp';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {Detail} from '~/lib/catalogue-draft-editor-helpers';
 
 const props = defineProps<{businessId: string; onSaved: () => void}>();
@@ -23,7 +24,7 @@ async function load() {
   error.value = '';
   try {
     const r = await apiFetch(`/api/admin/catalogue/draft?businessId=${encodeURIComponent(props.businessId)}`, {headers: {Authorization: `Bearer ${await user.getIdToken()}`}});
-    const d = await r.json();
+    const d = await responseJson(r);
     if (!r.ok) throw Error(d.error);
     detail.value = d;
     open.value = true;
@@ -41,7 +42,7 @@ async function save(profile: BusinessProfileInput) {
   if (!user || !current) throw Error('Oturum gerekli.');
   if (currentReason.trim().length < 10) throw Error('Düzenleme gerekçesi en az 10 karakter olmalı.');
   const r = await apiFetch('/api/admin/catalogue/draft', {method: 'PATCH', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${await user.getIdToken()}`}, body: JSON.stringify({businessId: props.businessId, profileVersion: current.profileVersion, publicationVersion: current.publicationVersion, profile, reason: currentReason})});
-  const d = await r.json();
+  const d = await responseJson(r);
   if (!r.ok) throw Error(d.error);
   open.value = false;
   detail.value = null;
@@ -60,10 +61,14 @@ function setReason(value: string) {
 </script>
 
 <template>
-  <div class="stack">
-    <button class="button secondary" :disabled="busy" @click="toggle">{{ i18nT(open?'Düzenleyiciyi kapat':'Kaynakları incele ve profili düzenle') }}</button>
-    <p v-if="busy" role="status">{{ i18nT('Yükleniyor…') }}</p>
-    <p v-if="error" role="alert">{{ i18nT(error) }}</p>
+  <div class="ds-col ds-g12">
+    <div><button class="ds-btn s sm" :disabled="busy" @click="toggle">{{ i18nT(open?'Düzenleyiciyi kapat':'Kaynakları incele ve profili düzenle') }}</button></div>
+    <div v-if="busy" class="ds-small ds-muted" role="status">{{ i18nT('Yükleniyor…') }}</div>
+    <div v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
     <CatalogueDraftPanel v-if="open&&detail" :detail="detail" :reason="reason" :onReason="setReason" :onSave="save" :businessId="businessId"/>
   </div>
 </template>
+
+<style scoped>
+@media(max-width:480px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;text-align:center}}
+</style>

@@ -42,21 +42,35 @@ async function save(e: Event) {
 </script>
 
 <template>
-  <form class="panel stack" @submit="save">
+  <form class="ds-card ds-pad24 ds-col ds-g16" @submit="save">
     <h2>{{ t('Tarife ve kapasite') }}</h2>
     <p>{{ market.city }} · {{ t(categories.find(c=>c.id===market.category)?.name??market.category) }}</p>
-    <p class="notice">{{ t('Tutarlar vergi hariç TL olarak girilir. Vergi oranını finans sorumlusu belirler. Boş alanlara fiyat varsayılmaz.') }}</p>
-    <fieldset :disabled="busy" class="form-grid" :style="{border:0,padding:0,minWidth:0}">
-      <label>{{ t('7 günlük tutar (TL)') }}<input inputmode="decimal" required :value="seven" @input="seven=text($event)"/></label>
-      <label>{{ t('30 günlük tutar (TL)') }}<input inputmode="decimal" required :value="thirty" @input="thirty=text($event)"/></label>
-      <label>{{ t('Vergi oranı (%)') }}<input inputmode="decimal" required :value="tax" @input="tax=text($event)"/></label>
-      <label>{{ t('Günlük ortak kapasite') }}<input type="number" min="1" max="20" step="1" required :value="capacity" @input="capacity=text($event)"/></label>
-      <label class="row span-all"><input v-model="enabled" type="checkbox"/>{{ t('Yeni rezervasyonlara açık') }}</label>
-      <label class="span-all">{{ t('Değişiklik gerekçesi') }}<textarea required minlength="10" maxlength="1000" :value="reason" @input="reason=text($event)"/></label>
+    <p class="ds-note info ds-col">{{ t('Tutarlar vergi hariç TL olarak girilir. Vergi oranını finans sorumlusu belirler. Boş alanlara fiyat varsayılmaz.') }}</p>
+    <fieldset :disabled="busy" class="grid fs">
+      <label class="fld"><span class="ds-label">{{ t('7 günlük tutar (TL)') }}</span><input class="ds-field" inputmode="decimal" required :value="seven" @input="seven=text($event)"/></label>
+      <label class="fld"><span class="ds-label">{{ t('30 günlük tutar (TL)') }}</span><input class="ds-field" inputmode="decimal" required :value="thirty" @input="thirty=text($event)"/></label>
+      <label class="fld"><span class="ds-label">{{ t('Vergi oranı (%)') }}</span><input class="ds-field" inputmode="decimal" required :value="tax" @input="tax=text($event)"/></label>
+      <label class="fld"><span class="ds-label">{{ t('Günlük ortak kapasite') }}</span><input class="ds-field" type="number" min="1" max="20" step="1" required :value="capacity" @input="capacity=text($event)"/></label>
+      <label class="ck all"><input class="ds-check" v-model="enabled" type="checkbox"/><span>{{ t('Yeni rezervasyonlara açık') }}</span></label>
+      <label class="fld all"><span class="ds-label">{{ t('Değişiklik gerekçesi') }}</span><textarea class="ds-field" required minlength="10" maxlength="1000" :value="reason" @input="reason=text($event)"/></label>
     </fieldset>
-    <p class="small muted">{{ t('Kapasite 7 ve 30 günlük paketler için ortaktır. Kapatma veya kapasite azaltma mevcut süreli rezervasyonları iptal etmez.') }}</p>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p class="ds-small ds-muted">{{ t('Kapasite 7 ve 30 günlük paketler için ortaktır. Kapatma veya kapasite azaltma mevcut süreli rezervasyonları iptal etmez.') }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
     <p v-if="success" role="status">{{ t(success) }}</p>
-    <button class="button primary" :disabled="busy">{{ t(demo?'Örnek tarifeyi kontrol et':'Tarifeyi kaydet') }}</button>
+    <button class="ds-btn p" :disabled="busy">{{ t(demo?'Örnek tarifeyi kontrol et':'Tarifeyi kaydet') }}</button>
   </form>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+.all{grid-column:1/-1}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+input.ds-check{min-height:0;padding:0;width:20px}
+.fs{border:0;padding:0;margin:0;min-width:0}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

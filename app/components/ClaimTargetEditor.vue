@@ -2,6 +2,7 @@
 import ClaimTargetForm from '~/components/ClaimTargetForm.vue';
 import {useApp} from '~/composables/useApp';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {ClaimSeed} from '~/lib/claim-target-editor-helpers';
 
 const props = defineProps<{claim: ClaimSeed; onMapped: (id: string) => void}>();
@@ -15,14 +16,14 @@ async function headers() {
 
 async function lookup(id: string) {
   const r = await apiFetch(`/api/admin/claim-targets?businessId=${encodeURIComponent(id)}`, {headers: await headers()});
-  const d = await r.json();
+  const d = await responseJson(r);
   if (!r.ok) throw Error(d.error ?? 'Kayıt bulunamadı.');
   return d.business;
 }
 
 async function map(input: unknown) {
   const r = await apiFetch('/api/admin/claim-targets', {method: 'POST', headers: await headers(), body: JSON.stringify(input)});
-  const d = await r.json();
+  const d = await responseJson(r);
   if (!r.ok) throw Error(d.error ?? 'Eşleme kaydedilemedi.');
   props.onMapped(d.businessId);
 }

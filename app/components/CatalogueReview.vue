@@ -6,6 +6,7 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {CatalogueItem} from '~/lib/catalogue-review-helpers';
 
 const app = useApp();
@@ -31,7 +32,7 @@ useClientEffect(() => [app.user, app.demo, published.value, cursor.value, reload
   user.getIdToken()
     .then(token => apiFetch(`/api/admin/catalogue?published=${isPublished}&after=${encodeURIComponent(after)}`, {headers: {Authorization: `Bearer ${token}`}}))
     .then(async r => {
-      const d = await r.json();
+      const d = await responseJson(r);
       if (!r.ok) throw Error(d.error);
       if (!stop) {
         items.value = d.items;
@@ -56,31 +57,35 @@ function changePublished(e: Event) {
 
 async function act(v: CatalogueItem, a: PublicationAction) {
   const r = await apiFetch('/api/admin/catalogue', {method: 'PATCH', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${await app.user!.getIdToken()}`}, body: JSON.stringify(a)});
-  const d = await r.json();
+  const d = await responseJson(r);
   if (!r.ok) throw Error(d.error);
   items.value = items.value.filter(x => x.id !== v.id);
 }
 </script>
 
 <template>
-  <section class="stack">
-    <h2>{{ i18nT('Katalog yayın incelemesi') }}</h2>
-    <p>{{ i18nT('Kaynak, faaliyet, konum ve mükerrer kontrolü tamamlanmadan kayıt yayımlanmaz.') }}</p>
-    <p v-if="app.demo" class="notice">{{ i18nT('Önizlemede gerçek kayıtlar yayımlanmaz. Özel veri aktarımı ve yönetici hesabı gerekir.') }}</p>
-    <p v-else-if="!app.user">{{ i18nT('İnceleme için yönetici hesabıyla giriş yap.') }}</p>
+  <section class="ds-col ds-g16">
+    <div class="ds-col ds-g4">
+      <h3 style="margin:0">{{ i18nT('Katalog yayın incelemesi') }}</h3>
+      <div class="ds-small ds-muted">{{ i18nT('Kaynak, faaliyet, konum ve mükerrer kontrolü tamamlanmadan kayıt yayımlanmaz.') }}</div>
+    </div>
+    <div v-if="app.demo" class="ds-note warn">{{ i18nT('Önizlemede gerçek kayıtlar yayımlanmaz. Özel veri aktarımı ve yönetici hesabı gerekir.') }}</div>
+    <div v-else-if="!app.user" class="ds-card ds-pad24 ds-small ds-muted">{{ i18nT('İnceleme için yönetici hesabıyla giriş yap.') }}</div>
     <template v-else>
-      <label>{{ i18nT('Yayın durumu') }}<select :value="String(published)" @change="changePublished"><option value="false">{{ i18nT('Yayında değil') }}</option><option value="true">{{ i18nT('Yayında') }}</option></select></label>
-      <button class="button secondary" :disabled="busy" @click="reload++">{{ i18nT('Yenile') }}</button>
-      <p v-if="busy" role="status">{{ i18nT('Yükleniyor…') }}</p>
+      <div class="ds-row ds-wrap ds-g12" style="align-items:flex-end">
+        <label class="ds-col ds-f1" style="max-width:320px;min-width:200px"><span class="ds-label">{{ i18nT('Yayın durumu') }}</span><select class="ds-field" :value="String(published)" @change="changePublished"><option value="false">{{ i18nT('Yayında değil') }}</option><option value="true">{{ i18nT('Yayında') }}</option></select></label>
+        <button class="ds-btn s" :disabled="busy" @click="reload++">{{ i18nT('Yenile') }}</button>
+      </div>
+      <div v-if="busy" class="ds-small ds-muted" role="status">{{ i18nT('Yükleniyor…') }}</div>
       <template v-else>
         <CatalogueReviewCard v-for="v in items" :key="`${v.id}-${v.version}-${v.profileVersion}`" :item="v" :onSaved="() => { reload++; }" :onAction="(a: PublicationAction) => act(v, a)"/>
       </template>
-      <p v-if="!busy&&!error&&!items.length">{{ i18nT('Bu sayfada incelenecek katalog kaydı yok.') }}</p>
-      <div class="row">
-        <button v-if="cursor" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
-        <button v-if="next" @click="cursor=next!">{{ i18nT('Sonraki sayfa') }}</button>
+      <div v-if="!busy&&!error&&!items.length" class="ds-card ds-pad24 ds-small ds-muted">{{ i18nT('Bu sayfada incelenecek katalog kaydı yok.') }}</div>
+      <div class="ds-row ds-wrap ds-g10">
+        <button v-if="cursor" class="ds-btn s sm" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
+        <button v-if="next" class="ds-btn s sm" @click="cursor=next!">{{ i18nT('Sonraki sayfa') }}</button>
       </div>
     </template>
-    <p v-if="error" role="alert">{{ i18nT(error) }}</p>
+    <div v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
   </section>
 </template>

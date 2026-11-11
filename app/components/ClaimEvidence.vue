@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
+import {Phone} from '@lucide/vue';
 import EvidenceFiles from '~/components/EvidenceFiles.vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {EvidenceList} from '~/lib/claim-evidence-helpers';
 
 const props = withDefaults(defineProps<{claimId: string; canUpload?: boolean; review?: boolean; onVerified?: (reference: string | null) => void}>(), {canUpload: false, review: false});
@@ -32,7 +34,7 @@ useClientEffect(() => [app.user, props.claimId, reload.value], () => {
   user.getIdToken()
     .then(token => apiFetch(`/api/claims/evidence?claimId=${encodeURIComponent(claimId)}`, {headers: {Authorization: `Bearer ${token}`}}))
     .then(async r => {
-      const d = await r.json();
+      const d = await responseJson(r);
       if (!r.ok) throw Error(d.error ?? 'Belgeler yüklenemedi.');
       if (!cancelled) data.value = d;
     })
@@ -49,7 +51,7 @@ async function request(path: string, method: string, body?: BodyInit, contentTyp
   if (!user) throw Error('Giriş gerekli.');
   const r = await apiFetch(path, {method, headers: {Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': contentType}, body});
   if (!r.ok) {
-    const d = await r.json();
+    const d = await responseJson(r);
     throw Error(d.error ?? 'Belge işlemi tamamlanamadı.');
   }
   return r;
@@ -88,7 +90,7 @@ async function submitReview(e: Event) {
   error.value = '';
   try {
     const r = await request('/api/admin/claim-evidence', 'POST', JSON.stringify({claimId: props.claimId, evidenceIds: data.value!.items.map(i => i.id), evidenceRevision: data.value!.evidenceRevision, attested: attested.value, reason: reason.value}));
-    const result = await r.json();
+    const result = await responseJson(r);
     props.onVerified?.(result.verificationReference);
     message.value = 'Belge incelemesi kaydedildi. Sahiplik için ayrıca başvuru kararı ver.';
   } catch (err) {
@@ -100,19 +102,40 @@ async function submitReview(e: Event) {
 </script>
 
 <template>
-  <div class="panel">
-    <div class="row between">
-      <h3>{{ i18nT('Belge incelemesi') }}</h3>
-      <button class="button secondary compact" :disabled="busy" @click="refreshList">{{ i18nT('Belge listesini yenile') }}</button>
+  <div class="ds-card ev-card">
+    <div class="ds-row ds-sb ds-wrap ds-g12">
+      <h3 v-if="review">{{ i18nT('Belge incelemesi') }}</h3>
+      <h2 v-else>{{ i18nT('Sahiplik kanıtı') }}</h2>
+      <button class="ds-btn s sm" :disabled="busy" @click="refreshList">{{ i18nT('Belge listesini yenile') }}</button>
     </div>
-    <p v-if="error" class="error" role="alert">{{ i18nT(error) }}</p>
-    <p v-if="message" role="status" class="notice">{{ i18nT(message) }}</p>
-    <p v-if="!data&&!error">{{ i18nT('Belgeler yükleniyor…') }}</p>
+    <div v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
+    <div v-if="message" role="status" class="ds-note ok">{{ i18nT(message) }}</div>
+    <p v-if="!data&&!error" class="ds-small ds-muted">{{ i18nT('Belgeler yükleniyor…') }}</p>
     <EvidenceFiles v-else-if="data" :key="`${claimId}-${reload}`" :data="data" :canUpload="canUpload" :onViewed="markViewed" :onOpen="openEvidence" :onUpload="uploadEvidence" :onWithdraw="withdrawEvidence"/>
+    <div v-if="!review" class="ev-row">
+      <Phone :size="20" class="ds-i"/>
+      <div class="ds-col ds-f1">
+        <span class="ds-small ds-b">{{ i18nT('Bağımsız iletişim kanalından teyit') }}</span>
+        <span class="ds-xs ds-muted">{{ i18nT('Kayıtlı işletme telefonuna arama ile') }}</span>
+      </div>
+      <button type="button" class="ds-btn s sm ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT('Teyit iste') }}</button>
+    </div>
     <form v-if="review&&data" class="stack" @submit="submitReview">
-      <label class="evidence-attestation"><input v-model="attested" type="checkbox"/>{{ i18nT('Tüm güncel belgeleri açıp işletme ve temsil yetkisiyle eşleşmesini kontrol ettim.') }}</label>
-      <label>{{ i18nT('Belge inceleme gerekçesi') }}<textarea v-model="reason" minlength="10" maxlength="1000" required/></label>
-      <button class="button primary" :disabled="busy||!data.enabled||!attested||data.pendingUploads>0||!data.items.length||data.items.some(i=>!viewed.includes(i.id))">{{ i18nT('Belge incelemesini doğrula') }}</button>
+      <label class="evidence-attestation"><input v-model="attested" class="ds-check chk" type="checkbox"/>{{ i18nT('Tüm güncel belgeleri açıp işletme ve temsil yetkisiyle eşleşmesini kontrol ettim.') }}</label>
+      <label>{{ i18nT('Belge inceleme gerekçesi') }}<textarea v-model="reason" class="ds-field" minlength="10" maxlength="1000" required/></label>
+      <div><button class="ds-btn p" :disabled="busy||!data.enabled||!attested||data.pendingUploads>0||!data.items.length||data.items.some(i=>!viewed.includes(i.id))">{{ i18nT('Belge incelemesini doğrula') }}</button></div>
     </form>
   </div>
 </template>
+
+<style scoped>
+p {margin: 0;}
+h3 {margin: 0;}
+h2 {margin: 0; font-size: 28px; line-height: 1.12;}
+.ev-card {display: flex; flex-direction: column; gap: 20px; max-width: 900px; padding: 32px;}
+.ev-row {display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 14px; border: 1px solid #dfe5eb; border-radius: 12px;}
+input.ds-check.chk {width: 20px; height: 20px; min-height: 0; padding: 0;}
+@media (max-width: 760px) {
+  .ev-card {padding: 20px;}
+}
+</style>

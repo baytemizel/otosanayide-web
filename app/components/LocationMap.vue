@@ -46,6 +46,11 @@ useClientEffect(() => [props.latitude, props.longitude, key], () => {
 </script>
 
 <template>
-  <div v-if="!key || error" class="location-map-placeholder"><MapPin :size="30"/><strong>{{ error || i18nT("Sayfa içi harita bağlantısı hazırlanıyor") }}</strong><span>{{ latitude.toFixed(6) }}, {{ longitude.toFixed(6) }}</span><small>{{ i18nT("Google Maps bağlantısıyla bu noktayı açabilirsin.") }}</small></div>
+  <div v-if="!key || error" class="location-map-placeholder map-ph"><MapPin :size="30"/><strong>{{ error || i18nT("Sayfa içi harita bağlantısı hazırlanıyor") }}</strong><span class="ds-small">{{ latitude.toFixed(6) }}, {{ longitude.toFixed(6) }}</span><small class="ds-xs ds-muted">{{ i18nT("Google Maps bağlantısıyla bu noktayı açabilirsin.") }}</small></div>
   <div v-else ref="mapEl" class="location-map" role="region" :aria-label="onMove?i18nT('İşletme konumunu haritada seç'):i18nT('İşletme konumu haritası')"/>
 </template>
+
+<style scoped>
+.map-ph {background: #e8eef2; border-color: #dfe5eb; border-radius: 14px;}
+.map-ph svg {color: #c4460b;}
+</style>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import {cities} from '@otosanayide/core';
 import {useLocale} from '~/composables/useLocale';
+import {usePageSeo} from '~/composables/usePageSeo';
 
 const {t: i18nT} = useLocale();
+usePageSeo({title: () => i18nT('Hakkında'), description: () => i18nT('Arama ve işletme inceleme için üyelik gerekmez. Araçlarım, favoriler ve katkılar ücretsiz hesaba bağlanır.')});
 </script>
 
 <template>

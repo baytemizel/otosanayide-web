@@ -84,35 +84,44 @@ function closeOpened() {
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="ds-surface rp">
     <h3>{{ i18nT('Yorum fotoğrafların') }}</h3>
-    <p class="small muted">{{ i18nT('En fazla 3 fotoğraf. Fotoğraflar incelemeden sonra yayımlanır. Plaka, yüz, belge ve kişisel bilgileri paylaşmadan önce kapat.') }}</p>
-    <p v-if="!enabled" class="notice">{{ i18nT('Yorum fotoğrafı yükleme henüz açılmadı.') }}</p>
-    <div v-for="(p,i) in items" :key="p.id" class="panel">
-      <strong>{{ i18nT('Fotoğraf') }} {{ i+1 }}</strong>
-      <p>{{ i18nT(statusLabels[p.status]??'Belirtilmedi') }}</p>
-      <p v-if="p.reason">{{ i18nT('İnceleme gerekçesi') }}: {{ p.reason }}</p>
-      <div class="row">
-        <button class="button secondary" :disabled="busy||!enabled||p.status==='uploading'" @click="openItem(p)">{{ i18nT('Fotoğrafı aç') }}</button>
-        <button class="text-button" :disabled="busy||p.status==='uploading'" @click="withdraw(p)">{{ i18nT('Fotoğrafı geri çek') }}</button>
+    <p class="ds-xs ds-muted">{{ i18nT('En fazla 3 fotoğraf. Fotoğraflar incelemeden sonra yayımlanır. Plaka, yüz, belge ve kişisel bilgileri paylaşmadan önce kapat.') }}</p>
+    <p v-if="!enabled" class="ds-note warn">{{ i18nT('Yorum fotoğrafı yükleme henüz açılmadı.') }}</p>
+    <div v-for="(p,i) in items" :key="p.id" class="ds-card ds-pad16 rp-item">
+      <strong class="ds-small">{{ i18nT('Fotoğraf') }} {{ i+1 }}</strong>
+      <p class="ds-small">{{ i18nT(statusLabels[p.status]??'Belirtilmedi') }}</p>
+      <p v-if="p.reason" class="ds-small">{{ i18nT('İnceleme gerekçesi') }}: {{ p.reason }}</p>
+      <div class="ds-row ds-g8 ds-wrap">
+        <button class="ds-btn s sm" :disabled="busy||!enabled||p.status==='uploading'" @click="openItem(p)">{{ i18nT('Fotoğrafı aç') }}</button>
+        <button class="ds-btn g sm" :disabled="busy||p.status==='uploading'" @click="withdraw(p)">{{ i18nT('Fotoğrafı geri çek') }}</button>
       </div>
     </div>
     <template v-if="enabled&&canUpload&&items.length<3">
-      <label>{{ i18nT('Fotoğraf seç') }}<input type="file" accept="image/jpeg,image/png,image/webp" :disabled="busy" @change="pickFile"/></label>
-      <p class="small muted">{{ i18nT('JPEG, PNG veya WebP seç. Fotoğraf cihazında küçültülür; gönderilecek dosya en fazla 2,5 MB olur.') }}</p>
+      <label class="ds-label rp-file">{{ i18nT('Fotoğraf seç') }}<input type="file" accept="image/jpeg,image/png,image/webp" :disabled="busy" @change="pickFile"/></label>
+      <p class="ds-xs ds-muted">{{ i18nT('JPEG, PNG veya WebP seç. Fotoğraf cihazında küçültülür; gönderilecek dosya en fazla 2,5 MB olur.') }}</p>
       <template v-if="preview">
         <img :src="preview" :alt="i18nT('Gönderilecek fotoğraf önizlemesi')" :style="{maxWidth:'100%',maxHeight:'300px',objectFit:'contain'}"/>
-        <button type="button" class="text-link" @click="opened=candidate">{{ i18nT('Göndermeden önce tam boyutta kontrol et') }}</button>
-        <label class="evidence-attestation"><input v-model="rights" type="checkbox" :disabled="busy"/>{{ i18nT('Bu fotoğrafı kendim çektim; paylaşma hakkım var ve gereksiz kişisel bilgileri kapattım.') }}</label>
-        <div class="row">
-          <button class="button primary" :disabled="busy||!rights" @click="upload">{{ i18nT('Fotoğrafı incelemeye gönder') }}</button>
-          <button class="button secondary" :disabled="busy" @click="candidate=null">{{ i18nT('Seçimi kaldır') }}</button>
+        <button type="button" class="ds-btn g sm rp-start" @click="opened=candidate">{{ i18nT('Göndermeden önce tam boyutta kontrol et') }}</button>
+        <label class="evidence-attestation ds-small"><input v-model="rights" class="ds-check" type="checkbox" :disabled="busy"/>{{ i18nT('Bu fotoğrafı kendim çektim; paylaşma hakkım var ve gereksiz kişisel bilgileri kapattım.') }}</label>
+        <div class="ds-row ds-g8 ds-wrap">
+          <button class="ds-btn p sm" :disabled="busy||!rights" @click="upload">{{ i18nT('Fotoğrafı incelemeye gönder') }}</button>
+          <button class="ds-btn s sm" :disabled="busy" @click="candidate=null">{{ i18nT('Seçimi kaldır') }}</button>
         </div>
       </template>
     </template>
-    <p v-if="busy" role="status">{{ i18nT('Fotoğraf işleniyor…') }}</p>
-    <p v-if="error" class="error" role="alert">{{ i18nT(error) }}</p>
+    <p v-if="busy" role="status" class="ds-small">{{ i18nT('Fotoğraf işleniyor…') }}</p>
+    <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
     <PhotoDialog v-if="openUrl" :src="openUrl" :onClose="closeOpened"/>
-    <p class="small muted">{{ i18nT('Geri çekme yeni erişimi kapatır; daha önce indirilmiş kopyaları silemez. Fiziksel dosya temizliği ayrı çalışır.') }}</p>
+    <p class="ds-xs ds-muted">{{ i18nT('Geri çekme yeni erişimi kapatır; daha önce indirilmiş kopyaları silemez. Fiziksel dosya temizliği ayrı çalışır.') }}</p>
   </section>
 </template>
+
+<style scoped>
+.rp {display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 12px;}
+.rp h3, .rp p {margin: 0;}
+.rp h3 {font-size: 16px;}
+.rp-item {display: flex; flex-direction: column; gap: 6px;}
+.rp-file {display: flex; flex-direction: column; gap: 6px; margin: 0;}
+.rp-start {align-self: flex-start; padding: 0; white-space: normal; height: auto;}
+</style>

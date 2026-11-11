@@ -38,10 +38,14 @@ useClientEffect(() => [props.state, props.after, props.guard], () => {
 </script>
 
 <template>
-  <button class="button secondary" @click="reload()">{{ t('Galeriyi yenile') }}</button>
-  <p v-if="error" role="alert">{{ t('İşletme fotoğrafları alınamadı. Yetkini kontrol edip yenile.') }}</p>
-  <template v-if="data"><BusinessPhotosDecision v-for="p in data.items" :key="p.id+':'+p.version" :photo="p" :options="options" :guard="guard" :reload="reload"/></template>
-  <button v-if="data?.next" class="button secondary" @click="next(data.next as string)">{{ t('Sonraki sayfa') }}</button>
-  <button v-if="after" class="button secondary" @click="next('')">{{ t('İlk sayfa') }}</button>
-  <p v-if="data && !data.items.length">{{ t('Bu sayfada inceleme kaydı yok.') }}</p>
+  <div class="ds-col ds-g16">
+    <div><button class="ds-btn s sm" @click="reload()">{{ t('Galeriyi yenile') }}</button></div>
+    <div v-if="error" class="ds-note err" role="alert">{{ t('İşletme fotoğrafları alınamadı. Yetkini kontrol edip yenile.') }}</div>
+    <template v-if="data"><BusinessPhotosDecision v-for="p in data.items" :key="p.id+':'+p.version" :photo="p" :options="options" :guard="guard" :reload="reload"/></template>
+    <div v-if="data && !data.items.length" class="ds-card ds-pad24 ds-small ds-muted">{{ t('Bu sayfada inceleme kaydı yok.') }}</div>
+    <div class="ds-row ds-wrap ds-g10">
+      <button v-if="data?.next" class="ds-btn s sm" @click="next(data.next as string)">{{ t('Sonraki sayfa') }}</button>
+      <button v-if="after" class="ds-btn s sm" @click="next('')">{{ t('İlk sayfa') }}</button>
+    </div>
+  </div>
 </template>

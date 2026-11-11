@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {ref} from 'vue';
+import {Calendar, Download} from '@lucide/vue';
 import type {Reminder, Vehicle} from '@otosanayide/core';
 import {reminderCalendar} from '@otosanayide/core/calendar';
 import {useLocale} from '~/composables/useLocale';
 
-const props = defineProps<{reminder: Reminder; vehicle: Vehicle}>();
+const props = withDefaults(defineProps<{reminder: Reminder; vehicle: Vehicle; footer?: boolean}>(), {footer: false});
 const {t: i18nT, locale} = useLocale();
 const message = ref('');
 
@@ -24,10 +25,18 @@ function download() {
 </script>
 
 <template>
-  <div class="stack">
-    <small>{{ reminder.channels?.includes('push')?i18nT("Push tercihi kaydedildi · gönderim kapalı. "):'' }}{{ reminder.channels?.includes('email')?i18nT("E-posta tercihi kaydedildi · gönderim kapalı."):'' }}</small>
-    <template v-if="reminder.dueDate"><button type="button" class="button secondary compact" @click="download">{{ i18nT("Takvime ekle (.ics)") }}</button><small>{{ i18nT("Google Takvim, Microsoft Outlook veya Apple Takvim’e aktar. ") }}{{ reminder.advanceDays??1 }}{{ i18nT(" gün önce uyarı istenir; takvim uygulamanın bildirim ayarları geçerlidir. Değişiklikler otomatik eşitlenmez.") }}</small></template>
-    <small v-else>{{ i18nT("Takvime eklemek için hedef tarih de belirtmelisin.") }}</small>
-    <small v-if="message" role="status">{{ i18nT(message) }}</small>
+  <span v-if="footer" class="ds-col ds-g4">
+    <button type="button" class="ds-btn s" @click="download"><Download :size="16"/>{{ i18nT(".ics indir") }}</button>
+    <small v-if="message" role="status" class="ds-xs ds-muted">{{ i18nT(message) }}</small>
+  </span>
+  <div v-else class="ds-col ds-g6">
+    <small class="ds-xs ds-muted">{{ reminder.channels?.includes('push')?i18nT("Push tercihi kaydedildi · gönderim kapalı. "):'' }}{{ reminder.channels?.includes('email')?i18nT("E-posta tercihi kaydedildi · gönderim kapalı."):'' }}</small>
+    <template v-if="reminder.dueDate"><button type="button" class="ds-btn s sm add" @click="download"><Calendar :size="14"/>{{ i18nT("Takvime ekle (.ics)") }}</button><small class="ds-xs ds-muted">{{ i18nT("Google Takvim, Microsoft Outlook veya Apple Takvim’e aktar. ") }}{{ reminder.advanceDays??1 }}{{ i18nT(" gün önce uyarı istenir; takvim uygulamanın bildirim ayarları geçerlidir. Değişiklikler otomatik eşitlenmez.") }}</small></template>
+    <small v-else class="ds-xs ds-muted">{{ i18nT("Takvime eklemek için hedef tarih de belirtmelisin.") }}</small>
+    <small v-if="message" role="status" class="ds-xs ds-muted">{{ i18nT(message) }}</small>
   </div>
 </template>
+
+<style scoped>
+.add {align-self: flex-start;}
+</style>

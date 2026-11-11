@@ -30,7 +30,11 @@ useClientEffect(() => [props.businessId, props.id, props.guard], () => {
 </script>
 
 <template>
-  <p v-if="error">{{ t('Fotoğraf şu anda görüntülenemiyor.') }}</p>
+  <p v-if="error" class="ds-small ds-muted state">{{ t('Fotoğraf şu anda görüntülenemiyor.') }}</p>
   <button v-else-if="uri" type="button" class="business-media-thumbnail" :aria-label="t('İşletme fotoğrafını büyüt {number}',{number:index+1})" @click="open()"><img :src="uri" :alt="t('İşletme fotoğrafı')" @error="error=true"/></button>
-  <p v-else>{{ t('Fotoğraf yükleniyor…') }}</p>
+  <p v-else class="ds-small ds-muted state">{{ t('Fotoğraf yükleniyor…') }}</p>
 </template>
+
+<style scoped>
+.state {margin: 0;}
+</style>

@@ -8,11 +8,11 @@ const hostnameOf = (source: string) => new URL(source).hostname;
 </script>
 
 <template>
-  <section v-if="quality" class="stack">
-    <h4>{{ t('Alan bazında kaynak kontrolü') }}</h4>
-    <p>{{ quality.checkedAt?`${t('Kontrol tarihi: ')}${new Date(quality.checkedAt).toLocaleString(localeTag)}`:t('Kontrol tamamlanamadı.') }}</p>
-    <div class="quality-table quality-field-table" role="region" :aria-label="t('Alan bazında kaynak kontrolü')" tabindex="0">
-      <table>
+  <section v-if="quality" class="ds-col ds-g8">
+    <h4 style="font-size:16px;margin:0">{{ t('Alan bazında kaynak kontrolü') }}</h4>
+    <div class="ds-xs ds-muted">{{ quality.checkedAt?`${t('Kontrol tarihi: ')}${new Date(quality.checkedAt).toLocaleString(localeTag)}`:t('Kontrol tamamlanamadı.') }}</div>
+    <div class="ds-table-wrap ds-card" role="region" :aria-label="t('Alan bazında kaynak kontrolü')" tabindex="0">
+      <table class="ds-table">
         <thead>
           <tr>
             <th>{{ t('Alan') }}</th>
@@ -27,9 +27,9 @@ const hostnameOf = (source: string) => new URL(source).hostname;
         </tbody>
       </table>
     </div>
-    <details v-if="quality.sources.length>0">
-      <summary>{{ t('Kontrol kaynakları') }}</summary>
-      <ul>
+    <details v-if="quality.sources.length>0" class="ds-small">
+      <summary class="ds-b" style="cursor:pointer">{{ t('Kontrol kaynakları') }}</summary>
+      <ul style="margin:8px 0 0;padding-left:18px">
         <li v-for="(source,index) in quality.sources" :key="source"><a class="text-link" :href="source" target="_blank" rel="noopener noreferrer">{{ t('Kaynak') }} {{ index+1 }} · {{ hostnameOf(source) }}</a></li>
       </ul>
     </details>

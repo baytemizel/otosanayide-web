@@ -42,17 +42,17 @@ const money = (minor: number, currency: string) => new Intl.NumberFormat(localeT
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="sec ds-col ds-g12">
     <h4>{{ t('İptal ve İade Karar Geçmişi') }}</h4>
     <p>{{ t('En yeniden eskiye, sayfa başına 20 olay. Ek iade kayıtları da bu geçmişte yer alır.') }}</p>
-    <div class="row" :style="{flexWrap:'wrap'}">
-      <button :disabled="busy" class="button secondary" @click="void load()">{{ t('Geçmişi yenile') }}</button>
-      <button v-if="data?.next" :disabled="busy" class="button secondary" @click="void load(data.next!)">{{ t('Daha eski olaylar') }}</button>
+    <div class="ds-row ds-g8 ds-wrap">
+      <button :disabled="busy" class="ds-btn s" @click="void load()">{{ t('Geçmişi yenile') }}</button>
+      <button v-if="data?.next" :disabled="busy" class="ds-btn s" @click="void load(data.next!)">{{ t('Daha eski olaylar') }}</button>
     </div>
-    <article v-for="(event,i) in data?.items" :key="`${event.createdAtMs}-${i}`" class="notice stack">
+    <article v-for="(event,i) in data?.items" :key="`${event.createdAtMs}-${i}`" class="ds-note ds-col">
       <strong>{{ t(cancellationHistoryLabels[event.action]) }}</strong>
-      <small>{{ time(event.createdAtMs) }} · {{ t('İstanbul saati') }}</small>
-      <p v-if="event.note" :style="{overflowWrap:'anywhere'}">{{ event.note }}</p>
+      <small class="ds-xs ds-muted">{{ time(event.createdAtMs) }} · {{ t('İstanbul saati') }}</small>
+      <p class="brk" v-if="event.note">{{ event.note }}</p>
       <strong v-if="event.outcome">{{ t(brandRefundLabels[event.outcome]) }}</strong>
       <span v-if="event.amountMinor!==null&&event.currency">{{ t('Tutar') }}: {{ money(event.amountMinor,event.currency) }}</span>
       <p v-if="event.reason">{{ t(event.reason==='additional_refund'?'Ek iade kaydı inceleme gerektiriyor.':'İade tutarı, para birimi veya zamanı uyuşmuyor.') }}</p>
@@ -60,6 +60,15 @@ const money = (minor: number, currency: string) => new Intl.NumberFormat(localeT
     </article>
     <p v-if="data&&!data.items.length">{{ t('Karar geçmişinde gösterilecek olay yok.') }}</p>
     <p v-if="busy" role="status">{{ t('Yükleniyor…') }}</p>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+.brk{overflow-wrap:anywhere}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

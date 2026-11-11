@@ -3,6 +3,7 @@ import {computed, ref} from 'vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
+import {brandMediaSaved, readAdImage, readAdResponse} from '~/lib/ads-client';
 import {apiFetch} from '~/lib/api';
 import {optimizeBrandImage} from '~/lib/brand-image';
 import type {BrandView} from '@otosanayide/core/brand-campaigns';
@@ -67,10 +68,7 @@ async function request(method: 'GET' | 'POST') {
     query.set('rights', 'yes');
   }
   const r = await apiFetch('/api/admin/brand-media?' + query, {method, headers: {Authorization: `Bearer ${token}`, ...(method === 'POST' ? {'Content-Type': 'image/webp'} : {})}, body: method === 'POST' ? body : undefined, cache: 'no-store'});
-  if (!r.ok) {
-    const d = await r.json();
-    throw Error(d.error);
-  }
+  if (!r.ok) await readAdResponse(r, raw => raw);
   return r;
 }
 
@@ -78,7 +76,7 @@ const editable = computed(() => ['draft', 'rejected', 'paused'].includes(props.i
 
 function openCurrent() {
   void run(async () => {
-    const r = await request('GET'), blob = await r.blob();
+    const r = await request('GET'), blob = await readAdImage(r);
     if (mounted) current.value = URL.createObjectURL(blob);
   });
 }
@@ -98,33 +96,45 @@ function pickFile(e: Event) {
 
 function upload() {
   void run(async () => {
-    const r = await request('POST'), d = await r.json();
+    const r = await request('POST'), d = await readAdResponse(r, raw => brandMediaSaved.parse(raw));
     props.onSaved?.(d.item);
   });
 }
 </script>
 
 <template>
-  <section class="stack" :aria-label="t('Marka görseli')">
+  <section class="sec ds-col ds-g12" :aria-label="t('Marka görseli')">
     <h4>{{ t('Marka görseli') }}</h4>
     <template v-if="item.image">
-      <p class="small">{{ item.image.width }} × {{ item.image.height }} · {{ Math.ceil(item.image.bytes/1024) }} KB</p>
-      <button class="button secondary" :disabled="disabled||busy" @click="openCurrent">{{ t('Güncel görseli aç ve incele') }}</button>
+      <p class="ds-small">{{ item.image.width }} × {{ item.image.height }} · {{ Math.ceil(item.image.bytes/1024) }} KB</p>
+      <button class="ds-btn s" :disabled="disabled||busy" @click="openCurrent">{{ t('Güncel görseli aç ve incele') }}</button>
       <img v-if="current" :src="current" :alt="t('Kayıtlı marka görseli')" :style="{width:'100%',maxHeight:'360px',objectFit:'contain',borderRadius:'12px'}"/>
     </template>
     <template v-if="editable">
-      <label>{{ t('Görsel seç') }}<input type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled||busy" @change="pickFile"/></label>
-      <p class="small muted">{{ t('JPEG, PNG veya WebP · En fazla 20 MB. Yüklemeden önce cihazında optimize edilir.') }}</p>
+      <label class="fld"><span class="ds-label">{{ t('Görsel seç') }}</span><input class="ds-field" type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled||busy" @change="pickFile"/></label>
+      <p class="ds-small ds-muted">{{ t('JPEG, PNG veya WebP · En fazla 20 MB. Yüklemeden önce cihazında optimize edilir.') }}</p>
       <template v-if="preview">
         <img :src="preview" :alt="t('Yükleme öncesi görsel önizlemesi')" :style="{width:'100%',maxHeight:'360px',objectFit:'contain',borderRadius:'12px'}"/>
         <p>{{ t('Optimize edilmiş boyut') }}: {{ Math.ceil((candidate?.size??0)/1024) }} KB</p>
-        <label class="row"><input v-model="rights" type="checkbox" :disabled="disabled||busy"/>{{ t('Bu görseli kullanma iznim olduğunu doğruluyorum.') }}</label>
-        <button class="button primary" :disabled="disabled||busy||!rights||!enabled||demo||!item.version" @click="upload">{{ t('Görseli yükle') }}</button>
+        <label class="ck"><input class="ds-check" v-model="rights" type="checkbox" :disabled="disabled||busy"/><span>{{ t('Bu görseli kullanma iznim olduğunu doğruluyorum.') }}</span></label>
+        <button class="ds-btn p" :disabled="disabled||busy||!rights||!enabled||demo||!item.version" @click="upload">{{ t('Görseli yükle') }}</button>
       </template>
-      <p v-if="!enabled||demo" class="notice">{{ t('Yerel önizleme kullanılabilir. Güvenli depolama açılana kadar görsel yükleme kapalıdır.') }}</p>
+      <p v-if="!enabled||demo" class="ds-note warn ds-col">{{ t('Yerel önizleme kullanılabilir. Güvenli depolama açılana kadar görsel yükleme kapalıdır.') }}</p>
       <p v-if="!item.version">{{ t('Görsel yüklemeden önce marka taslağını kaydet.') }}</p>
     </template>
     <p v-if="busy" role="status">{{ t('İşleniyor…') }}</p>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+input.ds-check{min-height:0;padding:0;width:20px}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+input.ds-field[type=file]{padding-top:11px}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

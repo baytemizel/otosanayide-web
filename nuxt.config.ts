@@ -15,8 +15,16 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
   devtools: {enabled: false},
   modules: ['@pinia/nuxt'],
-  css: ['~/assets/css/globals.css'],
+  css: [
+    '@fontsource/arimo/400.css',
+    '@fontsource/arimo/700.css',
+    '@fontsource/gelasio/700.css',
+    '~/assets/css/globals.css',
+    '~/assets/css/design.css',
+  ],
   components: [{path: '~/components', pathPrefix: false}],
+  // The business area moves to its own project (K184). These pages stay as source but get no route.
+  ignore: ['**/pages/isletme.vue', '**/pages/isletme/**'],
   alias: {'@otosanayide/core': fileURLToPath(new URL('./packages/core', import.meta.url))},
   runtimeConfig: {
     public: {
@@ -33,6 +41,10 @@ export default defineNuxtConfig({
       firebaseAppId: '',
       firebaseMessagingSenderId: '',
       firebaseStorageBucket: '',
+      portalOrigin: '',
+      siteOrigin: '',
+      indexingEnabled: '',
+      legalPagesEnabled: '',
     },
   },
   routeRules: {
@@ -44,9 +56,9 @@ export default defineNuxtConfig({
     '/basvurularim': accountPage,
     '/bildirimler': accountPage,
     '/hesabim': accountPage,
-    '/isletme': accountPage,
     '/kaydedilenler': accountPage,
     '/taleplerim': accountPage,
+    '/yorumlarim': accountPage,
     '/yonetim': accountPage,
   },
   // packages/core is copied verbatim and was written against these compiler settings.

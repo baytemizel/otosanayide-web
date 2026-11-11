@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import {ref} from 'vue';
+import {computed, ref} from 'vue';
+import {Info} from '@lucide/vue';
 import BusinessReplyCard from '~/components/BusinessReplyCard.vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
@@ -18,6 +19,8 @@ const next = ref<string | null>(null);
 const loading = ref(false);
 const error = ref('');
 const reload = ref(0);
+const view = ref<'open' | 'answered'>('open');
+const visible = computed(() => items.value.filter(r => (['pending', 'approved'].includes(r.replyDraft?.status ?? '') ? view.value === 'answered' : view.value === 'open')));
 
 useClientEffect(() => [app.user, app.demo], () => {
   let cancel = false;
@@ -87,15 +90,38 @@ function selectBusiness(e: Event) {
 </script>
 
 <template>
-  <section v-if="app.demo" class="panel"><h2>{{ i18nT("İşletme yanıtları") }}</h2><p>{{ i18nT("Doğrulanmış işletme hesabınla yayımlanan yorumları yanıtlayabilir, inceleme durumunu takip edebilir ve yanıtını geri çekebilirsin. Önizlemede gerçek yanıt oluşturulmaz.") }}</p></section>
-  <p v-else-if="!app.user">{{ i18nT("İşletme hesabınla giriş yap.") }}</p>
+  <section v-if="app.demo" class="ds-card ds-pad24 ds-col ds-g8"><h3>{{ i18nT("İşletme yanıtları") }}</h3><p class="ds-small ds-muted">{{ i18nT("Doğrulanmış işletme hesabınla yayımlanan yorumları yanıtlayabilir, inceleme durumunu takip edebilir ve yanıtını geri çekebilirsin. Önizlemede gerçek yanıt oluşturulmaz.") }}</p></section>
+  <section v-else-if="!app.user" class="ds-card ds-pad24 ds-col ds-g12"><p>{{ i18nT("İşletme hesabınla giriş yap.") }}</p><div><NuxtLink class="ds-btn s sm" to="/isletme/giris">{{ i18nT("Giriş yap") }}</NuxtLink></div></section>
   <template v-else>
-    <label>{{ i18nT("İşletme / şube") }}<select :value="id" @change="selectBusiness"><option value="">{{ i18nT("İşletme seç") }}</option><option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.name }}</option></select></label>
-    <button class="button secondary" :disabled="loading" @click="reload++">{{ i18nT("Yenile") }}</button>
-    <p v-if="error" role="alert" class="error">{{ i18nT(error) }}</p>
-    <p v-if="loading" role="status">{{ i18nT("Yorumlar yükleniyor…") }}</p>
-    <template v-else><BusinessReplyCard v-for="r in items" :key="`${r.id}-${r.replyDraft?.version??0}`" :review="r" :draft="r.replyDraft" :onSubmit="(text,v)=>send(r.id,v,text)" :onWithdraw="v=>send(r.id,v)"/></template>
-    <p v-if="!loading && !error && !items.length">{{ i18nT("Yanıtlanabilecek yayımlanmış yorum yok.") }}</p>
-    <div class="row"><button v-if="cursor" class="button secondary" @click="cursor=''">{{ i18nT("İlk sayfa") }}</button><button v-if="next" class="button secondary" @click="cursor=next!">{{ i18nT("Sonraki sayfa") }}</button></div>
+    <div class="ds-row ds-wrap ds-g12 toolbar">
+      <label class="ds-col ds-f1 branch"><span class="ds-label">{{ i18nT("İşletme / şube") }}</span><select class="ds-field" :value="id" @change="selectBusiness"><option value="">{{ i18nT("İşletme seç") }}</option><option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.name }}</option></select></label>
+      <button class="ds-btn s sm" :disabled="loading" @click="reload++">{{ i18nT("Yenile") }}</button>
+    </div>
+    <div class="ds-row ds-sb ds-wrap ds-g12">
+      <div class="ds-tabs">
+        <button type="button" :class="{on: view==='open'}" :aria-pressed="view==='open'" @click="view='open'">{{ i18nT("Yanıt bekleyen") }}</button>
+        <button type="button" :class="{on: view==='answered'}" :aria-pressed="view==='answered'" @click="view='answered'">{{ i18nT("Yanıtlanan") }}</button>
+        <button type="button" class="ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Bildirilen") }}</button>
+      </div>
+      <select class="ds-field ds-passive rating" disabled aria-disabled="true" :title="i18nT('Yakında')" :aria-label="i18nT('Tüm puanlar')"><option>{{ i18nT("Tüm puanlar") }}</option></select>
+    </div>
+    <div v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</div>
+    <p v-if="loading" role="status" class="ds-small ds-muted">{{ i18nT("Yorumlar yükleniyor…") }}</p>
+    <template v-else><BusinessReplyCard v-for="r in visible" :key="`${r.id}-${r.replyDraft?.version??0}`" :review="r" :draft="r.replyDraft" :onSubmit="(text,v)=>send(r.id,v,text)" :onWithdraw="v=>send(r.id,v)"/></template>
+    <p v-if="!loading && !error && !items.length" class="ds-small ds-muted">{{ i18nT("Yanıtlanabilecek yayımlanmış yorum yok.") }}</p>
+    <p v-else-if="!loading && !error && !visible.length" class="ds-small ds-muted">{{ i18nT("Bu sekmede gösterilecek yorum yok.") }}</p>
+    <div v-if="cursor || next" class="ds-row ds-g10 ds-wrap"><button v-if="cursor" class="ds-btn s sm" @click="cursor=''">{{ i18nT("İlk sayfa") }}</button><button v-if="next" class="ds-btn s sm" @click="cursor=next!">{{ i18nT("Sonraki sayfa") }}</button></div>
+    <div class="ds-note"><Info :size="16" class="ds-i"/><span>{{ i18nT("Kullanıcı yorumlarını ve fotoğraflarını silemezsiniz; kural ihlali için bildirebilirsiniz. Reklam bütçesi moderasyonu etkilemez.") }}</span></div>
   </template>
 </template>
+
+<style scoped>
+p {margin: 0;}
+h3 {margin: 0;}
+.toolbar {align-items: flex-end;}
+.branch {min-width: 240px; max-width: 480px;}
+.rating {width: 200px; height: 40px; min-height: 40px;}
+@media (max-width: 480px) {
+  .rating {width: 100%;}
+}
+</style>

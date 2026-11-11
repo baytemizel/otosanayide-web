@@ -37,19 +37,21 @@ useClientEffect(() => [open.value, cursor.value, refresh.value, props.loadPage],
 </script>
 
 <template>
-  <section class="stack">
-    <button class="button secondary compact" :aria-expanded="open" @click="open=!open">{{ i18nT(open?'Karar geçmişini kapat':'Karar geçmişini göster') }}</button>
+  <section class="ds-col ds-g12">
+    <div><button class="ds-btn s sm" :aria-expanded="open" @click="open=!open">{{ i18nT(open?'Karar geçmişini kapat':'Karar geçmişini göster') }}</button></div>
     <template v-if="open">
-      <h4>{{ i18nT('İşletme karar geçmişi') }}</h4>
-      <p class="small muted">{{ i18nT('En yeni kayıt önce gösterilir. Bu ekran salt okunurdur; yönetici kimlikleri ve ham belgeler gösterilmez.') }}</p>
-      <button class="button secondary compact" :disabled="busy" @click="cursor='';refresh++">{{ i18nT('Yenile') }}</button>
-      <p v-if="busy" role="status">{{ i18nT('Yükleniyor…') }}</p>
-      <p v-else-if="error" role="alert">{{ i18nT(error) }}</p>
+      <div class="ds-row ds-sb ds-wrap ds-g12">
+        <h4 style="font-size:16px;margin:0">{{ i18nT('İşletme karar geçmişi') }}</h4>
+        <button class="ds-btn s sm" :disabled="busy" @click="cursor='';refresh++">{{ i18nT('Yenile') }}</button>
+      </div>
+      <div class="ds-xs ds-muted">{{ i18nT('En yeni kayıt önce gösterilir. Bu ekran salt okunurdur; yönetici kimlikleri ve ham belgeler gösterilmez.') }}</div>
+      <div v-if="busy" class="ds-small ds-muted" role="status">{{ i18nT('Yükleniyor…') }}</div>
+      <div v-else-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
       <CatalogueHistoryList v-else-if="page.items.length" :items="page.items"/>
-      <p v-else>{{ i18nT('Bu sayfada geçmiş kaydı bulunamadı.') }}</p>
-      <div class="row">
-        <button v-if="cursor" class="button secondary compact" :disabled="busy" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
-        <button v-if="page.next" class="button secondary compact" :disabled="busy" @click="cursor=page.next!">{{ i18nT('Daha eski kayıtlar') }}</button>
+      <div v-else class="ds-small ds-muted">{{ i18nT('Bu sayfada geçmiş kaydı bulunamadı.') }}</div>
+      <div class="ds-row ds-wrap ds-g10">
+        <button v-if="cursor" class="ds-btn s sm" :disabled="busy" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
+        <button v-if="page.next" class="ds-btn s sm" :disabled="busy" @click="cursor=page.next!">{{ i18nT('Daha eski kayıtlar') }}</button>
       </div>
     </template>
   </section>

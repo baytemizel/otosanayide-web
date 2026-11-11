@@ -55,39 +55,39 @@ const blocked = computed(() => busy.value || props.disabled || !data.value?.enab
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="sec ds-col ds-g12">
     <h4>{{ t('Reklam İptali ve İade İncelemesi') }}</h4>
-    <p class="notice">{{ t('İptal onayı reklam alanını serbest bırakır. Para iadesi ayrı doğrulanır; bu ekran para transferi yapmaz.') }}</p>
+    <p class="ds-note info ds-col">{{ t('İptal onayı reklam alanını serbest bırakır. Para iadesi ayrı doğrulanır; bu ekran para transferi yapmaz.') }}</p>
     <p v-if="demo||!id">{{ t('İptal durumunu görmek için gerçek reklam rezervasyonunu yükle.') }}</p>
     <template v-else>
-      <button class="button secondary" :disabled="busy||disabled" @click="void run('GET')">{{ t('İptal ve iade durumunu yenile') }}</button>
+      <button class="ds-btn s" :disabled="busy||disabled" @click="void run('GET')">{{ t('İptal ve iade durumunu yenile') }}</button>
       <template v-if="data">
-        <p v-if="!data.enabled" class="notice">{{ t('Yeni iptal işlemleri kapalı. Geçmiş kayıtlar okunabilir.') }}</p>
-        <div v-if="data.cancellation" class="stack">
+        <p v-if="!data.enabled" class="ds-note warn ds-col">{{ t('Yeni iptal işlemleri kapalı. Geçmiş kayıtlar okunabilir.') }}</p>
+        <div v-if="data.cancellation" class="ds-col ds-g12">
           <strong role="status">{{ t(brandCancellationLabels[data.cancellation.status]) }}</strong>
-          <p :style="{overflowWrap:'anywhere'}">{{ t('İptal gerekçesi') }}: {{ data.cancellation.reason }}</p>
-          <small>{{ t('Talep tarihi') }}: {{ time(data.cancellation.createdAtMs) }}</small>
-          <small v-if="data.cancellation.decidedAtMs!==null">{{ t('Karar tarihi') }}: {{ time(data.cancellation.decidedAtMs) }}</small>
-          <p v-if="data.cancellation.note" :style="{overflowWrap:'anywhere'}">{{ t('İnceleme notu') }}: {{ data.cancellation.note }}</p>
+          <p class="brk">{{ t('İptal gerekçesi') }}: {{ data.cancellation.reason }}</p>
+          <small class="ds-xs ds-muted">{{ t('Talep tarihi') }}: {{ time(data.cancellation.createdAtMs) }}</small>
+          <small class="ds-xs ds-muted" v-if="data.cancellation.decidedAtMs!==null">{{ t('Karar tarihi') }}: {{ time(data.cancellation.decidedAtMs) }}</small>
+          <p class="brk" v-if="data.cancellation.note">{{ t('İnceleme notu') }}: {{ data.cancellation.note }}</p>
           <template v-if="data.cancellation.status==='pending'">
             <template v-if="data.canReview">
-              <label>{{ t('İptal inceleme notu') }}<textarea :value="note" :disabled="blocked" maxlength="1000" minlength="10" @input="note=text($event)"/></label>
-              <label class="evidence-attestation"><input v-model="confirm" type="checkbox" :disabled="blocked"/><span>{{ t('Onayın reklamı durduracağını ve ayrılan kapasiteyi serbest bırakacağını anladım.') }}</span></label>
-              <div class="row" :style="{flexWrap:'wrap'}">
-                <button class="button primary" :disabled="blocked||note.trim().length<10||!confirm" @click="void run('PATCH','approve')">{{ t('İptali Onayla ve Alanı Serbest Bırak') }}</button>
-                <button class="button secondary" :disabled="blocked||note.trim().length<10" @click="void run('PATCH','reject')">{{ t('İptal Talebini Reddet') }}</button>
+              <label class="fld"><span class="ds-label">{{ t('İptal inceleme notu') }}</span><textarea class="ds-field" :value="note" :disabled="blocked" maxlength="1000" minlength="10" @input="note=text($event)"/></label>
+              <label class="ck"><input class="ds-check" v-model="confirm" type="checkbox" :disabled="blocked"/><span>{{ t('Onayın reklamı durduracağını ve ayrılan kapasiteyi serbest bırakacağını anladım.') }}</span></label>
+              <div class="ds-row ds-g8 ds-wrap">
+                <button class="ds-btn p" :disabled="blocked||note.trim().length<10||!confirm" @click="void run('PATCH','approve')">{{ t('İptali Onayla ve Alanı Serbest Bırak') }}</button>
+                <button class="ds-btn s" :disabled="blocked||note.trim().length<10" @click="void run('PATCH','reject')">{{ t('İptal Talebini Reddet') }}</button>
               </div>
             </template>
             <p v-else>{{ t('Talebi açan kişi kendi iptal talebini inceleyemez. Başka bir finans yöneticisi incelemeli.') }}</p>
           </template>
         </div>
         <template v-else-if="data.eligible">
-          <label>{{ t('İptal gerekçesi') }}<textarea :value="reason" :disabled="blocked" minlength="10" maxlength="1000" @input="reason=text($event)"/></label>
-          <button class="button secondary" :disabled="blocked||reason.trim().length<10" @click="void run('POST')">{{ t('İptal Talebi Aç') }}</button>
-          <small>{{ t('Talep açılması reklamı durdurmaz. Kararı farklı bir finans yöneticisi verir.') }}</small>
+          <label class="fld"><span class="ds-label">{{ t('İptal gerekçesi') }}</span><textarea class="ds-field" :value="reason" :disabled="blocked" minlength="10" maxlength="1000" @input="reason=text($event)"/></label>
+          <button class="ds-btn s" :disabled="blocked||reason.trim().length<10" @click="void run('POST')">{{ t('İptal Talebi Aç') }}</button>
+          <small class="ds-xs ds-muted">{{ t('Talep açılması reklamı durdurmaz. Kararı farklı bir finans yöneticisi verir.') }}</small>
         </template>
         <p v-else>{{ t('Bu rezervasyon için iptal talebi açılamıyor. Kesin kabul ve rezervasyon durumunu kontrol et.') }}</p>
-        <div v-if="data.refund" class="notice stack">
+        <div v-if="data.refund" class="ds-note info ds-col">
           <strong>{{ t(brandRefundLabels[data.refund.status]) }}</strong>
           <template v-if="data.refund.evidence">
             <span>{{ t('Sağlayıcıdan doğrulanan iade kaydı') }}</span>
@@ -95,13 +95,25 @@ const blocked = computed(() => busy.value || props.disabled || !data.value?.enab
             <span v-if="data.refund.evidence.refundedAtMs!==null">{{ t('Sağlayıcı iade tarihi') }}: {{ time(data.refund.evidence.refundedAtMs) }}</span>
             <p v-if="data.refund.evidence.reason">{{ t(data.refund.evidence.reason==='amount_or_time'?'İade tutarı, para birimi veya zamanı uyuşmuyor.':'Ek iade kaydı inceleme gerektiriyor.') }}</p>
           </template>
-          <small>{{ t('İade durum kontrolü') }}: {{ time(data.refund.checkedAtMs) }}</small>
+          <small class="ds-xs ds-muted">{{ t('İade durum kontrolü') }}: {{ time(data.refund.checkedAtMs) }}</small>
           <p>{{ t('Kısmi iadeler ve ek iade kayıtları ayrıca uzlaştırılmalıdır. İptal onayı iadenin tamamlandığını göstermez.') }}</p>
         </div>
-        <small>{{ t('Son sunucu kontrolü') }}: {{ time(data.checkedAtMs) }} · {{ t('İstanbul saati') }}</small>
+        <small class="ds-xs ds-muted">{{ t('Son sunucu kontrolü') }}: {{ time(data.checkedAtMs) }} · {{ t('İstanbul saati') }}</small>
       </template>
     </template>
     <p v-if="busy" role="status">{{ t('Yükleniyor…') }}</p>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.ck{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+input.ds-check{min-height:0;padding:0;width:20px}
+.sec{border-top:1px solid #edf0f3;padding-top:20px}
+.brk{overflow-wrap:anywhere}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

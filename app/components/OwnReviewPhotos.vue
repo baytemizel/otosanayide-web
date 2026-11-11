@@ -5,6 +5,7 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {ReviewPhoto} from '~/lib/review-photos-helpers';
 
 const props = defineProps<{reviewId: string}>();
@@ -22,7 +23,7 @@ useClientEffect(() => [app.user, props.reviewId, reload.value], () => {
   const user = app.user, reviewId = props.reviewId;
   if (!user) return;
   user.getIdToken().then(token => apiFetch(`/api/review-photos?reviewId=${encodeURIComponent(reviewId)}`, {headers: {Authorization: `Bearer ${token}`}})).then(async r => {
-    const d = await r.json();
+    const d = await responseJson(r);
     if (!r.ok) throw Error(d.error);
     if (!cancel) data.value = d;
   }).catch(e => {
@@ -36,7 +37,7 @@ useClientEffect(() => [app.user, props.reviewId, reload.value], () => {
 async function request(path: string, method: string, body?: BodyInit, type = 'application/json') {
   const r = await apiFetch(path, {method, headers: {Authorization: `Bearer ${await app.user!.getIdToken()}`, 'Content-Type': type}, body});
   if (!r.ok) {
-    const d = await r.json();
+    const d = await responseJson(r);
     throw Error(d.error);
   }
   return r;
@@ -55,7 +56,11 @@ async function withdraw(id: string, version: number) {
 </script>
 
 <template>
-  <p v-if="error" role="alert" class="error">{{ i18nT(error) }}</p>
-  <button class="text-link" @click="reload++">{{ i18nT('Fotoğraf listesini yenile') }}</button>
+  <p v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</p>
+  <button class="ds-btn g sm orp-refresh" @click="reload++">{{ i18nT('Fotoğraf listesini yenile') }}</button>
   <ReviewPhotoFiles v-if="data" :key="reload" :enabled="data.enabled" :canUpload="data.canUpload" :items="data.items" :onOpen="open" :onUpload="upload" :onWithdraw="withdraw"/>
 </template>
+
+<style scoped>
+.orp-refresh {align-self: flex-start; padding: 0;}
+</style>

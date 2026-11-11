@@ -92,35 +92,44 @@ function updated(view: View) {
 </script>
 
 <template>
-  <section class="panel stack">
+  <section class="ds-card ds-pad24 ds-col ds-g16">
     <h2>{{ t('Marka İptal ve İade Kuyruğu') }}</h2>
-    <p class="notice">{{ t('İade filtreleri birincil durumu gösterir. Ek iadeleri karar geçmişinden kontrol et; bu ekran para transferi yapmaz.') }}</p>
+    <p class="ds-note info ds-col">{{ t('İade filtreleri birincil durumu gösterir. Ek iadeleri karar geçmişinden kontrol et; bu ekran para transferi yapmaz.') }}</p>
     <p v-if="app.demo">{{ t('Demo modunda gerçek iptal ve iade dosyaları gösterilmez.') }}</p>
     <template v-else>
-      <label>{{ t('İptal ve iade filtresi') }}<select :value="filter" :disabled="disabled" @change="changeFilter"><option v-for="f in cancellationFilters" :key="f" :value="f">{{ t(cancellationFilterLabels[f]) }}</option></select></label>
-      <div class="row" :style="{flexWrap:'wrap'}">
-        <button class="button secondary" :disabled="disabled||!app.user" @click="void load()">{{ t('İptal kuyruğunu yenile') }}</button>
-        <button v-if="data?.next" class="button secondary" :disabled="disabled" @click="void load(data.next!)">{{ t('Sonraki sayfa') }}</button>
+      <label class="fld"><span class="ds-label">{{ t('İptal ve iade filtresi') }}</span><select class="ds-field" :value="filter" :disabled="disabled" @change="changeFilter"><option v-for="f in cancellationFilters" :key="f" :value="f">{{ t(cancellationFilterLabels[f]) }}</option></select></label>
+      <div class="ds-row ds-g8 ds-wrap">
+        <button class="ds-btn s" :disabled="disabled||!app.user" @click="void load()">{{ t('İptal kuyruğunu yenile') }}</button>
+        <button v-if="data?.next" class="ds-btn s" :disabled="disabled" @click="void load(data.next!)">{{ t('Sonraki sayfa') }}</button>
       </div>
-      <small>{{ t('Referans sırasıyla en fazla 20 kayıt. Değişen dosyalar nedeniyle sayfa daha kısa olabilir.') }}</small>
-      <form class="stack" @submit="submitLookup">
-        <label>{{ t('Rezervasyon referansı') }}<input :value="id" maxlength="36" :disabled="disabled" @input="changeId"/></label>
-        <button class="button secondary" :disabled="disabled||!app.user||!id.trim()">{{ t('Eski Rezervasyonu Aç') }}</button>
+      <small class="ds-xs ds-muted">{{ t('Referans sırasıyla en fazla 20 kayıt. Değişen dosyalar nedeniyle sayfa daha kısa olabilir.') }}</small>
+      <form class="ds-col ds-g12" @submit="submitLookup">
+        <label class="fld"><span class="ds-label">{{ t('Rezervasyon referansı') }}</span><input class="ds-field" :value="id" maxlength="36" :disabled="disabled" @input="changeId"/></label>
+        <button class="ds-btn s" :disabled="disabled||!app.user||!id.trim()">{{ t('Eski Rezervasyonu Aç') }}</button>
       </form>
       <p v-if="data&&!data.items.length" role="status">{{ t('Bu filtrede iptal dosyası bulunamadı.') }}</p>
-      <article v-for="item in data?.items" :key="item.reservationId" class="notice stack">
+      <article v-for="item in data?.items" :key="item.reservationId" class="ds-note ds-col">
         <strong>{{ t(brandCancellationLabels[item.cancellation!.status]) }}</strong>
-        <small :style="{overflowWrap:'anywhere'}">{{ item.reservationId }}</small>
+        <small class="ds-xs ds-muted brk">{{ item.reservationId }}</small>
         <span v-if="item.refund">{{ t(brandRefundLabels[item.refund.status]) }}</span>
-        <button class="button secondary" :disabled="disabled" @click="openItem(item,data!.enabled)">{{ t('Dosyayı ve Geçmişi Aç') }}</button>
+        <button class="ds-btn s" :disabled="disabled" @click="openItem(item,data!.enabled)">{{ t('Dosyayı ve Geçmişi Aç') }}</button>
       </article>
-      <div v-if="selected" class="stack">
-        <h3 :style="{overflowWrap:'anywhere'}">{{ t('Rezervasyon referansı') }}: {{ selected.reservationId }}</h3>
+      <div v-if="selected" class="ds-col ds-g12">
+        <h3 class="brk">{{ t('Rezervasyon referansı') }}: {{ selected.reservationId }}</h3>
         <BrandCancellation :key="selected.reservationId" :id="selected.reservationId" :initialData="selected" :disabled="busy" :onBusy="setChildBusy" :onUpdated="updated"/>
         <BrandCancellationHistory v-if="selected.cancellation" :key="`${selected.reservationId}-${revision}`" :id="selected.reservationId"/>
       </div>
     </template>
     <p v-if="busy" role="status">{{ t('Yükleniyor…') }}</p>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p,h2,h3,h4,h5{margin:0}
+h2,h3,h4{font:700 19px/1.3 Arimo,Arial,Helvetica,sans-serif;letter-spacing:0}
+h5{font-size:15px;line-height:1.5}
+.fld{display:flex;flex-direction:column;min-width:0;font-size:15px;font-weight:400}
+.brk{overflow-wrap:anywhere}
+@media(max-width:760px){.ds-btn{white-space:normal;height:auto;min-height:44px;padding-top:8px;padding-bottom:8px;flex:0 1 auto;max-width:100%;text-align:center}}
+</style>

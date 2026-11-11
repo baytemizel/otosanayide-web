@@ -5,6 +5,7 @@ import ClaimEvidence from '~/components/ClaimEvidence.vue';
 import ClaimTargetEditor from '~/components/ClaimTargetEditor.vue';
 import {useApp} from '~/composables/useApp';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {Claim, Decision} from '~/lib/claim-review-panel-helpers';
 
 const props = defineProps<{claim: Claim; onDone: () => void; onMapped: (id: string) => void}>();
@@ -17,7 +18,7 @@ function setReference(value: string | null) {
 
 async function decide(decision: Decision, reason: string) {
   const r = await apiFetch('/api/admin/claims', {method: 'PATCH', headers: {'Content-Type': 'application/json', Authorization: `Bearer ${await app.user!.getIdToken()}`}, body: JSON.stringify({claimId: props.claim.id, decision, reason, ...(decision === 'approve' ? {evidenceChecked: true, verificationReference: reference.value} : {})})});
-  const d = await r.json();
+  const d = await responseJson(r);
   if (!r.ok) throw Error(d.error ?? 'Karar kaydedilemedi.');
   props.onDone();
 }

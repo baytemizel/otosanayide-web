@@ -6,6 +6,7 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {ActivationView} from '~/lib/feature-activation-helpers';
 
 const stateLabels={pending:'İncelemede',approved:'Onaylandı',rejected:'Reddedildi',paused:'Durduruldu'};
@@ -29,7 +30,7 @@ useClientEffect(()=>[app.user,app.demo,props.admin],()=>{
   const user=app.user;
   if(!user||app.demo||props.admin)return;
   user.getIdToken().then(token=>apiFetch('/api/businesses/manage',{headers:{Authorization:`Bearer ${token}`}})).then(async r=>{
-    const d=await r.json();
+    const d=await responseJson(r);
     if(!r.ok)throw Error(d.error);
     if(!stop){
       const owners=d.businesses.filter((v:{role?:string})=>v.role==='owner');
@@ -49,7 +50,7 @@ useClientEffect(()=>[app.user,app.demo,props.admin,bid.value,state.value,cursor.
   busy.value=true;
   error.value='';
   user.getIdToken().then(token=>apiFetch(`/api/businesses/activation?${props.admin?`queue=true&status=${state.value}&after=${encodeURIComponent(cursor.value)}`:`businessId=${encodeURIComponent(bid.value)}`}`,{headers:{Authorization:`Bearer ${token}`}})).then(async r=>{
-    const d=await r.json();
+    const d=await responseJson(r);
     if(!r.ok)throw Error(d.error);
     if(!stop){
       items.value=props.admin?d.items:[d];
@@ -61,31 +62,39 @@ useClientEffect(()=>[app.user,app.demo,props.admin,bid.value,state.value,cursor.
 
 async function patchActivation(a:ActivationAction){
   const r=await apiFetch('/api/businesses/activation',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${await app.user!.getIdToken()}`},body:JSON.stringify(a)});
-  const d=await r.json();
+  const d=await responseJson(r);
   if(!r.ok)throw Error(d.error);
   reload.value++;
 }
 </script>
 
 <template>
-  <section class="stack">
-    <p>{{ i18nT('Sahiplik doğrulaması tek başına teklif veya randevuyu açmaz. İşletme hazırlığı ve yönetici onayı gerekir.') }}</p>
-    <p v-if="app.demo" class="notice">{{ i18nT('Önizlemede hizmetler etkinleştirilmez. Gerçek işletme hesabı ve sunucu bağlantısı gerekir.') }}</p>
-    <p v-else-if="!app.user">{{ i18nT('Giriş yap') }}</p>
+  <section class="ds-col ds-g16">
+    <p class="ds-small ds-muted">{{ i18nT('Sahiplik doğrulaması tek başına teklif veya randevuyu açmaz. İşletme hazırlığı ve yönetici onayı gerekir.') }}</p>
+    <div v-if="app.demo" class="ds-note">{{ i18nT('Önizlemede hizmetler etkinleştirilmez. Gerçek işletme hesabı ve sunucu bağlantısı gerekir.') }}</div>
+    <div v-else-if="!app.user"><NuxtLink class="ds-btn s sm" to="/giris">{{ i18nT('Giriş yap') }}</NuxtLink></div>
     <template v-else>
-      <label v-if="admin">{{ i18nT('Başvuru durumu') }}<select :value="state" @change="state=($event.target as HTMLSelectElement).value;cursor=''"><option v-for="[key,label] in Object.entries(stateLabels)" :key="key" :value="key">{{ i18nT(label) }}</option></select></label>
-      <label v-else>{{ i18nT('İşletme') }}<select v-model="bid"><option v-for="v in branches" :key="v.id" :value="v.id">{{ v.name }}</option></select></label>
-      <button class="button secondary" :disabled="busy" @click="reload++">{{ i18nT('Yenile') }}</button>
-      <p v-if="busy" role="status">{{ i18nT('Yükleniyor…') }}</p>
+      <div class="ds-row ds-wrap ds-g12 toolbar">
+        <label v-if="admin" class="ds-col ds-f1 field"><span class="ds-label">{{ i18nT('Başvuru durumu') }}</span><select class="ds-field" :value="state" @change="state=($event.target as HTMLSelectElement).value;cursor=''"><option v-for="[key,label] in Object.entries(stateLabels)" :key="key" :value="key">{{ i18nT(label) }}</option></select></label>
+        <label v-else class="ds-col ds-f1 field"><span class="ds-label">{{ i18nT('İşletme') }}</span><select v-model="bid" class="ds-field"><option v-for="v in branches" :key="v.id" :value="v.id">{{ v.name }}</option></select></label>
+        <button class="ds-btn s sm" :disabled="busy" @click="reload++">{{ i18nT('Yenile') }}</button>
+      </div>
+      <p v-if="busy" role="status" class="ds-small ds-muted">{{ i18nT('Yükleniyor…') }}</p>
       <template v-else>
         <ActivationCard v-for="v in items" :key="`${v.id}-${v.version}`" :value="v" :admin="admin" :onAction="patchActivation"/>
       </template>
-      <p v-if="!busy&&!error&&!items.length">{{ i18nT('Gösterilecek aktivasyon kaydı yok. Yalnızca işletme sahibi başvurabilir.') }}</p>
-      <div class="row">
-        <button v-if="cursor" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
-        <button v-if="next" @click="cursor=next!">{{ i18nT('Sonraki sayfa') }}</button>
+      <p v-if="!busy&&!error&&!items.length" class="ds-small ds-muted">{{ i18nT('Gösterilecek aktivasyon kaydı yok. Yalnızca işletme sahibi başvurabilir.') }}</p>
+      <div v-if="cursor || next" class="ds-row ds-wrap ds-g10">
+        <button v-if="cursor" class="ds-btn s sm" @click="cursor=''">{{ i18nT('İlk sayfa') }}</button>
+        <button v-if="next" class="ds-btn s sm" @click="cursor=next!">{{ i18nT('Sonraki sayfa') }}</button>
       </div>
     </template>
-    <p v-if="error" role="alert">{{ i18nT(error) }}</p>
+    <div v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</div>
   </section>
 </template>
+
+<style scoped>
+p {margin: 0;}
+.toolbar {align-items: flex-end;}
+.field {min-width: 240px; max-width: 480px;}
+</style>

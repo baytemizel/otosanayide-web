@@ -24,6 +24,10 @@ function reload() {
 </script>
 
 <template>
-  <template v-if="selected"><button class="button secondary" @click="selected=null">{{ t('İşletme listesine dön') }}</button><h2>{{ selected.name }}</h2><BusinessPhotosOwnerGallery :key="selected.id" :businessId="selected.id"/></template>
+  <template v-if="selected"><div class="ds-row ds-wrap ds-g12"><button class="ds-btn s sm" @click="selected=null">{{ t('İşletme listesine dön') }}</button><h3 class="name">{{ selected.name }}</h3></div><BusinessPhotosOwnerGallery :key="selected.id" :businessId="selected.id"/></template>
   <BusinessPhotosBranchPage v-else :key="after+':'+revision" :options="options" :guard="guard" :after="after" :select="select" :next="next" :reload="reload"/>
 </template>
+
+<style scoped>
+.name {margin: 0;}
+</style>

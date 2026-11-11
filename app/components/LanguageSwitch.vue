@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import {parseLocale} from '@otosanayide/core/i18n';
 import {useLocale} from '~/composables/useLocale';
 
 const {locale, setLocale} = useLocale();
 </script>
 
 <template>
-  <label class="language-switch">
-    <span class="sr-only">Language / Dil</span>
-    <select aria-label="Language / Dil" :value="locale" @change="setLocale(parseLocale(($event.target as HTMLSelectElement).value))">
-      <option value="tr">Türkçe</option>
-      <option value="en">English</option>
-    </select>
-  </label>
+  <div class="ds-chip line ds-lang" style="height:36px" role="group" aria-label="Language / Dil">
+    <button type="button" :class="{on: locale === 'tr'}" :aria-pressed="locale === 'tr'" @click="setLocale('tr')">TR</button>
+    <span class="ds-muted">/</span>
+    <button type="button" :class="{on: locale === 'en'}" :aria-pressed="locale === 'en'" @click="setLocale('en')">EN</button>
+  </div>
 </template>

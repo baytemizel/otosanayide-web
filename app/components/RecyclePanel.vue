@@ -81,27 +81,34 @@ function prepare(action: 'trash' | 'restore') {
 </script>
 
 <template>
-  <section class="panel stack" :aria-label="t('Hesap yedeğini yönet')">
+  <section class="ds-card ds-pad24 ds-col ds-g12" :aria-label="t('Hesap yedeğini yönet')">
     <h2>{{ t('Hesap yedeğini yönet') }}</h2>
-    <p class="muted">{{ t('Bu alan yalnız ayrı hesap yedeğini yönetir. Cihazdaki araçların, fotoğrafların, üyeliğin ve diğer hesap verilerin silinmez.') }}</p>
-    <button class="button secondary" :disabled="busy" @click="checkStatus">{{ t('Yedek durumunu kontrol et') }}</button>
-    <p v-if="status?.state==='shared'">{{ t('Ortak garajın etkin. Web ve mobilin kullandığı ana veriyi bu alandan kaldıramazsın. Hesap ve ortak garaj silme akışı henüz kullanıma açık değil.') }}</p>
-    <p v-if="status?.state==='none'">{{ t('Kaldırılabilecek ayrı hesap yedeği yok.') }}</p>
+    <p class="ds-small ds-muted">{{ t('Bu alan yalnız ayrı hesap yedeğini yönetir. Cihazdaki araçların, fotoğrafların, üyeliğin ve diğer hesap verilerin silinmez.') }}</p>
+    <div><button type="button" class="ds-btn s" :disabled="busy" @click="checkStatus">{{ t('Yedek durumunu kontrol et') }}</button></div>
+    <p v-if="status?.state==='shared'" class="ds-note info">{{ t('Ortak garajın etkin. Web ve mobilin kullandığı ana veriyi bu alandan kaldıramazsın. Hesap ve ortak garaj silme akışı henüz kullanıma açık değil.') }}</p>
+    <p v-if="status?.state==='none'" class="ds-small ds-muted">{{ t('Kaldırılabilecek ayrı hesap yedeği yok.') }}</p>
     <template v-if="status&&['available','trashed','expired'].includes(status.state)">
-      <p>{{ t('{vehicles} araç ve {records} bakım kaydı.',{vehicles:status.vehicles,records:status.records}) }}</p>
-      <p v-if="status.purgeAfter">{{ t('Geri alma son tarihi: {date}',{date:new Date(status.purgeAfter).toLocaleString(locale==='en'?'en-GB':'tr-TR')}) }}</p>
-      <button v-if="status.state==='available'&&!pending" class="button secondary" :disabled="busy" @click="prepare('trash')">{{ t('Yedeği geri dönüşüm kutusuna taşı') }}</button>
-      <template v-if="status.state==='trashed'&&!pending"><p>{{ t('Yedek kutuda. Geri alma süresi dolana kadar hesaba yeni yedek yazılamaz ve ortak garaj etkinleştirilemez.') }}</p><button class="button secondary" :disabled="busy" @click="prepare('restore')">{{ t('Yedeği hesaba geri al') }}</button></template>
-      <p v-if="status.state==='expired'">{{ t('Geri alma süresi doldu. Kalıcı temizleme görevi tamamlanana kadar yeni hesap yedeği yazılamaz. Cihazdaki kayıtların kullanılabilir.') }}</p>
+      <p class="ds-small ds-b">{{ t('{vehicles} araç ve {records} bakım kaydı.',{vehicles:status.vehicles,records:status.records}) }}</p>
+      <p v-if="status.purgeAfter" class="ds-small ds-muted">{{ t('Geri alma son tarihi: {date}',{date:new Date(status.purgeAfter).toLocaleString(locale==='en'?'en-GB':'tr-TR')}) }}</p>
+      <div v-if="status.state==='available'&&!pending"><button type="button" class="ds-btn d" :disabled="busy" @click="prepare('trash')">{{ t('Yedeği geri dönüşüm kutusuna taşı') }}</button></div>
+      <template v-if="status.state==='trashed'&&!pending"><p class="ds-note warn">{{ t('Yedek kutuda. Geri alma süresi dolana kadar hesaba yeni yedek yazılamaz ve ortak garaj etkinleştirilemez.') }}</p><div><button type="button" class="ds-btn s" :disabled="busy" @click="prepare('restore')">{{ t('Yedeği hesaba geri al') }}</button></div></template>
+      <p v-if="status.state==='expired'" class="ds-note warn">{{ t('Geri alma süresi doldu. Kalıcı temizleme görevi tamamlanana kadar yeni hesap yedeği yazılamaz. Cihazdaki kayıtların kullanılabilir.') }}</p>
     </template>
-    <div v-if="pending" class="panel stack">
+    <div v-if="pending" class="confirm ds-col ds-g12">
       <h3>{{ t(pending.action==='trash'?'Yedeği kutuya taşıma onayı':'Yedeği geri alma onayı') }}</h3>
-      <p>{{ t(pending.action==='trash'?'Hesaptaki metin yedeği 30 gün geri alınabilir olarak saklanır. Süre sonunda temizleme görevi yedek içeriğini kalıcı olarak kaldırır. Bu işlem cihazındaki kayıtları silmez.':'Kutudaki metin yedeği hesabına geri alınacak. Cihazına aktarım başlatılmaz.') }}</p>
-      <p>{{ app.user?.email }}</p>
-      <p class="small muted">{{ t('Temizleme görevi henüz canlıda kurulmadı; 30. gün otomatik silme garantisi yoktur. Süre sonrasında geri alma kapalıdır.') }}</p>
-      <button class="button primary" :disabled="busy" @click="void perform(true)">{{ t(pending.action==='trash'?'Onayla ve kutuya taşı':'Onayla ve hesaba geri al') }}</button>
-      <button class="button secondary" :disabled="busy" @click="pending=null">{{ t('Vazgeç') }}</button>
+      <p class="ds-small">{{ t(pending.action==='trash'?'Hesaptaki metin yedeği 30 gün geri alınabilir olarak saklanır. Süre sonunda temizleme görevi yedek içeriğini kalıcı olarak kaldırır. Bu işlem cihazındaki kayıtları silmez.':'Kutudaki metin yedeği hesabına geri alınacak. Cihazına aktarım başlatılmaz.') }}</p>
+      <p class="ds-small ds-b">{{ app.user?.email }}</p>
+      <p class="ds-xs ds-muted">{{ t('Temizleme görevi henüz canlıda kurulmadı; 30. gün otomatik silme garantisi yoktur. Süre sonrasında geri alma kapalıdır.') }}</p>
+      <div class="ds-row ds-g10 ds-wrap"><button type="button" class="ds-btn p" :disabled="busy" @click="void perform(true)">{{ t(pending.action==='trash'?'Onayla ve kutuya taşı':'Onayla ve hesaba geri al') }}</button><button type="button" class="ds-btn s" :disabled="busy" @click="pending=null">{{ t('Vazgeç') }}</button></div>
     </div>
-    <p v-if="!!notice" role="status">{{ t(notice) }}</p>
+    <p v-if="!!notice" class="ds-note" role="status">{{ t(notice) }}</p>
   </section>
 </template>
+
+<style scoped>
+h2 {margin: 0; font: 700 19px/24.7px Arimo, Arial, sans-serif; letter-spacing: 0;}
+h3 {margin: 0; font-size: 15px;}
+p {margin: 0;}
+.confirm {padding: 16px; border-radius: 12px; background: #f4f6f8;}
+.ds-btn {max-width: 100%; white-space: normal;}
+</style>

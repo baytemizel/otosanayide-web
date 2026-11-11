@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {ref} from 'vue';
+import {Trash2, TriangleAlert} from '@lucide/vue';
 import {accountJson, AccountRequestError} from '@otosanayide/core/account-client';
 import {privacyOwnerAction, privacyOwnerResponse, privacyLabels, privacyScopeLabels, privacyReasonLabels, type PrivacyOwnRequest} from '@otosanayide/core/privacy-requests';
 import {useApp} from '~/composables/useApp';
@@ -82,36 +83,47 @@ function prepare(action: 'submit' | 'cancel' | 'confirm') {
 </script>
 
 <template>
-  <section class="panel stack" :aria-label="t('Veri ve hesap silme talepleri')">
+  <section class="ds-card ds-pad24 ds-col ds-g12 danger" :aria-label="t('Veri ve hesap silme talepleri')">
     <h2>{{ t('Veri ve hesap silme talepleri') }}</h2>
-    <p class="muted">{{ t('Buradan silme talebi oluşturabilir, durumunu takip edebilir ve iptal edebilirsin. Talep vermek verileri hemen silmez. Kalıcı silme işlemi henüz kullanıma açık değil.') }}</p>
-    <button class="button secondary" :disabled="busy" @click="void perform(false)">{{ t('Talep durumunu kontrol et') }}</button>
-    <div v-if="loaded&&request" class="panel stack">
+    <p class="ds-small ds-muted">{{ t('Buradan silme talebi oluşturabilir, durumunu takip edebilir ve iptal edebilirsin. Talep vermek verileri hemen silmez. Kalıcı silme işlemi henüz kullanıma açık değil.') }}</p>
+    <div><button type="button" class="ds-btn s" :disabled="busy" @click="void perform(false)">{{ t('Talep durumunu kontrol et') }}</button></div>
+    <div v-if="loaded&&request" class="confirm ds-col ds-g8">
       <h3>{{ t(privacyLabels[request.status]) }}</h3>
-      <p>{{ t(privacyScopeLabels[request.scope]) }}</p>
-      <p class="small muted">{{ new Date(request.updatedAtMs).toLocaleString(locale==='en'?'en-GB':'tr-TR') }} · {{ t('Sürüm') }} {{ request.version }}</p>
-      <p v-if="request.reason">{{ t(privacyReasonLabels[request.reason]) }}</p>
-      <template v-if="request.status!=='cancelled'&&!pending">
-        <button v-if="request.status==='needs_confirmation'" class="button secondary" :disabled="busy" @click="prepare('confirm')">{{ t('Kapsamı tekrar onayla') }}</button>
-        <button class="button secondary" :disabled="busy" @click="prepare('cancel')">{{ t('Silme talebini iptal et') }}</button>
-      </template>
+      <p class="ds-small">{{ t(privacyScopeLabels[request.scope]) }}</p>
+      <p class="ds-xs ds-muted">{{ new Date(request.updatedAtMs).toLocaleString(locale==='en'?'en-GB':'tr-TR') }} · {{ t('Sürüm') }} {{ request.version }}</p>
+      <p v-if="request.reason" class="ds-small">{{ t(privacyReasonLabels[request.reason]) }}</p>
+      <div v-if="request.status!=='cancelled'&&!pending" class="ds-row ds-g10 ds-wrap">
+        <button v-if="request.status==='needs_confirmation'" type="button" class="ds-btn s" :disabled="busy" @click="prepare('confirm')">{{ t('Kapsamı tekrar onayla') }}</button>
+        <button type="button" class="ds-btn s" :disabled="busy" @click="prepare('cancel')">{{ t('Silme talebini iptal et') }}</button>
+      </div>
     </div>
     <template v-if="loaded&&(!request||request.status==='cancelled')&&!pending">
-      <fieldset :disabled="busy">
-        <legend>{{ t('İncelenecek kapsamı seç') }}</legend>
-        <label v-for="value in scopes" :key="value" class="check"><input v-model="scope" type="radio" name="privacy-scope" :value="value"/>{{ t(privacyScopeLabels[value]) }}</label>
+      <fieldset class="ds-col ds-g8" :disabled="busy">
+        <legend class="ds-label">{{ t('İncelenecek kapsamı seç') }}</legend>
+        <label v-for="value in scopes" :key="value" class="check choice"><input v-model="scope" type="radio" name="privacy-scope" :value="value"/>{{ t(privacyScopeLabels[value]) }}</label>
       </fieldset>
-      <button class="button secondary" :disabled="busy" @click="prepare('submit')">{{ t('Silme talebini hazırla') }}</button>
+      <div><button type="button" class="ds-btn d" :disabled="busy" @click="prepare('submit')"><Trash2 :size="16"/>{{ t('Silme talebini hazırla') }}</button></div>
     </template>
-    <div v-if="pending" class="panel stack">
+    <div v-if="pending" class="confirm ds-col ds-g12">
       <h3>{{ t(pending.action==='cancel'?'Talebi iptal etme onayı':'Silme talebi onayı') }}</h3>
-      <p>{{ t(privacyScopeLabels[pending.action==='submit'?pending.scope:request!.scope]) }}</p>
-      <p>{{ t('Cihazdaki garaj ve fotoğraflar bu taleple silinmez. İşletme yetkileri, yorumlar ve reklam/ödeme kayıtları kapsamına göre ayrıca incelenir. Şu anda otomatik kalıcı silme yapılmaz.') }}</p>
-      <p>{{ app.user?.email }}</p>
-      <label class="check"><input v-model="ack" type="checkbox" :disabled="busy"/>{{ t('Kapsamı ve henüz kalıcı silme yapılmadığını anladım.') }}</label>
-      <button class="button primary" :disabled="busy||!ack" @click="void perform(true)">{{ t(pending.action==='cancel'?'Onayla ve talebi iptal et':'Onayla ve talebi gönder') }}</button>
-      <button class="button secondary" :disabled="busy" @click="pending=null;ack=false">{{ t('Vazgeç') }}</button>
+      <p class="ds-small ds-b">{{ t(privacyScopeLabels[pending.action==='submit'?pending.scope:request!.scope]) }}</p>
+      <p class="ds-note warn"><TriangleAlert class="ds-i" :size="16"/><span>{{ t('Cihazdaki garaj ve fotoğraflar bu taleple silinmez. İşletme yetkileri, yorumlar ve reklam/ödeme kayıtları kapsamına göre ayrıca incelenir. Şu anda otomatik kalıcı silme yapılmaz.') }}</span></p>
+      <p class="ds-small ds-b">{{ app.user?.email }}</p>
+      <label class="check choice"><input v-model="ack" class="ds-check" type="checkbox" :disabled="busy"/>{{ t('Kapsamı ve henüz kalıcı silme yapılmadığını anladım.') }}</label>
+      <div class="ds-row ds-g10 ds-wrap"><button type="button" class="ds-btn p" :disabled="busy||!ack" @click="void perform(true)">{{ t(pending.action==='cancel'?'Onayla ve talebi iptal et':'Onayla ve talebi gönder') }}</button><button type="button" class="ds-btn s" :disabled="busy" @click="pending=null;ack=false">{{ t('Vazgeç') }}</button></div>
     </div>
-    <p v-if="!!notice" role="status">{{ t(notice) }}</p>
+    <p v-if="!!notice" class="ds-note" role="status">{{ t(notice) }}</p>
   </section>
 </template>
+
+<style scoped>
+.danger {border-color: #f1c2bc;}
+h2 {margin: 0; color: #b42318; font: 700 19px/24.7px Arimo, Arial, sans-serif; letter-spacing: 0;}
+h3 {margin: 0; font-size: 15px;}
+p {margin: 0;}
+fieldset {margin: 0; padding: 0; border: 0;}
+.confirm {padding: 16px; border-radius: 12px; background: #f4f6f8;}
+.choice {display: flex; align-items: flex-start; gap: 8px; font-size: 14px;}
+.choice input {flex: none; margin: 2px 0 0; padding: 0; accent-color: #10243a;}
+.ds-btn {max-width: 100%; white-space: normal;}
+</style>

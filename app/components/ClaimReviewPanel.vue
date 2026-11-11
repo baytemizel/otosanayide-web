@@ -6,6 +6,7 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useLocale} from '~/composables/useLocale';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {Claim} from '~/lib/claim-review-panel-helpers';
 
 const {t: i18nT} = useLocale();
@@ -27,7 +28,7 @@ useClientEffect(() => [app.demo, app.user, reload.value], () => {
   user.getIdToken()
     .then(token => apiFetch('/api/admin/claims', {headers: {Authorization: `Bearer ${token}`}}))
     .then(async r => {
-      const d = await r.json();
+      const d = await responseJson(r);
       if (!r.ok) throw Error(d.error ?? 'Başvurular yüklenemedi.');
       if (!cancelled) claims.value = d.claims;
     })
@@ -60,32 +61,32 @@ function done() {
 </script>
 
 <template>
-  <section v-if="app.demo" class="panel">
-    <h2>{{ i18nT('Sahiplik başvuruları') }}</h2>
-    <p>{{ i18nT('Canlı yönetici hesabında başvuru seçimi, özel belge incelemesi, ek bilgi talebi ve gerekçeli onay/ret burada yapılır.') }}</p>
-    <ol class="stack">
+  <section v-if="app.demo" class="ds-card ds-pad24 ds-col ds-g12">
+    <h3 style="margin:0">{{ i18nT('Sahiplik başvuruları') }}</h3>
+    <div class="ds-small ds-muted">{{ i18nT('Canlı yönetici hesabında başvuru seçimi, özel belge incelemesi, ek bilgi talebi ve gerekçeli onay/ret burada yapılır.') }}</div>
+    <ol class="ds-col ds-g8 ds-small" style="margin:0;padding-left:20px">
       <li>{{ i18nT('Başvurunun doğru işletmeyle eşleşmesini kontrol et.') }}</li>
       <li>{{ i18nT('Her belgeyi açıp temsil yetkisini incele.') }}</li>
       <li>{{ i18nT('Belge incelemesini kaydet ve başvuru kararını ver.') }}</li>
     </ol>
-    <p class="notice">{{ i18nT('Önizlemede özel belge alınmaz ve gerçek sahiplik yetkisi verilmez.') }}</p>
+    <div class="ds-note warn">{{ i18nT('Önizlemede özel belge alınmaz ve gerçek sahiplik yetkisi verilmez.') }}</div>
   </section>
-  <section v-else-if="!app.user" class="panel">
-    <p>{{ i18nT('Başvuruları görmek için yönetici hesabıyla giriş yap.') }}</p>
+  <section v-else-if="!app.user" class="ds-card ds-pad24">
+    <div class="ds-small ds-muted">{{ i18nT('Başvuruları görmek için yönetici hesabıyla giriş yap.') }}</div>
   </section>
-  <template v-else>
-    <div class="row between">
-      <h2>{{ i18nT('Sahiplik inceleme kuyruğu') }}</h2>
-      <button class="button secondary compact" :disabled="loading" @click="reload++">{{ i18nT('Başvuruları yenile') }}</button>
+  <section v-else class="ds-col ds-g16">
+    <div class="ds-row ds-sb ds-wrap ds-g12">
+      <h3 style="margin:0">{{ i18nT('Sahiplik inceleme kuyruğu') }}</h3>
+      <button class="ds-btn s sm" :disabled="loading" @click="reload++">{{ i18nT('Başvuruları yenile') }}</button>
     </div>
-    <p v-if="message" class="notice" role="status">{{ i18nT(message) }}</p>
-    <p v-if="error" class="error" role="alert">{{ i18nT(error) }}</p>
-    <p v-if="loading" role="status">{{ i18nT('Başvurular yükleniyor…') }}</p>
+    <div v-if="message" class="ds-note ok" role="status">{{ i18nT(message) }}</div>
+    <div v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
+    <div v-if="loading" class="ds-small ds-muted" role="status">{{ i18nT('Başvurular yükleniyor…') }}</div>
     <template v-else>
-      <label>{{ i18nT('İncelenecek başvuru') }}<select v-model="selected"><option value="">{{ i18nT('Başvuru seç') }}</option><option v-for="c in claims" :key="c.id" :value="c.id">{{ i18nT(c.name) }} · {{ c.city }} · {{ claimStatusLabels[c.status] }}</option></select></label>
+      <label class="ds-col" style="max-width:480px"><span class="ds-label">{{ i18nT('İncelenecek başvuru') }}</span><select v-model="selected" class="ds-field"><option value="">{{ i18nT('Başvuru seç') }}</option><option v-for="c in claims" :key="c.id" :value="c.id">{{ i18nT(c.name) }} · {{ c.city }} · {{ claimStatusLabels[c.status] }}</option></select></label>
       <ClaimReviewPanelReviewItem v-if="claim" :key="`${claim.id}-${claim.businessId??'unbound'}-${reload}`" :claim="claim" :onMapped="mappedFor(claim.id)" :onDone="done"/>
-      <p v-if="!error&&!claims.length">{{ i18nT('Bekleyen başvuru yok.') }}</p>
-      <p class="small muted">{{ i18nT('En fazla 50 açık başvuru gösterilir; karar sonrası liste güncellenir.') }}</p>
+      <div v-if="!error&&!claims.length" class="ds-card ds-pad24 ds-small ds-muted">{{ i18nT('Bekleyen başvuru yok.') }}</div>
+      <div class="ds-xs ds-muted">{{ i18nT('En fazla 50 açık başvuru gösterilir; karar sonrası liste güncellenir.') }}</div>
     </template>
-  </template>
+  </section>
 </template>

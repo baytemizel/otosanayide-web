@@ -52,9 +52,14 @@ useClientEffect(() => [key], () => {
 </script>
 
 <template>
-  <div class="stack">
-    <strong>{{ i18nT('Google Maps ile adres veya işletme ara') }}</strong>
-    <p v-if="!key" class="small muted">{{ i18nT('Adres önerileri için Google Maps / Places API anahtarı henüz bağlı değil. Şimdilik Google Maps’te arayıp noktanın enlem ve boylamını aşağıya girebilirsin.') }}</p>
-    <div v-else ref="container"/>{{ ' ' }}<p v-if="error" role="alert" class="error">{{ i18nT(error) }}</p>
+  <div class="ds-col ds-g8 place-search">
+    <strong class="ds-label">{{ i18nT('Google Maps ile adres veya işletme ara') }}</strong>
+    <p v-if="!key" class="ds-help">{{ i18nT('Adres önerileri için Google Maps / Places API anahtarı henüz bağlı değil. Şimdilik Google Maps’te arayıp noktanın enlem ve boylamını aşağıya girebilirsin.') }}</p>
+    <div v-else ref="container"/>
+    <p v-if="error" role="alert" class="ds-note err">{{ i18nT(error) }}</p>
   </div>
 </template>
+
+<style scoped>
+.place-search .ds-label, .place-search .ds-help, .place-search .ds-note {margin: 0;}
+</style>

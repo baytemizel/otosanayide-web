@@ -3,6 +3,7 @@ import {computed} from 'vue';
 import CatalogueHistoryViewer from '~/components/CatalogueHistoryViewer.vue';
 import {useApp} from '~/composables/useApp';
 import {apiFetch} from '~/lib/api';
+import {responseJson} from '~/lib/response-json';
 import type {Page} from '~/lib/catalogue-history-helpers';
 
 const props = defineProps<{businessId: string}>();
@@ -15,7 +16,7 @@ const load = computed(() => {
   return async (cursor: string) => {
     if (!user) throw Error('Oturum gerekli.');
     const r = await apiFetch(`/api/admin/catalogue/history?businessId=${encodeURIComponent(businessId)}${cursor ? '&after=' + encodeURIComponent(cursor) : ''}`, {headers: {Authorization: `Bearer ${await user.getIdToken()}`}});
-    const d = await r.json();
+    const d = await responseJson(r);
     if (!r.ok) throw Error(d.error);
     return d as Page;
   };

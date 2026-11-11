@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted} from 'vue';
 import Shell from '~/components/Shell.vue';
+import SystemOffline from '~/components/SystemOffline.vue';
 import {useApp} from '~/composables/useApp';
 import {useAppHead} from '~/composables/useAppHead';
 import {useLocale} from '~/composables/useLocale';
@@ -17,5 +18,6 @@ onBeforeUnmount(() => app.stop());
   <Shell>
     <NuxtPage/>
   </Shell>
+  <SystemOffline/>
   <div v-if="app.notice" class="toast" role="status">{{ i18nT(app.notice) }}<button :aria-label="i18nT('Bildirimi kapat')" @click="app.notify('')">×</button></div>
 </template>

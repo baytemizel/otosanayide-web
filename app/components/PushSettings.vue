@@ -65,11 +65,17 @@ async function run(action: 'load' | 'register' | 'revoke', device?: z.infer<type
 </script>
 
 <template>
-  <section v-if="!(app.demo||!app.user?.emailVerified||!publicEnv().pushEnabled)" class="panel stack">
+  <section v-if="!(app.demo||!app.user?.emailVerified||!publicEnv().pushEnabled)" class="ds-card ds-pad24 ds-col ds-g12">
     <h2>{{ t('Cihaz bildirimleri') }}</h2>
-    <p>{{ t('Bu tarayıcı için izin ver. Bildirimlerde araç veya özel bakım bilgilerin gösterilmez. İstediğin cihazı hesabından kaldırabilirsin.') }}</p>
-    <div class="actions"><button type="button" class="button primary" :disabled="busy" @click="void run('register')">{{ t('Bu tarayıcıda etkinleştir') }}</button><button type="button" class="button secondary" :disabled="busy" @click="void run('load')">{{ t('Kayıtlı cihazları göster') }}</button></div>
-    <p v-if="error" role="alert">{{ t(error) }}</p>
-    <div v-for="device in devices" :key="device.deviceId" class="panel"><p>{{ device.platform }} · {{ t(device.enabled?'Etkin':'Kapalı') }} · {{ new Date(device.updatedAtMs).toLocaleDateString(locale==='en'?'en-GB':'tr-TR') }}</p><button v-if="device.enabled" type="button" class="button secondary" :disabled="busy" @click="void run('revoke',device)">{{ t('Bu cihazı kaldır') }}</button></div>
+    <p class="ds-small ds-muted">{{ t('Bu tarayıcı için izin ver. Bildirimlerde araç veya özel bakım bilgilerin gösterilmez. İstediğin cihazı hesabından kaldırabilirsin.') }}</p>
+    <div class="ds-row ds-g10 ds-wrap"><button type="button" class="ds-btn p" :disabled="busy" @click="void run('register')">{{ t('Bu tarayıcıda etkinleştir') }}</button><button type="button" class="ds-btn s" :disabled="busy" @click="void run('load')">{{ t('Kayıtlı cihazları göster') }}</button></div>
+    <p v-if="error" class="ds-note err" role="alert">{{ t(error) }}</p>
+    <div v-for="device in devices" :key="device.deviceId" class="device ds-row ds-sb ds-g12 ds-wrap"><p class="ds-small">{{ device.platform }} · {{ t(device.enabled?'Etkin':'Kapalı') }} · {{ new Date(device.updatedAtMs).toLocaleDateString(locale==='en'?'en-GB':'tr-TR') }}</p><button v-if="device.enabled" type="button" class="ds-btn d sm" :disabled="busy" @click="void run('revoke',device)">{{ t('Bu cihazı kaldır') }}</button></div>
   </section>
 </template>
+
+<style scoped>
+h2 {margin: 0; font: 700 19px/24.7px Arimo, Arial, sans-serif; letter-spacing: 0;}
+p {margin: 0;}
+.device {padding: 12px 14px; border: 1px solid #dfe5eb; border-radius: 10px;}
+</style>

@@ -32,9 +32,17 @@ export class SessionRequestError extends Error {
   }
 }
 
+export type TotpEnrollment = {secret: string; otpauthUri: string};
+export type MfaStatus = {totp: {enabled: boolean; enabledAtMs: number | null}};
+
 const identity = z.object({uid: z.string().min(1), email: z.string().nullable().optional(), emailVerified: z.boolean()});
 const sessionSchema = z.object({accessToken: z.string().min(1), expiresIn: z.number().int().positive(), user: identity});
 const mfaSchema = z.object({mfaRequired: z.literal(true), challenge: z.string().min(1)});
+const enrollmentSchema = z.object({
+  secret: z.string().regex(/^[A-Z2-7]{16,128}=*$/),
+  otpauthUri: z.string().max(2048).refine(v => v.startsWith('otpauth://totp/')),
+});
+const mfaStatusSchema = z.object({totp: z.object({enabled: z.boolean(), enabledAtMs: z.number().int().nonnegative().nullable()})});
 const shared = z.object({accessToken: z.string().min(1), expiresAt: z.number().int().positive(), user: identity});
 const message = z.discriminatedUnion('type', [
   z.object({type: z.literal('session'), session: shared}),
@@ -200,6 +208,18 @@ export function createSessionService(deps: SessionDeps) {
     return response;
   }
 
+  /** Signed-in calls under /api/auth/*: a fresh access token, never the refresh cookie alone. */
+  async function authorized(path: string, body?: unknown, method: 'POST' | 'GET' = 'POST') {
+    const owner = user;
+    const token = await owner?.getIdToken();
+    if (!owner || !token) throw new SessionRequestError(401);
+    const response = method === 'GET'
+      ? await deps.request(path, {method: 'GET', headers: {Accept: 'application/json', Authorization: 'Bearer ' + token}, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)})
+      : await post(path, body, token);
+    if (user !== owner) throw new Error('session_changed');
+    return ensureOk(response);
+  }
+
   return {
     /** Restores the session once; subscribers hear the first state when it settles. */
     start() {
@@ -254,9 +274,44 @@ export function createSessionService(deps: SessionDeps) {
       }
     },
     async resendVerification() {
-      const token = await user?.getIdToken();
-      if (!token) throw new SessionRequestError(401);
-      await ensureOk(await post('/api/auth/email/resend', undefined, token));
+      await authorized('/api/auth/email/resend');
+    },
+    /** Picks up server-side changes to the identity, e.g. a verification done in another tab. */
+    async reloadIdentity() {
+      if (!user) return null;
+      await refresh();
+      return user;
+    },
+    async enrollTotp(): Promise<TotpEnrollment> {
+      const response = await authorized('/api/auth/mfa/totp/enroll');
+      return enrollmentSchema.parse(await response.json());
+    },
+    async confirmTotp(code: string) {
+      await authorized('/api/auth/mfa/totp/confirm', {code});
+    },
+    async disableTotp(code: string) {
+      await authorized('/api/auth/mfa/totp/disable', {code});
+    },
+    /** Endpoint request web-01; callers check contract readiness first. */
+    async mfaStatus(): Promise<MfaStatus> {
+      const response = await authorized('/api/auth/mfa', undefined, 'GET');
+      return mfaStatusSchema.parse(await response.json());
+    },
+    /** Endpoint request web-02: the answer is a new session; other session families are revoked. */
+    async changePassword(currentPassword: string, newPassword: string, code?: string) {
+      // The token is taken before the lock: renewing it needs the same lock.
+      const owner = user;
+      const token = await owner?.getIdToken();
+      if (!owner || !token) throw new SessionRequestError(401);
+      await withLock(async () => {
+        const response = await ensureOk(await post('/api/auth/password/change', {currentPassword, newPassword, ...(code ? {code} : {})}, token));
+        if (user !== owner) throw new Error('session_changed');
+        accept(await response.json());
+      });
+    },
+    /** Endpoint request web-03: nothing changes until the link sent to the new address is opened. */
+    async changeEmail(newEmail: string, password: string, code?: string) {
+      await authorized('/api/auth/email/change', {newEmail, password, ...(code ? {code} : {})});
     },
     async verifyEmail(token: string) {
       await ensureOk(await post('/api/auth/email/verify', {token}));

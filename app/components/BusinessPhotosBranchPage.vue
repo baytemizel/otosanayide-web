@@ -32,15 +32,20 @@ useClientEffect(() => [props.options.origin, props.options.locale, props.after, 
 </script>
 
 <template>
-  <section class="stack business-media">
-    <button class="button secondary" @click="reload()">{{ t('İşletmeleri yenile') }}</button>
-    <p v-if="error" role="alert">{{ t('İşletme fotoğrafları alınamadı. Yetkini kontrol edip yenile.') }}</p>
-    <p v-else-if="rows===null">{{ t('Yükleniyor…') }}</p>
+  <section class="ds-col ds-g12 business-media">
+    <div><button class="ds-btn s sm" @click="reload()">{{ t('İşletmeleri yenile') }}</button></div>
+    <div v-if="error" role="alert" class="ds-note err">{{ t('İşletme fotoğrafları alınamadı. Yetkini kontrol edip yenile.') }}</div>
+    <p v-else-if="rows===null" class="ds-small ds-muted">{{ t('Yükleniyor…') }}</p>
     <template v-else>
-      <p v-if="!rows.length">{{ t('Bu sayfada yönetebileceğin işletme yok.') }}</p>
-      <button v-for="b in rows" :key="b.id" class="panel text-button" @click="select(b)">{{ b.name }} · {{ b.city }} · {{ b.district }}</button>
-      <button v-if="cursor" class="button secondary" @click="next(cursor as string)">{{ t('Sonraki işletmeler') }}</button>
+      <p v-if="!rows.length" class="ds-small ds-muted">{{ t('Bu sayfada yönetebileceğin işletme yok.') }}</p>
+      <button v-for="b in rows" :key="b.id" type="button" class="ds-card ds-pad16 branch" @click="select(b)">{{ b.name }} · {{ b.city }} · {{ b.district }}</button>
+      <div v-if="cursor"><button class="ds-btn s sm" @click="next(cursor as string)">{{ t('Sonraki işletmeler') }}</button></div>
     </template>
-    <button v-if="after" class="button secondary" @click="next('')">{{ t('İlk işletmeler') }}</button>
+    <div v-if="after"><button class="ds-btn s sm" @click="next('')">{{ t('İlk işletmeler') }}</button></div>
   </section>
 </template>
+
+<style scoped>
+p {margin: 0;}
+.branch {width: 100%; color: #10243a; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer;}
+</style>

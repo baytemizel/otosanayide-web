@@ -12,10 +12,33 @@ export type PublicEnv = {
   firebaseAppId: string;
   firebaseMessagingSenderId: string;
   firebaseStorageBucket: string;
+  /** Business portal origin (K184). Empty keeps every business link passive. */
+  portalOrigin: string;
+  /** Public site origin for canonical URLs and the sitemap. Empty omits them. */
+  siteOrigin: string;
+  /** Search engines may index only when explicitly enabled for a released site. */
+  indexingEnabled: boolean;
+  /** Legal page skeletons; drafts are not lawyer-approved, so this stays off. */
+  legalPagesEnabled: boolean;
 };
 
 const text = (value: unknown) => (value === undefined || value === null ? '' : String(value));
 const flag = (value: unknown) => String(value) === 'true';
+
+/** Only a bare https origin is usable (http is allowed for local development hosts). */
+export function origin(value: unknown) {
+  const raw = text(value).trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname) || url.hostname.endsWith('.localhost') || url.hostname.endsWith('.test');
+    if (url.origin !== raw.replace(/\/$/, '')) return '';
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) return '';
+    return url.origin;
+  } catch {
+    return '';
+  }
+}
 
 let current: PublicEnv = normalizeEnv({});
 
@@ -35,6 +58,10 @@ export function normalizeEnv(raw: Record<string, unknown>): PublicEnv {
     firebaseAppId: text(raw.firebaseAppId),
     firebaseMessagingSenderId: text(raw.firebaseMessagingSenderId),
     firebaseStorageBucket: text(raw.firebaseStorageBucket),
+    portalOrigin: origin(raw.portalOrigin),
+    siteOrigin: origin(raw.siteOrigin),
+    indexingEnabled: flag(raw.indexingEnabled),
+    legalPagesEnabled: flag(raw.legalPagesEnabled),
   };
 }
 

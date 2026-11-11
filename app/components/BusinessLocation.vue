@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
-import {MapPin, Pencil} from '@lucide/vue';
+import {MapPin, Pencil, ShieldCheck, TriangleAlert} from '@lucide/vue';
 import {readBusinessDraft, saveBusinessLocation} from '@otosanayide/core/business-draft';
 import {locationSchema, mapsLocationUrl, type ServiceLocation} from '@otosanayide/core/location';
 import LocationMap from '~/components/LocationMap.vue';
@@ -95,30 +95,64 @@ useClientEffect(() => [dirty.value], () => {
 });
 
 const candidate = computed(() => locationSchema.safeParse({address: address.value, latitude: lat.value, longitude: lng.value}));
+const pointMoved = computed(() => editing.value && !!saved.value && address.value === saved.value.address && (lat.value !== String(saved.value.latitude) || lng.value !== String(saved.value.longitude)));
 const addressSearchUrl = computed(() => `https://www.google.com/maps/search/?${new URLSearchParams({api: '1', query: address.value})}`);
 </script>
 
 <template>
-  <section id="business-location" class="panel">
-    <div class="row between"><h2 class="row"><MapPin :size="24"/>{{ i18nT("İşletme konumu") }}</h2><button v-if="!editing" class="button secondary compact" :disabled="!app.demo || !app.member" @click="open"><Pencil :size="16"/>{{ saved ? i18nT("Konumu düzenle") : i18nT("Konum ekle") }}</button></div>
-    <form v-if="editing" class="stack" @submit="save">
-      <PlaceSearch :onSelect="choose"/>
-      <label>{{ i18nT("Açık adres / arama metni") }}<textarea v-model="address" required minlength="5" maxlength="500"/></label>
-      <a v-if="address.trim()" class="text-link" target="_blank" rel="noreferrer" :href="addressSearchUrl">{{ i18nT("Bu adresi Google Maps’te ara ↗") }}</a>
-      <div class="form-grid"><label>{{ i18nT("Enlem") }}<input required type="number" step="any" min="-90" max="90" :value="lat" @input="lat=($event.target as HTMLInputElement).value"/></label><label>{{ i18nT("Boylam") }}<input required type="number" step="any" min="-180" max="180" :value="lng" @input="lng=($event.target as HTMLInputElement).value"/></label></div>
-      <LocationMap v-if="candidate.success" :latitude="candidate.data.latitude" :longitude="candidate.data.longitude" :onMove="moveTo"/>
-      <p class="small muted">{{ i18nT("Adres ve konum birlikte kaydedilir. Arama sonucunu seç, ardından haritada noktayı kontrol et. Harita bağlıyken işareti sürükleyebilir veya haritaya dokunabilirsin. Noktayı taşımak açık adres metnini otomatik değiştirmez.") }}</p>
-      <p v-if="error" class="error" role="alert">{{ i18nT(error) }}</p>
-      <div class="row"><button class="button primary">{{ i18nT("Konumu kaydet") }}</button><button class="button secondary" type="button" @click="cancel">{{ i18nT("Vazgeç") }}</button></div>
+  <section id="business-location" class="ds-col ds-g20">
+    <div class="ds-tabs">
+      <button type="button" class="on" aria-pressed="true">{{ i18nT("Konum") }}</button>
+      <button type="button" class="ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Çalışma saatleri") }}</button>
+      <button type="button" class="ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Tatil ve izinler") }}</button>
+    </div>
+    <form v-if="editing" class="loc-grid" @submit="save">
+      <div class="ds-col ds-g12 loc-map">
+        <PlaceSearch :onSelect="choose"/>
+        <LocationMap v-if="candidate.success" :latitude="candidate.data.latitude" :longitude="candidate.data.longitude" :onMove="moveTo"/>
+        <div v-else class="ds-mapbg loc-placeholder" aria-hidden="true"/>
+      </div>
+      <div class="ds-card ds-pad24 stack">
+        <h3>{{ i18nT("Adres ve koordinat") }}</h3>
+        <label>{{ i18nT("Adres metni") }}<textarea v-model="address" class="ds-field" required minlength="5" maxlength="500"/></label>
+        <a v-if="address.trim()" class="text-link" target="_blank" rel="noreferrer" :href="addressSearchUrl">{{ i18nT("Bu adresi Google Maps’te ara ↗") }}</a>
+        <div class="form-grid"><label>{{ i18nT("Enlem") }}<input class="ds-field" required type="number" step="any" min="-90" max="90" :value="lat" @input="lat=($event.target as HTMLInputElement).value"/></label><label>{{ i18nT("Boylam") }}<input class="ds-field" required type="number" step="any" min="-180" max="180" :value="lng" @input="lng=($event.target as HTMLInputElement).value"/></label></div>
+        <div v-if="pointMoved" class="ds-note warn"><TriangleAlert :size="16" class="ds-i"/><span>{{ i18nT("İşaret taşındı. Adres metni otomatik değişmez; ikisini kontrol edip kaydet.") }}</span></div>
+        <div class="ds-note"><ShieldCheck :size="16" class="ds-i"/><span>{{ i18nT("Adres ve konum birlikte kaydedilir. Arama sonucunu seç, ardından haritada noktayı kontrol et. Harita bağlıyken işareti sürükleyebilir veya haritaya dokunabilirsin. Noktayı taşımak açık adres metnini otomatik değiştirmez.") }}</span></div>
+        <div v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</div>
+        <div class="ds-row ds-g10 ds-wrap"><button class="ds-btn p">{{ i18nT("Konumu kaydet") }}</button><button class="ds-btn s" type="button" @click="cancel">{{ i18nT("Vazgeç") }}</button></div>
+      </div>
     </form>
-    <template v-else-if="saved">
-      <p>{{ saved.address }}</p>
-      <LocationMap :latitude="saved.latitude" :longitude="saved.longitude"/>
-      <a class="button secondary full" :href="mapsLocationUrl(saved)" target="_blank" rel="noreferrer"><MapPin :size="18"/>{{ i18nT("Google Maps’te aç") }}</a>
-      <p class="small muted">{{ i18nT("Konum taslağı · Henüz doğrulanmadı") }}</p>
-    </template>
-    <div v-else class="inline-empty"><MapPin :size="30"/><p>{{ i18nT("Henüz bağlı bir işletme konumu yok. Konum ekleyerek harita noktasını ve adresini birlikte kaydedebilirsin.") }}</p></div>
-    <p v-if="message" role="status" class="notice">{{ i18nT(message) }}</p>
-    <p class="small muted">{{ i18nT("Önizlemede yalnızca bu tarayıcıda saklanır. Canlı değişiklikler işletme yetkisi ve konum doğrulaması gerektirir.") }}</p>
+    <div v-else-if="saved" class="loc-grid">
+      <div class="loc-map"><LocationMap :latitude="saved.latitude" :longitude="saved.longitude"/></div>
+      <div class="ds-card ds-pad24 ds-col ds-g16">
+        <div class="ds-row ds-sb ds-g12 ds-wrap"><h3>{{ i18nT("Adres ve koordinat") }}</h3><button class="ds-btn s sm" :disabled="!app.demo || !app.member" @click="open"><Pencil :size="15"/>{{ i18nT("Konumu düzenle") }}</button></div>
+        <p class="ds-small">{{ saved.address }}</p>
+        <a class="ds-btn s" :href="mapsLocationUrl(saved)" target="_blank" rel="noreferrer"><MapPin :size="18"/>{{ i18nT("Google Maps’te aç") }}</a>
+        <p class="ds-xs ds-muted">{{ i18nT("Konum taslağı · Henüz doğrulanmadı") }}</p>
+      </div>
+    </div>
+    <div v-else class="ds-card ds-pad24 loc-empty">
+      <MapPin :size="30" class="ds-i"/>
+      <p class="ds-small ds-muted">{{ i18nT("Henüz bağlı bir işletme konumu yok. Konum ekleyerek harita noktasını ve adresini birlikte kaydedebilirsin.") }}</p>
+      <button class="ds-btn s sm" :disabled="!app.demo || !app.member" @click="open"><Pencil :size="15"/>{{ i18nT("Konum ekle") }}</button>
+    </div>
+    <div v-if="message" role="status" class="ds-note ok">{{ i18nT(message) }}</div>
+    <p class="ds-xs ds-muted">{{ i18nT("Önizlemede yalnızca bu tarayıcıda saklanır. Canlı değişiklikler işletme yetkisi ve konum doğrulaması gerektirir.") }}</p>
   </section>
 </template>
+
+<style scoped>
+p {margin: 0;}
+h3 {margin: 0;}
+.ds-card.stack label {font-weight: 700;}
+.loc-grid {display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start;}
+.loc-map {min-width: 0;}
+.loc-map :deep(.location-map) {height: 460px; margin: 0; border-radius: 14px;}
+.loc-placeholder {min-height: 460px; border-radius: 14px;}
+.loc-empty {display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 24px; text-align: center;}
+@media (max-width: 1100px) {
+  .loc-grid {grid-template-columns: minmax(0, 1fr);}
+  .loc-map :deep(.location-map), .loc-placeholder {height: 320px; min-height: 320px;}
+}
+</style>

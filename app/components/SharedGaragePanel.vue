@@ -98,16 +98,25 @@ function confirm() {
 </script>
 
 <template>
-  <section class="panel" :aria-label="t('Web ve mobil ortak garaj')">
-    <div class="shared-garage-heading"><h2><Cloud :size="22"/>{{ t('Web ve mobil ortak garaj') }}</h2><button class="button secondary compact" :disabled="busy" @click="reloadRecords"><RefreshCw :size="16"/>{{ t('Kayıtları yenile') }}</button></div>
-    <p class="muted">{{ t('Aynı hesaptaki araç ve bakım metinlerini web ve mobilde birlikte yönet. Fotoğraf, belge ve hatırlatmalar bu geçişe dahil değildir.') }}</p>
-    <p v-if="app.data.garageShared" role="status">{{ t('Ortak garaj etkin. Mobildeki aktarımı kendin başlatırsın; burada güncel kayıtları yenileyebilirsin.') }}</p>
-    <template v-else><p class="small muted">{{ t('Geçiş kendiliğinden başlamaz. Eski kayıtların kimliği korunur; çakışma veya kapasite sorunu varsa hiçbir şey değiştirilmez.') }}</p><button class="button secondary" :disabled="busy" @click="startPreview">{{ t('Geçişi önizle') }}</button></template>
-    <div v-if="preview&&!preview.active" class="stack">
-      <p>{{ t('{vehicles} araç ve {records} bakım kaydı ortak garaja alınacak.',{vehicles:preview.vehicles,records:preview.records}) }}</p>
-      <label class="check"><input type="checkbox" v-model="ack" :disabled="busy"/>{{ t('Bu hesaptaki kayıtların ortak garaja geçirilmesini onaylıyorum.') }}</label>
-      <button class="button primary" :disabled="busy||!ack" @click="confirm">{{ t('Onayla ve ortak garajı etkinleştir') }}</button>
+  <section class="ds-card ds-pad ds-col ds-g10" :aria-label="t('Web ve mobil ortak garaj')">
+    <div class="ds-row ds-sb ds-wrap ds-g8"><h2 class="ds-row ds-g8 title"><Cloud :size="18"/>{{ t('Web ve mobil ortak garaj') }}</h2><button type="button" class="ds-btn s sm" :disabled="busy" @click="reloadRecords"><RefreshCw :size="15"/>{{ t('Kayıtları yenile') }}</button></div>
+    <p class="ds-xs ds-muted">{{ t('Aynı hesaptaki araç ve bakım metinlerini web ve mobilde birlikte yönet. Fotoğraf, belge ve hatırlatmalar bu geçişe dahil değildir.') }}</p>
+    <p v-if="app.data.garageShared" role="status" class="ds-note ok">{{ t('Ortak garaj etkin. Mobildeki aktarımı kendin başlatırsın; burada güncel kayıtları yenileyebilirsin.') }}</p>
+    <template v-else><p class="ds-xs ds-muted">{{ t('Geçiş kendiliğinden başlamaz. Eski kayıtların kimliği korunur; çakışma veya kapasite sorunu varsa hiçbir şey değiştirilmez.') }}</p><button type="button" class="ds-btn s sm start" :disabled="busy" @click="startPreview">{{ t('Geçişi önizle') }}</button></template>
+    <div v-if="preview&&!preview.active" class="ds-col ds-g10">
+      <p class="ds-small">{{ t('{vehicles} araç ve {records} bakım kaydı ortak garaja alınacak.',{vehicles:preview.vehicles,records:preview.records}) }}</p>
+      <label class="ds-row ds-g8 ack"><input class="ds-check" type="checkbox" v-model="ack" :disabled="busy"/><span class="ds-small">{{ t('Bu hesaptaki kayıtların ortak garaja geçirilmesini onaylıyorum.') }}</span></label>
+      <button type="button" class="ds-btn p sm wrap" :disabled="busy||!ack" @click="confirm">{{ t('Onayla ve ortak garajı etkinleştir') }}</button>
     </div>
-    <p v-if="error" role="alert" class="error">{{ t(error) }}</p>
+    <p v-if="error" role="alert" class="ds-note err">{{ t(error) }}</p>
   </section>
 </template>
+
+<style scoped>
+p, h2 {margin: 0;}
+.title {font-family: Arimo, Arial, Helvetica, sans-serif; letter-spacing: 0; font-size: 16px; line-height: 21.6px;}
+.start {align-self: flex-start;}
+.ack {align-items: flex-start; cursor: pointer;}
+input.ds-check {min-height: 0; padding: 0;}
+.wrap {white-space: normal; height: auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px;}
+</style>

@@ -1,9 +1,10 @@
 import {computed} from 'vue';
 import {localeTag as tagOf, parseLocale, translate, type Locale} from '@otosanayide/core/i18n';
-import extra from '~/locales/en-web.json';
 import {setApiLocale} from '~/lib/api';
 
 const COOKIE = 'otosanayide-locale';
+/** English for strings this repo adds; one JSON file per screen group. */
+const extra: Record<string, string> = Object.assign({}, ...Object.values(import.meta.glob<Record<string, string>>('../locales/*.json', {eager: true, import: 'default'})));
 
 export function useLocale() {
   const cookie = useCookie(COOKIE, {readonly: true});
@@ -21,7 +22,7 @@ export function useLocale() {
   /** Strings added by this repo live outside the shared core dictionary. */
   function t(source: string, params?: Record<string, string | number>) {
     const key = source.trim();
-    const own = locale.value === 'en' ? (extra as Record<string, string>)[key] : undefined;
+    const own = locale.value === 'en' ? extra[key] : undefined;
     return translate(locale.value, own ?? source, params);
   }
 
