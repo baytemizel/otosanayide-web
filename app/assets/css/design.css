@@ -32,7 +32,7 @@ h1,h2,.ds-serif{font-family:Gelasio,Georgia,serif;letter-spacing:-.02em}
 .ds-logo b{color:#F36B21}
 .ds-hdr{height:80px;display:flex;align-items:center;justify-content:space-between;padding:0 56px;border-bottom:1px solid #EDF0F3;background:#fff}
 .ds-hdr nav{display:flex;gap:36px;height:100%}
-.ds-hdr nav a{display:flex;align-items:center;color:#536276;font-size:15px;height:100%;border-bottom:3px solid transparent;padding-top:3px}
+.ds-hdr nav a,.ds-hdr nav>span{display:flex;align-items:center;color:#536276;font-size:15px;height:100%;border-bottom:3px solid transparent;padding-top:3px}
 .ds-hdr nav a.on{color:#10243A;font-weight:700;border-bottom-color:#F36B21}
 .ds-iconbtn{width:40px;height:40px;border:1px solid #DFE5EB;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff;position:relative;color:#10243A}
 .ds-dot{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;border-radius:9px;background:#C4460B;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
