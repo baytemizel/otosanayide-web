@@ -20,7 +20,8 @@ const photos = shallowRef<LocalMedia[]>([]);
 const processing = ref(false);
 const showArchived = ref(false);
 const vehicles = computed(() => app.data.vehicles.filter(v => !!v.archived === showArchived.value));
-const selected = ref('');
+// Hatırlatmalar links here with ?arac=<id>; an unknown id falls back to the first vehicle.
+const selected = ref(String(useRoute().query.arac ?? ''));
 const adding = ref(false);
 const busy = ref(false);
 const error = ref('');
@@ -88,7 +89,7 @@ async function submit(e: Event, kind: 'vehicle' | 'maintenance') {
 </script>
 
 <template>
-  <div class="ds-container garage" id="content">
+  <div class="garage">
     <p v-if="!app.ready" class="ds-small ds-muted">{{ i18nT("Hesabın yükleniyor…") }}</p>
     <div v-else-if="!app.member" class="ds-card welcome ds-col ds-g12">
       <CarFront :size="48"/>
@@ -208,7 +209,8 @@ async function submit(e: Event, kind: 'vehicle' | 'maintenance') {
 </template>
 
 <style scoped>
-.garage {max-width: 1440px; padding-top: 32px; padding-bottom: 64px;}
+/* Sits inside SystemAccountLayout, so columns follow the space left next to the account menu. */
+.garage {container-type: inline-size;}
 p, h1, h2 {margin: 0;}
 .t19, .t16 {font-family: Arimo, Arial, Helvetica, sans-serif; letter-spacing: 0; font-weight: 700;}
 .t19 {font-size: 19px; line-height: 24.7px;}
@@ -241,12 +243,11 @@ p, h1, h2 {margin: 0;}
 .note {white-space: pre-wrap; overflow-wrap: anywhere;}
 .hist-empty {display: flex; align-items: center; gap: 16px; padding: 24px 0 8px; color: #586879;}
 #bakim-kaydi {scroll-margin-top: 16px;}
-@media (max-width: 1100px) {
+@container (max-width: 1100px) {
   .garage-grid, .garage-grid.no-vehicle {grid-template-columns: minmax(0, 300fr) minmax(0, 640fr);}
   .side {grid-column: 2;}
 }
-@media (max-width: 760px) {
-  .garage {padding-top: 20px; padding-bottom: 32px;}
+@container (max-width: 700px) {
   .garage-grid, .garage-grid.no-vehicle {grid-template-columns: minmax(0, 1fr);}
   .side {grid-column: auto;}
 }

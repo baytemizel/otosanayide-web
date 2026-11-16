@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {Bell, CarFront, FileText, Heart, Inbox, Lock, MessageSquare, UserRound} from '@lucide/vue';
+import {AlarmClock, Bell, CarFront, FileText, Heart, Inbox, Lock, MessageSquare, UserRound} from '@lucide/vue';
 import {useApp} from '~/composables/useApp';
 import {useLocale} from '~/composables/useLocale';
 
@@ -8,10 +8,10 @@ const app = useApp();
 const route = useRoute();
 
 const items = [
-  {label: 'Araçlarım', to: '/araclarim', icon: CarFront},
-  {label: 'Hatırlatmalar', to: '/araclarim', icon: Bell},
-  {label: 'Kaydedilenler', to: '/kaydedilenler', icon: Heart},
-  {label: 'Taleplerim', to: '/taleplerim', icon: Inbox},
+  {label: 'Araçlarım', to: '/araclarim', icon: CarFront, page: '/araclarim'},
+  {label: 'Hatırlatmalar', to: '/hatirlatmalar', icon: AlarmClock, page: '/hatirlatmalar'},
+  {label: 'Kaydedilenler', to: '/kaydedilenler', icon: Heart, page: '/kaydedilenler'},
+  {label: 'Taleplerim', to: '/taleplerim', icon: Inbox, page: '/taleplerim'},
   {label: 'Yorumlarım', to: '/yorumlarim', icon: MessageSquare, page: '/yorumlarim'},
   {label: 'Bildirimler', to: '/bildirimler', icon: Bell, page: '/bildirimler'},
   {label: 'Başvurularım', to: '/basvurularim', icon: FileText, page: '/basvurularim'},

@@ -54,6 +54,7 @@ export default defineNuxtConfig({
     '/giris/sifre-sifirla': tokenPage,
     '/kayit': accountPage,
     '/araclarim': accountPage,
+    '/hatirlatmalar': accountPage,
     '/basvurularim': accountPage,
     '/bildirimler': accountPage,
     '/hesabim': accountPage,
