@@ -107,7 +107,7 @@ function enterDemo() {
           <form class="ds-col ds-g16" @submit="verify">
             <div>
               <label class="ds-label w10-label" for="login-code">{{ i18nT("Doğrulama kodu") }}</label>
-              <input id="login-code" class="ds-field" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required/>
+              <input id="login-code" class="ds-field" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" :placeholder="i18nT('6 haneli kod')" required/>
             </div>
             <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
             <button :disabled="busy" class="ds-btn p lg w10-wide">{{ busy ? i18nT("İşleniyor…") : i18nT("Doğrula") }}</button>
@@ -128,11 +128,11 @@ function enterDemo() {
             </div>
             <div>
               <label class="ds-label w10-label" for="login-email">{{ i18nT("E-posta adresi") }}</label>
-              <input id="login-email" class="ds-field" name="email" type="email" autocomplete="email" required/>
+              <input id="login-email" class="ds-field" name="email" type="email" autocomplete="email" :placeholder="i18nT('ornek@eposta.com')" required/>
             </div>
             <div>
               <label class="ds-label w10-label" for="login-password">{{ i18nT("Şifre") }}</label>
-              <AuthPasswordField id="login-password" autocomplete="current-password"/>
+              <AuthPasswordField id="login-password" autocomplete="current-password" :placeholder="i18nT('Şifreni gir')"/>
               <div class="w10-under"><button class="w10-link" type="button" @click="forgot">{{ i18nT("Şifremi unuttum") }}</button></div>
             </div>
             <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>

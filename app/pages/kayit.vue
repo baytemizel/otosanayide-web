@@ -85,11 +85,11 @@ function enterDemo() {
             </div>
             <div>
               <label class="ds-label w10-label" for="register-email">{{ i18nT("E-posta adresi") }}</label>
-              <input id="register-email" class="ds-field" name="email" type="email" autocomplete="email" required/>
+              <input id="register-email" class="ds-field" name="email" type="email" autocomplete="email" :placeholder="i18nT('ornek@eposta.com')" required/>
             </div>
             <div>
               <label class="ds-label w10-label" for="register-password">{{ i18nT("Şifre") }}</label>
-              <AuthPasswordField id="register-password" autocomplete="new-password"/>
+              <AuthPasswordField id="register-password" autocomplete="new-password" :placeholder="i18nT('En az 10 karakter')"/>
             </div>
             <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
             <button :disabled="busy" class="ds-btn p lg w10-wide">{{ busy ? i18nT("İşleniyor…") : i18nT("Hesap oluştur") }}</button>

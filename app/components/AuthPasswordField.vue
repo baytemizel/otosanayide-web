@@ -3,14 +3,14 @@ import {ref} from 'vue';
 import {Eye, EyeOff} from '@lucide/vue';
 import {useLocale} from '~/composables/useLocale';
 
-withDefaults(defineProps<{id: string; autocomplete: string; invalid?: boolean; name?: string; minlength?: number}>(), {invalid: false, name: 'password', minlength: 10});
+withDefaults(defineProps<{id: string; autocomplete: string; invalid?: boolean; name?: string; minlength?: number; placeholder?: string}>(), {invalid: false, name: 'password', minlength: 10});
 const {t: i18nT} = useLocale();
 const visible = ref(false);
 </script>
 
 <template>
   <div class="ds-field auth-password" :class="{err: invalid}">
-    <input :id="id" :name="name" :type="visible ? 'text' : 'password'" :minlength="minlength" :autocomplete="autocomplete" :aria-invalid="invalid || undefined" required/>
+    <input :id="id" :name="name" :type="visible ? 'text' : 'password'" :minlength="minlength" :autocomplete="autocomplete" :placeholder="placeholder" :aria-invalid="invalid || undefined" required/>
     <button type="button" :aria-label="i18nT(visible ? 'Şifreyi gizle' : 'Şifreyi göster')" :aria-pressed="visible" @click="visible = !visible">
       <EyeOff v-if="visible" :size="18"/>
       <Eye v-else :size="18"/>
