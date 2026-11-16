@@ -11,13 +11,10 @@ import {browserSession} from '~/lib/session-instance';
 const {t: i18nT} = useLocale();
 const app = useApp();
 const router = useRouter();
-const register = ref(false);
 const error = ref('');
 const busy = ref(false);
 /** Kept in memory only; a reload restarts the sign-in. */
 const challenge = ref('');
-/** Address a registration was just sent for; the form then shows what happens next. */
-const registered = ref('');
 const terms = legalPath('kullanim-kosullari');
 const privacy = legalPath('gizlilik');
 useSeoMeta({title: () => i18nT('Giriş yap')});
@@ -40,17 +37,7 @@ async function submit(e: Event) {
   error.value = '';
   busy.value = true;
   try {
-    const session = browserSession();
-    const email = String(d.get('email'));
-    const password = String(d.get('password'));
-    if (register.value) {
-      // The API sends the verification mail itself and opens no session until sign-in.
-      await session.register(email, password);
-      registered.value = email;
-      register.value = false;
-      return;
-    }
-    const result = await session.login(email, password);
+    const result = await browserSession().login(String(d.get('email')), String(d.get('password')));
     if (result.status === 'mfaRequired') {
       challenge.value = result.challenge;
       return;
@@ -58,7 +45,6 @@ async function submit(e: Event) {
     await signedIn();
   } catch (e) {
     if (e instanceof SessionRequestError && e.status === 429) error.value = 'Çok fazla deneme yapıldı. Biraz sonra tekrar dene.';
-    else if (register.value && e instanceof SessionRequestError && e.status === 400) error.value = 'E-posta adresini ve en az 10 karakterlik şifreni kontrol et.';
     else error.value = 'Giriş tamamlanamadı. Bilgilerini ve bağlantıyı kontrol et.';
   } finally {
     busy.value = false;
@@ -83,7 +69,6 @@ async function verify(e: Event) {
 
 function backToLogin() {
   challenge.value = '';
-  registered.value = '';
   error.value = '';
 }
 
@@ -129,15 +114,8 @@ function enterDemo() {
             <button class="w10-link w10-center" type="button" @click="backToLogin">{{ i18nT("Girişe dön") }}</button>
           </form>
         </template>
-        <template v-else-if="registered">
-          <h2 class="ds-serif">{{ i18nT("E-postanı kontrol et") }}</h2>
-          <p class="ds-note ok" role="status">{{ i18nT("{0} adresine bir e-posta gönderdik.", {'0': registered}) }}</p>
-          <p class="ds-small ds-muted">{{ i18nT("Hesap yeni oluşturulduysa e-postada doğrulama bağlantısı vardır; bağlantı 24 saat geçerlidir. Adres zaten kayıtlıysa yalnız bilgilendirme gönderilir.") }}</p>
-          <p class="ds-small ds-muted">{{ i18nT("Doğrulamadan da giriş yapabilirsin. Yorum, fotoğraf ve iki adımlı doğrulama için doğrulanmış e-posta gerekir. E-posta gelmezse giriş yaptıktan sonra Hesabım › Güvenlik bölümünden yeniden gönder.") }}</p>
-          <button class="ds-btn p lg w10-wide" type="button" @click="backToLogin">{{ i18nT("Giriş yap") }}</button>
-        </template>
         <template v-else>
-          <h2 class="ds-serif">{{ register ? i18nT("Ücretsiz hesap oluştur") : i18nT("Giriş yap") }}</h2>
+          <h2 class="ds-serif">{{ i18nT("Giriş yap") }}</h2>
           <template v-if="app.demo">
             <p class="ds-small ds-muted">{{ i18nT("Bu yerel geliştirme önizlemesinde gerçek hesap açılmaz. Demo hesabıyla araç ve bakım akışını deneyebilirsin.") }}</p>
             <button class="ds-btn p lg w10-wide" type="button" @click="enterDemo">{{ i18nT("Demo hesabıyla keşfet ") }}<ArrowRight :size="18"/></button>
@@ -154,18 +132,17 @@ function enterDemo() {
             </div>
             <div>
               <label class="ds-label w10-label" for="login-password">{{ i18nT("Şifre") }}</label>
-              <AuthPasswordField id="login-password" :autocomplete="register ? 'new-password' : 'current-password'"/>
+              <AuthPasswordField id="login-password" autocomplete="current-password"/>
               <div class="w10-under"><button class="w10-link" type="button" @click="forgot">{{ i18nT("Şifremi unuttum") }}</button></div>
             </div>
             <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
-            <button :disabled="busy" class="ds-btn p lg w10-wide">{{ busy ? i18nT("İşleniyor…") : register ? i18nT("Hesap oluştur") : i18nT("Giriş yap") }}</button>
+            <button :disabled="busy" class="ds-btn p lg w10-wide">{{ busy ? i18nT("İşleniyor…") : i18nT("Giriş yap") }}</button>
+            <p class="ds-small ds-muted w10-terms">{{ i18nT("Hesabın yok mu?") }} <NuxtLink class="w10-link w10-signup" to="/kayit">{{ i18nT("Ücretsiz kayıt ol") }}</NuxtLink></p>
             <div class="ds-row ds-g12"><span class="ds-divider ds-f1"/><span class="ds-xs ds-muted">{{ i18nT("veya") }}</span><span class="ds-divider ds-f1"/></div>
             <button type="button" class="ds-btn s lg w10-wide ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')"><Globe :size="18"/>{{ i18nT("Google ile devam et") }}</button>
             <button type="button" class="ds-btn s lg w10-wide ds-passive" disabled aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Apple ile devam et") }}</button>
             <p class="ds-xs ds-muted w10-terms">
-              <button v-if="register" class="w10-link" type="button" @click="register = !register">{{ i18nT("Zaten hesabım var") }}</button>
-              <template v-else>{{ i18nT("Hesabın yok mu?") }} <button class="w10-link" type="button" @click="register = !register">{{ i18nT("Ücretsiz kayıt ol") }}</button></template>
-              · {{ i18nT("Devam ederek") }} <NuxtLink v-if="terms" class="w10-legal" :to="terms">{{ i18nT("Kullanım koşulları") }}</NuxtLink><span v-else class="ds-passive w10-legal" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Kullanım koşulları") }}</span> {{ i18nT("ve") }} <NuxtLink v-if="privacy" class="w10-legal" :to="privacy">{{ i18nT("Gizlilik bildirimi") }}</NuxtLink><span v-else class="ds-passive w10-legal" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Gizlilik bildirimi") }}</span>{{ i18nT("ni kabul edersin.") }}
+              {{ i18nT("Devam ederek") }} <NuxtLink v-if="terms" class="w10-legal" :to="terms">{{ i18nT("Kullanım koşulları") }}</NuxtLink><span v-else class="ds-passive w10-legal" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Kullanım koşulları") }}</span> {{ i18nT("ve") }} <NuxtLink v-if="privacy" class="w10-legal" :to="privacy">{{ i18nT("Gizlilik bildirimi") }}</NuxtLink><span v-else class="ds-passive w10-legal" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Gizlilik bildirimi") }}</span>{{ i18nT("ni kabul edersin.") }}
             </p>
           </form>
         </template>
@@ -190,6 +167,7 @@ input.ds-field:focus-visible {outline: 0; border-color: #2459b4; box-shadow: 0 0
 .w10-under {padding-top: 6px;}
 .w10-link {padding: 0; border: 0; background: none; color: #10243a; font-size: 12px; font-weight: 700; line-height: 18px;}
 .w10-center {align-self: center;}
+.w10-signup {font-size: inherit; line-height: inherit;}
 .w10-wide {width: 100%;}
 .w10-terms {text-align: center;}
 .w10-legal {text-decoration: underline;}

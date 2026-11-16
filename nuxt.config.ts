@@ -52,6 +52,7 @@ export default defineNuxtConfig({
     '/giris': accountPage,
     '/giris/eposta-dogrula': tokenPage,
     '/giris/sifre-sifirla': tokenPage,
+    '/kayit': accountPage,
     '/araclarim': accountPage,
     '/basvurularim': accountPage,
     '/bildirimler': accountPage,
