@@ -1,0 +1,10 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="bildirim">
+<rect width="42" height="42" rx="21" fill="#F4EDE0"/>
+<g id="Frame">
+<path id="Vector" d="M16.5 18C16.5 16.8065 16.9741 15.6619 17.818 14.818C18.6619 13.9741 19.8065 13.5 21 13.5C22.1935 13.5 23.3381 13.9741 24.182 14.818C25.0259 15.6619 25.5 16.8065 25.5 18C25.5 23.25 27.75 24.75 27.75 24.75H14.25C14.25 24.75 16.5 23.25 16.5 18Z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#0A1524"/>
+<path id="Vector_2" d="M19.725 27.75C19.8505 27.9783 20.0351 28.1688 20.2594 28.3014C20.4837 28.434 20.7394 28.504 21 28.504C21.2606 28.504 21.5163 28.434 21.7406 28.3014C21.9649 28.1688 22.1495 27.9783 22.275 27.75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke="#0A1524"/>
+</g>
+<circle id="Ellipse" cx="31.5" cy="12.5" r="3.5" fill="#F36B21" stroke-width="2" stroke="#F4EDE0"/>
+</g>
+</svg>

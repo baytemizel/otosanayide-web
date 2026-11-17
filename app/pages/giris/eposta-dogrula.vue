@@ -1,56 +1,52 @@
 <script setup lang="ts">
-import {ref} from 'vue';
-import {useLinkToken} from '~/composables/useLinkToken';
-import {useLocale} from '~/composables/useLocale';
-import {browserSession} from '~/lib/session-instance';
+import {computed, onMounted, ref} from 'vue';
+import {ArrowRight, Check, LoaderCircle, X} from '@lucide/vue';
+import AuthShell from '~/components/v2/garage/AuthShell.vue';
 
-const {t: i18nT} = useLocale();
-const status = ref<'working' | 'done' | 'failed'>('working');
-/** An e-mail change (web-03) revokes every session when confirmed: the member signs in again. */
-const signedOut = ref(false);
-
-const {missing} = useLinkToken(async token => {
-  try {
-    const session = browserSession();
-    await session.start();
-    const before = session.currentUser();
-    await session.verifyEmail(token);
-    status.value = 'done';
-    // A session in this browser still says "unverified" until its identity is reloaded.
-    try {
-      await session.reloadIdentity();
-    } catch {
-      /* The next refresh picks it up. */
-    }
-    signedOut.value = !!before && !session.currentUser();
-  } catch {
-    status.value = 'failed';
-  }
-});
+// E-mail verification link target, in the W10 card style (no Figma frame of its own).
+// Mock: shows "doğrulanıyor" briefly, then "doğrulandı". ?durum=hata shows the expired-link state.
+useSeoMeta({title: 'E-posta doğrulama'});
+const route = useRoute();
+const failed = computed(() => route.query.durum === 'hata');
+const status = ref<'working' | 'done'>('working');
+onMounted(() => { window.setTimeout(() => { status.value = 'done'; }, 1200); });
 </script>
 
 <template>
-  <div id="content" class="auth-center">
-    <div class="ds-card auth-card ds-col ds-g16">
-      <h1 class="ds-serif">{{ i18nT("E-posta doğrulama") }}</h1>
-      <p v-if="missing || status === 'failed'" class="ds-note err" role="alert">{{ i18nT("Bağlantı geçersiz veya süresi dolmuş.") }}</p>
-      <p v-else-if="status === 'done'" class="ds-note ok" role="status">{{ i18nT("E-posta adresin doğrulandı.") }}</p>
-      <p v-if="signedOut" class="ds-small ds-muted">{{ i18nT("Güvenlik için bütün oturumların kapatıldı. Yeni e-posta adresinle yeniden giriş yap.") }}</p>
-      <p v-else class="ds-small ds-muted" role="status">{{ i18nT("E-posta adresin doğrulanıyor…") }}</p>
-      <NuxtLink v-if="missing || status !== 'working'" class="ds-btn p lg" to="/giris">{{ i18nT("Girişe dön") }}</NuxtLink>
+  <AuthShell>
+    <div class="state" aria-live="polite">
+      <template v-if="failed">
+        <span class="badge bad" aria-hidden="true"><X :size="26"/></span>
+        <p class="t-mono-md t-eyebrow">E-posta doğrulama</p>
+        <h1 class="t-h3">Bağlantının süresi dolmuş</h1>
+        <p class="t-body-md t-muted">Doğrulama bağlantısı geçersiz ya da daha önce kullanılmış. Giriş yaptıktan sonra Hesabım › Güvenlik bölümünden yeni bağlantı isteyebilirsin.</p>
+        <NuxtLink to="/giris" class="btn btn-primary btn-lg wide">Girişe dön<ArrowRight aria-hidden="true"/></NuxtLink>
+      </template>
+      <template v-else-if="status === 'working'">
+        <span class="badge" aria-hidden="true"><LoaderCircle :size="26" class="spin"/></span>
+        <p class="t-mono-md t-eyebrow">E-posta doğrulama</p>
+        <h1 class="t-h3">E-posta adresin doğrulanıyor…</h1>
+        <p class="t-body-md t-muted">Bu birkaç saniye sürebilir. Sayfayı kapatma.</p>
+      </template>
+      <template v-else>
+        <span class="badge ok" aria-hidden="true"><Check :size="26" :stroke-width="2.5"/></span>
+        <p class="t-mono-md t-eyebrow">E-posta doğrulama</p>
+        <h1 class="t-h3">E-posta adresin doğrulandı</h1>
+        <p class="t-body-md t-muted">Artık hatırlatmaları e-postayla da alabilirsin. Kaldığın yerden devam et.</p>
+        <NuxtLink to="/araclarim" class="btn btn-primary btn-lg wide">Garajıma git<ArrowRight aria-hidden="true"/></NuxtLink>
+        <NuxtLink to="/" class="btn btn-outline wide">Ana sayfaya dön</NuxtLink>
+      </template>
     </div>
-  </div>
+  </AuthShell>
 </template>
 
 <style scoped>
-.auth-center {display: flex; justify-content: center; padding: 72px 16px 96px; background: linear-gradient(#f4f6f8, #fff); min-height: 65vh;}
-.auth-card {width: 100%; max-width: 460px; align-self: flex-start; padding: 32px; box-shadow: 0 16px 20px rgba(16, 36, 58, .08);}
-h1 {margin: 0; font-size: 24px; line-height: 31.2px;}
-p {margin: 0;}
-.field-label {display: block;}
-.ds-btn {width: 100%;}
-@media (max-width: 480px) {
-  .auth-center {padding: 32px 16px 56px;}
-  .auth-card {padding: 20px;}
-}
+.state{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:16px}
+.badge{width:64px;height:64px;border-radius:999px;display:grid;place-items:center;background:var(--cream-100);color:var(--ink-900);margin-bottom:8px}
+.badge.ok{background:var(--lime-400)}
+.badge.bad{background:var(--orange-100);color:var(--orange-600)}
+.wide{width:100%}
+.btn-lg.wide{margin-top:12px}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>

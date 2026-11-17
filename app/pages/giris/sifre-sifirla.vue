@@ -1,61 +1,51 @@
 <script setup lang="ts">
-import {ref} from 'vue';
-import AuthPasswordField from '~/components/AuthPasswordField.vue';
-import {useLinkToken} from '~/composables/useLinkToken';
-import {useLocale} from '~/composables/useLocale';
-import {browserSession} from '~/lib/session-instance';
+import {reactive, ref} from 'vue';
+import {ArrowRight, Check, Lock} from '@lucide/vue';
+import AuthField from '~/components/v2/garage/AuthField.vue';
+import AuthShell from '~/components/v2/garage/AuthShell.vue';
 
-const {t: i18nT} = useLocale();
-const {token, missing} = useLinkToken();
+// Password reset link target, in the W10 card style (no Figma frame of its own).
+// Mock: a valid new password shows the success state; nothing is sent anywhere.
+useSeoMeta({title: 'Şifreni yenile'});
+const form = reactive({password: '', repeat: ''});
+const errors = reactive({password: '', repeat: ''});
 const done = ref(false);
-const busy = ref(false);
-const error = ref('');
 
-async function submit(e: Event) {
-  e.preventDefault();
-  const d = new FormData(e.currentTarget as HTMLFormElement);
-  error.value = '';
-  busy.value = true;
-  try {
-    await browserSession().resetPassword(token.value, String(d.get('password')));
-    token.value = '';
-    done.value = true;
-  } catch {
-    error.value = 'Şifre güncellenemedi. Bağlantıyı ve şifreni kontrol et.';
-  } finally {
-    busy.value = false;
-  }
+function submit() {
+  errors.password = !form.password ? 'Yeni şifreni yaz.' : form.password.length < 8 ? 'Şifre en az 8 karakter olmalı.' : '';
+  errors.repeat = !form.repeat ? 'Şifreni tekrar yaz.' : form.repeat !== form.password ? 'Şifreler aynı değil.' : '';
+  if (!errors.password && !errors.repeat) done.value = true;
 }
 </script>
 
 <template>
-  <div id="content" class="auth-center">
-    <div class="ds-card auth-card ds-col ds-g16">
-      <h1 class="ds-serif">{{ i18nT("Şifreni yenile") }}</h1>
-      <p v-if="missing" class="ds-note err" role="alert">{{ i18nT("Bağlantı geçersiz veya süresi dolmuş.") }}</p>
-      <p v-else-if="done" class="ds-note ok" role="status">{{ i18nT("Şifren güncellendi. Yeni şifrenle giriş yapabilirsin.") }}</p>
-      <form v-else class="ds-col ds-g16" @submit="submit">
-        <div>
-          <label class="ds-label field-label" for="new-password">{{ i18nT("Yeni şifre") }}</label>
-          <AuthPasswordField id="new-password" autocomplete="new-password" :invalid="!!error"/>
-        </div>
-        <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
-        <button :disabled="busy || !token" class="ds-btn p lg">{{ busy ? i18nT("İşleniyor…") : i18nT("Şifreyi güncelle") }}</button>
-      </form>
-      <NuxtLink v-if="missing || done" class="ds-btn p lg" to="/giris">{{ i18nT("Girişe dön") }}</NuxtLink>
+  <AuthShell>
+    <div v-if="done" class="state" role="status">
+      <span class="badge" aria-hidden="true"><Check :size="26" :stroke-width="2.5"/></span>
+      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
+      <h1 class="t-h3">Şifren güncellendi</h1>
+      <p class="t-body-md t-muted">Güvenlik için diğer cihazlardaki oturumların kapatıldı. Yeni şifrenle giriş yapabilirsin.</p>
+      <NuxtLink to="/giris" class="btn btn-primary btn-lg wide">Giriş yap<ArrowRight aria-hidden="true"/></NuxtLink>
     </div>
-  </div>
+    <form v-else class="state" novalidate @submit.prevent="submit">
+      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
+      <h1 class="t-h3">Şifreni yenile</h1>
+      <p class="t-body-md t-muted">Hesabın için yeni bir şifre belirle.</p>
+      <div class="fields">
+        <AuthField id="reset-password" v-model="form.password" label="Yeni şifre" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.password" hint="En az 8 karakter; harf ve rakam karışık olsun."/>
+        <AuthField id="reset-repeat" v-model="form.repeat" label="Yeni şifre (tekrar)" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.repeat"/>
+      </div>
+      <button type="submit" class="btn btn-primary btn-lg wide">Şifreyi güncelle<ArrowRight aria-hidden="true"/></button>
+      <NuxtLink to="/giris" class="back t-label-sm">Girişe dön</NuxtLink>
+    </form>
+  </AuthShell>
 </template>
 
 <style scoped>
-.auth-center {display: flex; justify-content: center; padding: 72px 16px 96px; background: linear-gradient(#f4f6f8, #fff); min-height: 65vh;}
-.auth-card {width: 100%; max-width: 460px; align-self: flex-start; padding: 32px; box-shadow: 0 16px 20px rgba(16, 36, 58, .08);}
-h1 {margin: 0; font-size: 24px; line-height: 31.2px;}
-p {margin: 0;}
-.field-label {display: block;}
-.ds-btn {width: 100%;}
-@media (max-width: 480px) {
-  .auth-center {padding: 32px 16px 56px;}
-  .auth-card {padding: 20px;}
-}
+.state{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:16px}
+.fields{align-self:stretch;display:flex;flex-direction:column;gap:20px;margin-top:8px}
+.badge{width:64px;height:64px;border-radius:999px;display:grid;place-items:center;background:var(--lime-400);color:var(--ink-900);margin-bottom:8px}
+.wide{width:100%;margin-top:8px}
+.back{align-self:center;color:var(--orange-600)}
+.back:hover{text-decoration:underline}
 </style>

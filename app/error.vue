@@ -1,68 +1,44 @@
 <script setup lang="ts">
-import {computed, onMounted} from 'vue';
-import {Lock, Search, Settings, TriangleAlert} from '@lucide/vue';
+import {computed} from 'vue';
+import {Lock, TriangleAlert} from '@lucide/vue';
 import type {NuxtError} from '#app';
-import PortalLink from '~/components/PortalLink.vue';
-import Shell from '~/components/Shell.vue';
-import SystemState from '~/components/SystemState.vue';
-import {useApp} from '~/composables/useApp';
+import V2Button from '~/components/v2/V2Button.vue';
+import V2Footer from '~/components/v2/V2Footer.vue';
+import V2Navbar from '~/components/v2/V2Navbar.vue';
+import SystemStateView from '~/components/v2/system/SystemStateView.vue';
 import {useAppHead} from '~/composables/useAppHead';
-import {useLocale} from '~/composables/useLocale';
+import {portalUrl} from '~/lib/portal';
 
+// S01 · 404 and S05 · Yetkisiz erişim; other errors reuse the same layout.
 const props = defineProps<{error: NuxtError}>();
-const app = useApp();
-const {t: i18nT} = useLocale();
 useAppHead();
-onMounted(() => app.start());
-/** Old /isletme links now 404 (K184); point them at the portal. */
-// SSR renders errors through an internal route, so the failed address comes from the error itself.
-const route = useRoute();
-const requested = computed(() => {
-  const raw = (props.error as {url?: unknown}).url;
-  try {
-    return typeof raw === 'string' && raw ? new URL(raw, 'http://local.invalid').pathname : route.path;
-  } catch {
-    return '';
-  }
-});
-const businessPath = computed(() => /^\/isletme(\/|$)/.test(requested.value));
-const kind = computed(() => {
-  const code = props.error.statusCode;
-  if (code === 404) return 'missing';
-  if (code === 401 || code === 403) return 'denied';
-  if (code === 503) return 'maintenance';
-  return 'other';
-});
+const status = computed(() => props.error.statusCode ?? 500);
+useSeoMeta({title: () => (status.value === 404 ? 'Sayfa bulunamadı' : 'Bir sorun oluştu'), robots: 'noindex'});
+const claimHref = computed(() => portalUrl('claim') ?? '/#isletmeler');
+const home = () => clearError({redirect: '/'});
 </script>
 
 <template>
-  <Shell>
-    <div id="content">
-      <SystemState v-if="kind === 'missing'" :title="i18nT('Aradığın sayfayı bulamadık')" :text="i18nT('Bağlantı değişmiş ya da işletme profili kaldırılmış olabilir. Kalıcı kapanan işletmeler “Kalıcı kapalı” olarak görünmeye devam eder.')">
-        <template #icon><Search :size="44"/></template>
-        <a class="ds-btn p" href="/">{{ i18nT("Keşfete dön") }}</a>
-        <PortalLink class="ds-btn s" target="login">{{ i18nT("İşletme girişi") }}</PortalLink>
-        <span class="ds-btn s ds-passive" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Yardım") }}</span>
-        <p v-if="businessPath" class="ds-small ds-muted moved">{{ i18nT("İşletme alanı ayrı İşletme Merkezi'ne taşındı.") }}</p>
-      </SystemState>
-      <SystemState v-else-if="kind === 'denied'" tone="err" :title="i18nT('Bu sayfaya erişim yetkin yok')" :text="i18nT('Bu sayfayı yalnız yetkili hesaplar görebilir. Doğru hesapla giriş yaptığını kontrol et.')">
-        <template #icon><Lock :size="44"/></template>
-        <a class="ds-btn p" href="/giris">{{ i18nT("Hesap değiştir") }}</a>
-        <PortalLink class="ds-btn s" target="login">{{ i18nT("İşletme girişi") }}</PortalLink>
-      </SystemState>
-      <SystemState v-else-if="kind === 'maintenance'" tone="info" :title="i18nT('Kısa bir bakım yapıyoruz')" :text="i18nT('Hizmet geçici olarak kullanılamıyor. Birazdan tekrar dene.')">
-        <template #icon><Settings :size="44"/></template>
-        <a class="ds-btn p" href="/">{{ i18nT("Keşfetmeye dön") }}</a>
-        <span class="ds-btn s ds-passive" aria-disabled="true" :title="i18nT('Yakında')">{{ i18nT("Durum sayfası") }}</span>
-      </SystemState>
-      <SystemState v-else tone="err" :title="i18nT('İşlem tamamlanamadı. Bilgilerini ve bağlantını kontrol edip tekrar dene.')">
-        <template #icon><TriangleAlert :size="44"/></template>
-        <a class="ds-btn p" href="/">{{ i18nT("Keşfetmeye dön") }}</a>
-      </SystemState>
-    </div>
-  </Shell>
+  <div class="v2-app">
+    <V2Navbar/>
+    <main id="icerik">
+      <SystemStateView v-if="status === 404" code="404" eyebrow="Sayfa bulunamadı" title="Bu sayfa servisten çıkmış." text="Aradığın sayfa taşınmış ya da hiç var olmamış olabilir. Aramaya ana sayfadan devam edebilirsin.">
+        <V2Button size="lg" arrow @click="home">Ana sayfaya dön</V2Button>
+        <V2Button variant="outline" @click="clearError({redirect: '/ara'})">Servis ara</V2Button>
+      </SystemStateView>
+      <SystemStateView v-else-if="status === 401 || status === 403" :icon="Lock" eyebrow="Yetki gerekli" title="Bu sayfa için yetkin yok." text="Bu alan yalnızca işletme yöneticilerine açık. İşletme seninse sahiplik başvurusu yapabilirsin.">
+        <V2Button size="lg" arrow :href="claimHref">Sahiplik başvurusu</V2Button>
+        <V2Button variant="outline" @click="home">Ana sayfaya dön</V2Button>
+      </SystemStateView>
+      <SystemStateView v-else :icon="TriangleAlert" eyebrow="Hata" title="Bir şeyler ters gitti." text="Sayfa şu an yüklenemedi. Birazdan tekrar dene; sorun sürerse ana sayfadan devam edebilirsin.">
+        <V2Button size="lg" arrow @click="home">Ana sayfaya dön</V2Button>
+      </SystemStateView>
+    </main>
+    <V2Footer/>
+  </div>
 </template>
 
 <style scoped>
-.moved {flex-basis: 100%; margin: 0; text-align: center;}
+.v2-app{min-height:100vh;display:flex;flex-direction:column}
+main{flex:1}
 </style>

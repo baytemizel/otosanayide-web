@@ -1,0 +1,19 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="1240" height="1653.33" viewBox="0 0 1240 1653.33" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="harita zemini" clip-path="url(#clip0_0_55)">
+<path id="Vector" d="M1240 0H0V1653.33H1240V0Z" fill="#EFE8DA"/>
+<path id="Vector_2" d="M0 496C165.333 475.333 310 558 434 640.667C516.667 702.667 541.467 764.667 558 826.667H0V496Z" fill="#CFE6F5"/>
+<path id="Vector_3" d="M868 0H1240V268.667C1116 310 971.333 227.333 868 0Z" fill="#DDEFB5"/>
+<path id="Vector_4" d="M876.267 479.467H715.067C696.804 479.467 682 494.271 682 512.533V591.067C682 609.329 696.804 624.133 715.067 624.133H876.267C894.529 624.133 909.333 609.329 909.333 591.067V512.533C909.333 494.271 894.529 479.467 876.267 479.467Z" fill="#DDEFB5"/>
+<path id="Vector_5" d="M-41.3333 372C248 413.333 537.333 310 826.667 434C1116 558 1157.33 620 1322.67 578.667" stroke-width="33.0667" stroke="white"/>
+<path id="Vector_6" d="M620 -41.3333C599.333 248 702.667 537.333 661.333 826.667" stroke-width="33.0667" stroke="white"/>
+<path id="Vector_7" d="M413.333 -41.3333L467.067 310L434 826.667" stroke-width="16.5333" stroke="white"/>
+<path id="Vector_8" d="M992 -41.3333L1033.33 413.333L971.333 826.667" stroke-width="16.5333" stroke="white"/>
+<path id="Vector_9" d="M826.667 620C950.667 599.333 1074.67 661.333 1322.67 640.667" stroke-width="20.6667" stroke="white"/>
+<path id="Vector_10" d="M-41.3333 190.133C330.667 128.133 620 252.133 950.667 169.467C1281.33 86.8 1240 86.8 1322.67 107.467" stroke-width="18.6" stroke="#FFD9A3"/>
+</g>
+<defs>
+<clipPath id="clip0_0_55">
+<rect width="1240" height="1653.33" fill="white"/>
+</clipPath>
+</defs>
+</svg>

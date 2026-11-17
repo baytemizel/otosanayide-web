@@ -1,0 +1,21 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="600" height="800" viewBox="0 0 600 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="harita zemini" clip-path="url(#clip0_0_215)">
+<path id="Vector" d="M600 0H0V800H600V0Z" fill="#EFE8DA"/>
+<path id="Vector_2" d="M0 540C80 520 150 580 210 660C250 720 262 760 270 800H0V540Z" fill="#CFE6F5"/>
+<path id="Vector_3" d="M420 0H600V130C540 150 470 110 420 0Z" fill="#DDEFB5"/>
+<path id="Vector_4" d="M152 262H68C56.9543 262 48 270.954 48 282V334C48 345.046 56.9543 354 68 354H152C163.046 354 172 345.046 172 334V282C172 270.954 163.046 262 152 262Z" fill="#DDEFB5"/>
+<path id="Vector_5" d="M-20 180C120 200 260 150 400 210C540 270 560 300 640 280" stroke-width="22" stroke="white"/>
+<path id="Vector_6" d="M300 -20C290 120 340 260 320 400C300 540 380 620 360 820" stroke-width="22" stroke="white"/>
+<path id="Vector_7" d="M-20 430C100 410 220 450 330 420C440 390 520 480 640 450" stroke-width="14" stroke="white"/>
+<path id="Vector_8" d="M120 -20L150 200L110 440" stroke-width="10" stroke="white"/>
+<path id="Vector_9" d="M480 120L500 300L470 520L520 820" stroke-width="10" stroke="white"/>
+<path id="Vector_10" d="M330 610C420 590 500 630 640 610" stroke-width="12" stroke="white"/>
+<path id="Vector_11" d="M200 440L236 640" stroke-width="8" stroke="white"/>
+<path id="Vector_12" d="M-20 92C160 62 300 122 460 82C620 42 600 42 640 52" stroke-width="12" stroke="#FFD9A3"/>
+</g>
+<defs>
+<clipPath id="clip0_0_215">
+<rect width="600" height="800" fill="white"/>
+</clipPath>
+</defs>
+</svg>

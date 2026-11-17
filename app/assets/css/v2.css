@@ -1,0 +1,144 @@
+/* Web v2 design system. Figma: Otosanayide · 10 · Web v2 · Yeni Ana Sayfa → V2 · Stil Rehberi (107:37).
+   Colours are the "V2 · Renk" variables; type styles are V2/Display, V2/Body, V2/Label, V2/Mono.
+   Letter spacing in Figma is a percentage of the font size, so it is written in em here. */
+
+:root{
+  --cream-50:#FBF7F0;--cream-100:#F4EDE0;--cream-200:#E6DCCA;
+  --ink-900:#0A1524;--ink-800:#10243A;--ink-700:#1C3552;--ink-500:#56677C;--ink-300:#A3B1C2;
+  --orange-500:#F36B21;--orange-600:#D4500C;--orange-100:#FFE3CF;
+  --lime-400:#C8F03C;--lime-100:#EFFAC6;
+  --amber-400:#FFB02E;--green-500:#1B9E5E;--red-500:#E5484D;--sky-200:#CFE6F5;
+  --white:#FFFFFF;
+  --outline:rgba(10,21,36,.22);
+
+  --font-display:"Bricolage Grotesque",Arial,sans-serif;
+  --font-sans:"DM Sans",Arial,Helvetica,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+
+  --content:1240px;
+  --gutter:max(20px,calc((100% - var(--content)) / 2));
+  --shadow-nav:0 10px 15px rgba(10,20,36,.07);
+  --shadow-pop:0 18px 20px rgba(10,20,36,.18);
+  --shadow-modal:0 30px 40px rgba(10,20,36,.35);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--cream-50);color:var(--ink-900);font-family:var(--font-sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ul,ol,figure,blockquote,dl,dd{margin:0}
+ul,ol{padding:0;list-style:none}
+img,svg{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--orange-500);outline-offset:3px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Layout */
+.v2-wrap{padding-left:var(--gutter);padding-right:var(--gutter)}
+.v2-section{position:relative}
+
+/* Type styles */
+.t-hero{font-family:var(--font-display);font-weight:800;font-size:80px;line-height:.96;letter-spacing:-.03em}
+.t-h2{font-family:var(--font-display);font-weight:800;font-size:52px;line-height:1.04;letter-spacing:-.025em}
+.t-h3{font-family:var(--font-display);font-weight:700;font-size:32px;line-height:1.12;letter-spacing:-.015em}
+.t-h4{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.2;letter-spacing:-.01em}
+.t-stat{font-family:var(--font-display);font-weight:800;font-size:44px;line-height:1;letter-spacing:-.02em}
+.t-body-lg{font-size:19px;line-height:1.5}
+.t-body-md{font-size:16px;line-height:1.5}
+.t-body-sm{font-size:14px;line-height:1.45}
+.t-label-md{font-weight:600;font-size:15px;line-height:1.2}
+.t-label-sm{font-weight:600;font-size:13px;line-height:1.2}
+.t-mono-md{font-family:var(--font-mono);font-weight:500;font-size:13px;line-height:1.3;letter-spacing:.04em;text-transform:uppercase}
+.t-mono-sm{font-family:var(--font-mono);font-weight:500;font-size:11px;line-height:1.3;letter-spacing:.06em;text-transform:uppercase}
+.t-muted{color:var(--ink-500)}
+.t-eyebrow{color:var(--orange-600)}
+
+/* Buttons (V2/Button/*). Figma strokes sit inside the box, so padding = Figma padding − 1.5 px border. */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12.5px 20.5px;border-radius:999px;border:1.5px solid transparent;font-family:var(--font-sans);font-weight:600;font-size:15px;line-height:1.2;white-space:nowrap;cursor:pointer;transition:transform .15s ease,background-color .15s ease,border-color .15s ease}
+.btn svg{width:18px;height:18px;flex:none}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled,.btn[aria-disabled=true]{opacity:.5;cursor:not-allowed;transform:none}
+.btn-lg{padding:17.5px 28.5px;font-size:17px}
+.btn-lg svg{width:20px;height:20px}
+.btn-sm{padding:8.5px 14.5px;font-size:13px;gap:8px}
+.btn-sm svg{width:16px;height:16px}
+.btn-primary{background:var(--orange-500);color:var(--ink-900)}
+.btn-primary:hover{background:#F57B37}
+.btn-dark{background:var(--ink-900);color:var(--white)}
+.btn-lime{background:var(--lime-400);color:var(--ink-900)}
+.btn-outline{border-color:var(--outline);color:var(--ink-900)}
+.btn-outline:hover{border-color:var(--ink-900)}
+.btn-white{background:var(--white);color:var(--ink-900)}
+.btn-outline-dark{border-color:rgba(255,255,255,.32);color:var(--white)}
+.btn-outline-dark:hover{border-color:var(--white)}
+.btn-ghost{color:var(--ink-900);padding-left:12.5px;padding-right:12.5px}
+.btn-icon{width:46px;height:46px;padding:0;border-radius:999px}
+
+/* Chips (V2/Chip/*) */
+.chip{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8.5px 14.5px;border-radius:999px;border:1.5px solid transparent;font-weight:600;font-size:13px;line-height:1.2;white-space:nowrap}
+.chip svg{width:14px;height:14px;flex:none}
+button.chip{cursor:pointer}
+.chip-default{background:var(--white);border-color:var(--cream-200);color:var(--ink-800)}
+.chip-active{background:var(--ink-900);color:var(--white)}
+.chip-soft{background:var(--cream-100);color:var(--ink-700)}
+.chip-dark{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:var(--white)}
+.chip-dark-active{background:var(--lime-400);color:var(--ink-900)}
+
+/* Small status tags (pill labels inside cards) */
+.tag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-weight:600;font-size:13px;line-height:1.2;white-space:nowrap;color:var(--ink-800)}
+.tag svg{width:14px;height:14px;flex:none}
+.tag-lime{background:var(--lime-100)}
+.tag-orange{background:var(--orange-100)}
+.tag-cream{background:var(--cream-100)}
+.tag-white{background:var(--white)}
+.tag-dark{background:var(--ink-900);color:var(--white)}
+.tag-glass{background:rgba(255,255,255,.1);color:var(--white)}
+.tag-mono{font-family:var(--font-mono);font-weight:500;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px}
+
+/* Cards and surfaces */
+.surface{background:var(--white);border:1px solid var(--cream-200);border-radius:28px}
+.divider{height:1px;background:var(--cream-200);border:0;margin:0}
+
+/* Form controls */
+.field{display:flex;flex-direction:column;gap:8px}
+.field-label{font-weight:600;font-size:13px;line-height:1.2;color:var(--ink-800)}
+.input,.textarea,.select{width:100%;background:var(--white);border:1px solid var(--cream-200);border-radius:18px;padding:15px 16px;font-size:15px;line-height:1.5;color:var(--ink-900)}
+.input::placeholder,.textarea::placeholder{color:var(--ink-300)}
+.input:focus,.textarea:focus,.select:focus{outline:none;border-color:var(--ink-900);box-shadow:0 0 0 3px rgba(243,107,33,.18)}
+.textarea{min-height:96px;resize:vertical}
+.hint{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--ink-500)}
+.hint svg{width:16px;height:16px;flex:none;margin-top:1px}
+
+/* Option row with a radio or checkbox (S08 modal) */
+.option{display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--white);border:1px solid var(--cream-200);border-radius:16px;font-weight:600;font-size:15px;line-height:1.2;cursor:pointer}
+.option:has(input:checked){background:var(--cream-50);border:1.5px solid var(--ink-900);padding:13.5px 15.5px}
+.radio,.checkbox{appearance:none;flex:none;width:22px;height:22px;margin:0;background:var(--white);border:1.5px solid var(--ink-300);cursor:pointer;display:grid;place-content:center}
+.radio{border-radius:999px}
+.radio:checked{border:2px solid var(--ink-900)}
+.radio:checked::before{content:"";width:10px;height:10px;border-radius:999px;background:var(--orange-500)}
+.checkbox{border-radius:7px}
+.checkbox:checked{background:var(--orange-500);border-color:var(--orange-500)}
+.checkbox:checked::before{content:"";width:10px;height:6px;border-left:2px solid var(--ink-900);border-bottom:2px solid var(--ink-900);transform:translateY(-1px) rotate(-45deg)}
+
+/* Switch ("anahtar"): off cream-200 track, white knob; on ink-900 track, lime knob */
+.switch{appearance:none;flex:none;position:relative;width:46px;height:28px;margin:0;border-radius:999px;background:var(--cream-200);cursor:pointer;transition:background-color .15s ease}
+.switch::before{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:999px;background:var(--white);transition:transform .15s ease,background-color .15s ease}
+.switch:checked{background:var(--ink-900)}
+.switch:checked::before{transform:translateX(18px);background:var(--lime-400)}
+
+/* Avatar initials */
+.avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;border-radius:999px;background:var(--sky-200);font-weight:600;font-size:13px;color:var(--ink-900)}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
+
+@media (max-width:760px){
+  .t-hero{font-size:44px;line-height:1.02}
+  .t-h2{font-size:34px}
+  .t-h3{font-size:26px}
+  .t-stat{font-size:34px}
+  .t-body-lg{font-size:17px}
+}

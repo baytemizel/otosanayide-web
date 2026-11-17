@@ -16,15 +16,15 @@ export default defineNuxtConfig({
   devtools: {enabled: false},
   modules: ['@pinia/nuxt'],
   css: [
-    '@fontsource/arimo/400.css',
-    '@fontsource/arimo/700.css',
-    '@fontsource/gelasio/700.css',
-    '~/assets/css/globals.css',
-    '~/assets/css/design.css',
+    '@fontsource/bricolage-grotesque/700.css',
+    '@fontsource/bricolage-grotesque/800.css',
+    '@fontsource/dm-sans/400.css',
+    '@fontsource/dm-sans/600.css',
+    '@fontsource/jetbrains-mono/500.css',
+    '@fontsource/jetbrains-mono/700.css',
+    '~/assets/css/v2.css',
   ],
   components: [{path: '~/components', pathPrefix: false}],
-  // The business area moves to its own project (K184). These pages stay as source but get no route.
-  ignore: ['**/pages/isletme.vue', '**/pages/isletme/**'],
   alias: {'@otosanayide/core': fileURLToPath(new URL('./packages/core', import.meta.url))},
   runtimeConfig: {
     public: {
@@ -55,13 +55,13 @@ export default defineNuxtConfig({
     '/kayit': accountPage,
     '/araclarim': accountPage,
     '/hatirlatmalar': accountPage,
-    '/basvurularim': accountPage,
+    '/randevu': accountPage,
     '/bildirimler': accountPage,
     '/hesabim': accountPage,
     '/kaydedilenler': accountPage,
     '/taleplerim': accountPage,
     '/yorumlarim': accountPage,
-    '/yonetim': accountPage,
+    '/basvurularim': accountPage,
   },
   // packages/core is copied verbatim and was written against these compiler settings.
   typescript: {strict: true, tsConfig: {compilerOptions: {noUncheckedIndexedAccess: false, verbatimModuleSyntax: false}}},

@@ -4,7 +4,7 @@
  * are not listed: there is no listing endpoint, and the full catalogue is not handed out
  * in one file (product-plan "Güvenlik": toplu çıkarımı zorlaştırmak).
  */
-export const privatePaths = ['/giris', '/kayit', '/hesabim', '/araclarim', '/hatirlatmalar', '/kaydedilenler', '/taleplerim', '/yorumlarim', '/basvurularim', '/bildirimler', '/yonetim', '/talep', '/yasal/'];
+export const privatePaths = ['/giris', '/kayit', '/hesabim', '/araclarim', '/hatirlatmalar', '/kaydedilenler', '/taleplerim', '/yorumlarim', '/basvurularim', '/bildirimler', '/talep', '/randevu', '/karsilastir', '/yasal/', '/yetkisiz', '/bakim', '/baglanti-kesildi', '/cerez-tercihleri'];
 export const sitemapPaths = ['/', '/hakkinda'];
 
 export function robotsTxt(options: {indexingEnabled: boolean; siteOrigin: string}) {

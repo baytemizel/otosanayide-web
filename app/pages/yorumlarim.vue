@@ -1,89 +1,63 @@
 <script setup lang="ts">
-import {computed, ref} from 'vue';
-import {FileText, MessageSquare} from '@lucide/vue';
-import OwnReviewItem from '~/components/OwnReviewItem.vue';
-import SystemAccountLayout from '~/components/SystemAccountLayout.vue';
-import {useApp} from '~/composables/useApp';
-import {useClientEffect} from '~/composables/useClientEffect';
-import {useLocale} from '~/composables/useLocale';
-import {fetchOwnReviews, type OwnReviewListItem} from '~/lib/own-reviews';
+import {computed} from 'vue';
+import {MessageSquare, Star} from '@lucide/vue';
+import V2Button from '~/components/v2/V2Button.vue';
+import AccountPageLayout from '~/components/v2/account/AccountPageLayout.vue';
+import {useMockSession} from '~/composables/useMockSession';
+import {mockOwnReviews, reviewStatusLabel, type MockOwnReview} from '~/data/mock/account';
 
-const app = useApp();
-const {t: i18nT} = useLocale();
-useSeoMeta({title: () => i18nT('Yorumlarım')});
-
-const listed = ref<OwnReviewListItem[]>([]);
-const cursor = ref('');
-const next = ref<string | null>(null);
-const loading = ref(false);
-const error = ref('');
-const verified = computed(() => app.demo || app.user?.emailVerified === true);
-const none = computed(() => !loading.value && !error.value && listed.value.length === 0);
-
-useClientEffect(() => [app.user, app.demo, cursor.value], () => {
-  if (!app.user || app.demo || !verified.value) return;
-  let cancelled = false;
-  const user = app.user;
-  loading.value = true;
-  error.value = '';
-  fetchOwnReviews(() => user.getIdToken(), cursor.value)
-    .then(page => {
-      if (cancelled) return;
-      listed.value = page.items;
-      next.value = page.next;
-    })
-    .catch(e => {
-      if (!cancelled) error.value = e instanceof Error ? e.message : 'Yorumlar yüklenemedi.';
-    })
-    .finally(() => {
-      if (!cancelled) loading.value = false;
-    });
-  return () => {
-    cancelled = true;
-  };
-});
+// Yorumlarım: linked from the Figma account menu; no Web v2 frame, built from the W17 layout.
+const session = useMockSession();
+if (!session.signedIn.value) session.signIn();
+useSeoMeta({title: 'Yorumlarım'});
+const reviews = useState<MockOwnReview[]>('v2-own-reviews', () => mockOwnReviews.map((review) => ({...review})));
+const count = computed(() => reviews.value.length);
+const remove = (id: string) => { reviews.value = reviews.value.filter((review) => review.id !== id); };
+const tagClass = (status: MockOwnReview['status']) => (status === 'yayinda' ? 'tag-lime' : status === 'incelemede' ? 'tag-orange' : 'tag-cream');
 </script>
 
 <template>
-  <SystemAccountLayout>
-    <section class="ds-col ds-g16">
-      <h1 class="ds-serif">{{ i18nT('Yorumlarım') }}</h1>
-      <p class="ds-small ds-muted">{{ i18nT('Yorumlarının yayın durumunu takip et; uygunsa düzenle veya geri çek. Düzenlenen yorum yeniden incelenir.') }}</p>
-      <p v-if="app.demo" class="ds-note info">{{ i18nT('Önizlemede gerçek yorum oluşturulmaz.') }}</p>
-      <NuxtLink v-else-if="!app.user" class="ds-btn p own-login" to="/giris">{{ i18nT('Giriş yap') }}</NuxtLink>
-      <p v-else-if="!verified" class="ds-note warn">{{ i18nT('Yorumlarını görmek için e-posta adresini doğrula.') }} <NuxtLink to="/hesabim#guvenlik">{{ i18nT('Hesabım › Güvenlik') }}</NuxtLink></p>
-      <template v-else>
-        <p v-if="loading" class="ds-small ds-muted" role="status">{{ i18nT('Yükleniyor…') }}</p>
-        <OwnReviewItem v-for="item in listed" :key="item.businessId" :businessId="item.businessId" :businessName="item.businessName" :available="item.businessAvailable !== false"/>
-        <div v-if="cursor || next" class="ds-row ds-g10">
-          <button v-if="cursor" type="button" class="ds-btn s sm" @click="cursor = ''">{{ i18nT('İlk sayfa') }}</button>
-          <button v-if="next" type="button" class="ds-btn s sm" @click="cursor = next!">{{ i18nT('Sonraki sayfa') }}</button>
+  <AccountPageLayout active="yorumlarim" title="Yorumlarım">
+    <p class="t-body-md t-muted">{{ count }} yorum. Yorumların incelendikten sonra işletme profilinde görünür.</p>
+    <ul v-if="count" class="list">
+      <li v-for="review in reviews" :key="review.id" class="surface item">
+        <div class="top">
+          <NuxtLink :to="`/servis/${review.businessId}`" class="t-h4">{{ review.business }}</NuxtLink>
+          <span class="tag" :class="tagClass(review.status)">{{ reviewStatusLabel[review.status] }}</span>
         </div>
-        <p v-if="error" class="ds-note err" role="alert">{{ i18nT(error) }}</p>
-      </template>
-      <div v-if="app.user && !app.demo && verified && none" class="ds-card ds-pad24 ds-col ds-g8 empty">
-        <MessageSquare :size="28" aria-hidden="true"/>
-        <p class="ds-small">{{ i18nT('Burada gösterilecek yorumun yok.') }}</p>
-        <NuxtLink class="ds-btn s sm" to="/">{{ i18nT('İşletmeleri keşfet') }}</NuxtLink>
-      </div>
-      <section class="ds-card ds-pad24 ds-row ds-g12 ds-wrap cases">
-        <FileText class="ds-i" :size="20" aria-hidden="true"/>
-        <div class="ds-f1 ds-col ds-g4">
-          <h2>{{ i18nT('Şikâyet ve itirazlarım') }}</h2>
-          <p class="ds-small ds-muted">{{ i18nT('Bildirdiğin yorumların ve itirazlarının durumu ile karar gerekçeleri.') }}</p>
+        <div class="meta">
+          <span class="stars" :aria-label="`${review.rating} / 5`"><Star v-for="n in 5" :key="n" :size="16" :class="{off: n > review.rating}" aria-hidden="true"/></span>
+          <span class="t-body-sm t-muted">{{ review.date }}</span>
         </div>
-        <NuxtLink class="ds-btn s sm" to="/basvurularim">{{ i18nT('Başvurularım') }}</NuxtLink>
-      </section>
-    </section>
-  </SystemAccountLayout>
+        <p class="t-body-md">{{ review.text }}</p>
+        <div v-if="review.reply" class="reply">
+          <p class="t-mono-sm t-muted">İşletme yanıtı</p>
+          <p class="t-body-sm">{{ review.reply }}</p>
+        </div>
+        <div class="actions">
+          <V2Button variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=1`">Düzenle</V2Button>
+          <V2Button variant="ghost" size="sm" @click="remove(review.id)">Sil</V2Button>
+        </div>
+      </li>
+    </ul>
+    <div v-else class="surface empty">
+      <MessageSquare :size="24" aria-hidden="true"/>
+      <p class="t-label-md">Henüz yorumun yok.</p>
+      <V2Button variant="dark" to="/ara" arrow>Servis bul</V2Button>
+    </div>
+  </AccountPageLayout>
 </template>
 
 <style scoped>
-h1 {margin: 0; font-size: 34px; line-height: 38px;}
-p {margin: 0;}
-.own-login {align-self: flex-start;}
-.empty {align-items: flex-start;}
-.cases {align-items: center;}
-.cases h2 {margin: 0; font: 700 16px/22px Arimo, Arial, sans-serif;}
-@media (max-width: 480px) {h1 {font-size: 28px; line-height: 32px;}}
+.list{display:flex;flex-direction:column;gap:16px}
+.item{display:flex;flex-direction:column;gap:12px;padding:24px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.top a:hover{text-decoration:underline}
+.meta{display:flex;align-items:center;gap:12px}
+.stars{display:flex;gap:2px;color:var(--orange-500)}
+.stars :deep(svg){fill:currentColor}
+.stars .off{color:var(--cream-200)}
+.reply{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:16px;background:var(--cream-50)}
+.actions{display:flex;gap:8px}
+.empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 24px;color:var(--ink-500)}
 </style>
