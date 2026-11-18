@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {Bell, Calendar, File, MessageSquare, ShieldCheck} from '@lucide/vue';
-import type {MockNotification} from '~/data/mock/requests';
+import type {NotificationView} from '~/lib/v2/requests';
 
 // One row of the W17 notification list. Unread rows are cream with an orange dot;
 // opening the row or pressing the dot marks it read.
-defineProps<{item: MockNotification}>();
+defineProps<{item: NotificationView}>();
 const emit = defineEmits<{read: []}>();
 const icons = {file: File, calendar: Calendar, bell: Bell, message: MessageSquare, shield: ShieldCheck};
 </script>

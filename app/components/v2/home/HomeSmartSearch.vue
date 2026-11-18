@@ -2,6 +2,7 @@
 import {computed, onMounted, ref, watch} from 'vue';
 import {ArrowRight, Car, Check, ChevronDown, Gauge, Locate, MapPin, Search, Wrench} from '@lucide/vue';
 import {homeLocations, homeSearchTabs, homeVehicles, type HomeSearchTab} from '~/data/mock/home';
+import {demoMode} from '~/lib/env';
 
 // Figma 108:148 "Akıllı arama modülü": three tabs, remembered vehicle, one-click popular searches.
 const tab = ref<HomeSearchTab>('hizmet');
@@ -25,9 +26,12 @@ watch(vehicle, (value) => {
 
 function run(term: string) {
   const q = term.trim();
-  if (tab.value === 'belirti') return navigateTo(q ? {path: '/ara', query: {belirti: q}} : '/ara');
-  if (tab.value === 'arac') return navigateTo({path: '/ara', query: {q: q || vehicle.value.split(' · ')[0]}});
-  return navigateTo(q ? {path: '/ara', query: {q}} : '/ara');
+  // Live: the picked place travels as il/ilçe, so /ara searches there (GET /api/search?v=2). Demo keeps the mock flow.
+  const [ilce = '', il = ''] = demoMode() ? [] : location.value.split(',').map((part) => part.trim());
+  const place = il ? {il, ilce} : {};
+  if (tab.value === 'belirti') return navigateTo(q || il ? {path: '/ara', query: {...place, ...(q ? {belirti: q} : {})}} : '/ara');
+  if (tab.value === 'arac') return navigateTo({path: '/ara', query: {...place, q: q || vehicle.value.split(' · ')[0]}});
+  return navigateTo(q || il ? {path: '/ara', query: {...place, ...(q ? {q} : {})}} : '/ara');
 }
 function pickPopular(term: string) {
   query.value = term;

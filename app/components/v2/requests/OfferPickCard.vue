@@ -2,13 +2,16 @@
 import {computed} from 'vue';
 import {Star, Wrench} from '@lucide/vue';
 import {formatRating} from '~/data/mock/businesses';
-import {formatTry, offerTotal, requestBusiness, type MockOffer, type OfferStatus} from '~/data/mock/requests';
+import {requestBusiness} from '~/data/mock/requests';
+import {formatMoney, type OfferCardView, type OfferStatus} from '~/lib/v2/requests';
 
 // One incoming offer in the W15 offer list. Selecting it shows its detail above;
 // interaction note 07: the selected offer gets the orange frame.
-const props = defineProps<{offer: MockOffer; status: OfferStatus; selected: boolean; cheapest?: boolean}>();
+// `business` is passed in live mode (name only); demo looks the mock business up.
+const props = defineProps<{offer: OfferCardView; status: OfferStatus; selected: boolean; cheapest?: boolean; business?: {name: string; photo?: string | null; rating?: number; district?: string}}>();
 const emit = defineEmits<{select: []}>();
-const business = computed(() => requestBusiness(props.offer.businessId));
+const business = computed(() => props.business ?? requestBusiness(props.offer.businessId));
+const total = computed(() => props.offer.lines.reduce((sum, line) => sum + line.amount, 0));
 const statusText = computed(() => ({pending: `Geçerlilik: ${props.offer.validUntil}`, accepted: 'Kabul edildi', rejected: 'Reddedildi'})[props.status]);
 </script>
 
@@ -19,12 +22,12 @@ const statusText = computed(() => ({pending: `Geçerlilik: ${props.offer.validUn
       <span v-else class="photo empty" aria-hidden="true"><Wrench :size="18"/></span>
       <span class="who">
         <span class="t-label-md name">{{ business?.name }}</span>
-        <span v-if="business" class="t-body-sm t-muted rating"><Star :size="13" aria-hidden="true"/>{{ formatRating(business.rating) }} · {{ business.district }}</span>
+        <span v-if="business?.rating !== undefined && business.district" class="t-body-sm t-muted rating"><Star :size="13" aria-hidden="true"/>{{ formatRating(business.rating) }} · {{ business.district }}</span>
       </span>
     </span>
     <span class="price">
       <span class="t-mono-sm t-muted">TOPLAM (TAHMİNİ)</span>
-      <strong>{{ formatTry(offerTotal(offer)) }}</strong>
+      <strong>{{ formatMoney(total) }}</strong>
     </span>
     <span class="foot">
       <span class="t-body-sm" :class="status === 'pending' ? 't-muted' : 'state'">{{ statusText }}</span>

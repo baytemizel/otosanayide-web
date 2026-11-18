@@ -5,10 +5,14 @@ import {allBrands, allServices, distanceSteps, paymentLabels, primaryBrands, pri
 
 // "Filtre paneli" (Figma 119:118). Every control patches the page's filter state; counts are
 // computed by the page from the mock list inside the current location scope.
+// Live mode (`live` set): options come from the core catalogue, one service and one brand can be chosen
+// (the API takes one of each), counts are not shown (rejected, web-06) and the filters the API does not
+// have (taksit, nakit, şu an açık, hafta sonu açık) are disabled with the reason.
 const props = defineProps<{
   filters: SearchFilters;
-  counts: {services: Record<string, number>; brands: Record<string, number>; payments: Record<PaymentMethod, number>};
-  total: number;
+  counts: {services: Record<string, number>; brands: Record<string, number>; payments: Record<PaymentMethod, number>} | null;
+  total: number | null;
+  live?: {services: string[]; primaryServices: string[]; brands: string[]; primaryBrands: string[]};
 }>();
 const emit = defineEmits<{patch: [patch: Partial<SearchFilters>]; clear: []; show: []}>();
 
@@ -24,9 +28,17 @@ const areas = computed<{value: SearchArea; label: string}[]>(() => [
 
 const withSelected = (base: string[], all: string[], selected: string[], more: boolean) =>
   more ? all : [...base, ...selected.filter((value) => !base.includes(value))];
-const services = computed(() => withSelected(primaryServices, allServices, props.filters.services, moreServices.value));
-const brands = computed(() => withSelected(primaryBrands, allBrands, props.filters.brands, moreBrands.value));
+const services = computed(() => (props.live
+  ? withSelected(props.live.primaryServices, props.live.services, props.filters.services, moreServices.value)
+  : withSelected(primaryServices, allServices, props.filters.services, moreServices.value)));
+const brands = computed(() => (props.live
+  ? withSelected(props.live.primaryBrands, props.live.brands, props.filters.brands, moreBrands.value)
+  : withSelected(primaryBrands, allBrands, props.filters.brands, moreBrands.value)));
 const payments: PaymentMethod[] = ['kart', 'taksit', 'nakit'];
+const unsupported = 'Bu filtre henüz aramada yok';
+const paymentOff = (payment: PaymentMethod) => !!props.live && payment !== 'kart';
+/** Distance applies to "çevresi" and "konum"; in live mode a city-only search sends no radius. */
+const distanceOff = computed(() => !!props.live && props.filters.area === 'ilce');
 
 const step = computed(() => Math.max(0, distanceSteps.indexOf(props.filters.km)));
 const fill = computed(() => `${(step.value / (distanceSteps.length - 1)) * 100}%`);
@@ -34,6 +46,8 @@ const fill = computed(() => `${(step.value / (distanceSteps.length - 1)) * 100}%
 function toggle<T>(list: T[], value: T) {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
+/** Live: the API takes one service and one brand, so a tick replaces the previous one. */
+const pick = (list: string[], value: string) => (props.live ? (list.includes(value) ? [] : [value]) : toggle(list, value));
 const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
 </script>
 
@@ -56,54 +70,59 @@ const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
 
     <div class="group" :class="{muted: filters.area === 'ilce'}">
       <label for="arama-mesafesi" class="t-mono-sm t-muted">Arama mesafesi</label>
-      <input id="arama-mesafesi" type="range" class="range" min="0" :max="distanceSteps.length - 1" step="1" :value="step"
+      <input id="arama-mesafesi" type="range" :disabled="distanceOff" class="range" min="0" :max="distanceSteps.length - 1" step="1" :value="step"
              :style="{'--fill': fill}" :aria-valuetext="`${filters.km} km`"
              @input="emit('patch', {km: distanceSteps[Number(($event.target as HTMLInputElement).value)]})">
       <div class="stops">
-        <button v-for="km in distanceSteps" :key="km" type="button" class="t-mono-sm" :class="{on: filters.km === km}" :aria-pressed="filters.km === km" @click="emit('patch', {km})">{{ km }} km</button>
+        <button v-for="km in distanceSteps" :key="km" type="button" class="t-mono-sm" :class="{on: filters.km === km}" :aria-pressed="filters.km === km" :disabled="distanceOff" @click="emit('patch', {km})">{{ km }} km</button>
       </div>
       <p class="note">Mesafeler kuş uçuşudur; gerçek yol süresi farklı olabilir.</p>
+      <p v-if="distanceOff" class="note">Mesafe yalnız “çevresi” ya da “Konumumu kullan” seçiliyken uygulanır.</p>
     </div>
     <hr class="divider">
 
     <fieldset class="group">
       <legend class="t-mono-sm t-muted">Hizmet</legend>
       <label v-for="service in services" :key="service" class="row" :class="{on: filters.services.includes(service)}">
-        <input type="checkbox" class="box" :checked="filters.services.includes(service)" @change="emit('patch', {services: toggle(filters.services, service)})">
-        <span>{{ service }}</span><span class="fill" aria-hidden="true"/><span class="t-mono-sm t-muted">{{ count(counts.services, service) }}</span>
+        <input type="checkbox" class="box" :checked="filters.services.includes(service)" @change="emit('patch', {services: pick(filters.services, service)})">
+        <span>{{ service }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.services, service) }}</span>
       </label>
       <button type="button" class="more t-label-sm" :aria-expanded="moreServices" @click="moreServices = !moreServices">{{ moreServices ? 'Daha az göster' : 'Tümünü göster' }}</button>
+      <p v-if="live" class="note">Aynı anda bir hizmet seçilebilir.</p>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
       <legend class="t-mono-sm t-muted">Marka uzmanlığı</legend>
       <label v-for="brand in brands" :key="brand" class="row" :class="{on: filters.brands.includes(brand)}">
-        <input type="checkbox" class="box" :checked="filters.brands.includes(brand)" @change="emit('patch', {brands: toggle(filters.brands, brand)})">
-        <span>{{ brand }}</span><span class="fill" aria-hidden="true"/><span class="t-mono-sm t-muted">{{ count(counts.brands, brand) }}</span>
+        <input type="checkbox" class="box" :checked="filters.brands.includes(brand)" @change="emit('patch', {brands: pick(filters.brands, brand)})">
+        <span>{{ brand }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.brands, brand) }}</span>
       </label>
       <button type="button" class="more t-label-sm" :aria-expanded="moreBrands" @click="moreBrands = !moreBrands">{{ moreBrands ? 'Daha az göster' : 'Tümünü göster' }}</button>
+      <p v-if="live" class="note">Aynı anda bir marka seçilebilir.</p>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
       <legend class="t-mono-sm t-muted">Ödeme</legend>
-      <label v-for="payment in payments" :key="payment" class="row" :class="{on: filters.payments.includes(payment)}">
-        <input type="checkbox" class="box" :checked="filters.payments.includes(payment)" @change="emit('patch', {payments: toggle(filters.payments, payment)})">
-        <span>{{ paymentLabels[payment].option }}</span><span class="fill" aria-hidden="true"/><span class="t-mono-sm t-muted">{{ counts.payments[payment] }}</span>
+      <label v-for="payment in payments" :key="payment" class="row" :class="{on: filters.payments.includes(payment), off: paymentOff(payment)}" :title="paymentOff(payment) ? unsupported : undefined">
+        <input type="checkbox" class="box" :checked="filters.payments.includes(payment) && !paymentOff(payment)" :disabled="paymentOff(payment)" @change="emit('patch', {payments: toggle(filters.payments, payment)})">
+        <span>{{ paymentLabels[payment].option }}</span><span class="fill" aria-hidden="true"/>
+        <span v-if="paymentOff(payment)" class="t-mono-sm t-muted">Yakında</span>
+        <span v-else-if="counts" class="t-mono-sm t-muted">{{ counts.payments[payment] }}</span>
       </label>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
       <legend class="t-mono-sm t-muted">Durum</legend>
-      <label class="row toggle">
-        <span>Şu an açık</span><span class="fill" aria-hidden="true"/>
-        <input type="checkbox" role="switch" class="switch" :checked="filters.openNow" @change="emit('patch', {openNow: !filters.openNow})">
+      <label class="row toggle" :class="{off: live}" :title="live ? unsupported : undefined">
+        <span>Şu an açık</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">Yakında</span>
+        <input type="checkbox" role="switch" class="switch" :checked="filters.openNow && !live" :disabled="!!live" @change="emit('patch', {openNow: !filters.openNow})">
       </label>
-      <label class="row toggle">
-        <span>Hafta sonu açık</span><span class="fill" aria-hidden="true"/>
-        <input type="checkbox" role="switch" class="switch" :checked="filters.weekend" @change="emit('patch', {weekend: !filters.weekend})">
+      <label class="row toggle" :class="{off: live}" :title="live ? unsupported : undefined">
+        <span>Hafta sonu açık</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">Yakında</span>
+        <input type="checkbox" role="switch" class="switch" :checked="filters.weekend && !live" :disabled="!!live" @change="emit('patch', {weekend: !filters.weekend})">
       </label>
       <label class="row toggle">
         <span>Sadece doğrulanmış</span><span class="fill" aria-hidden="true"/>
@@ -111,8 +130,9 @@ const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
       </label>
     </fieldset>
 
+    <p v-if="live" class="note">Taksit, nakit, şu an açık ve hafta sonu filtreleri henüz aramada yok; sonuç sayısı filtre başına gösterilmez.</p>
     <p class="note">Bilinmeyen bilgi “var” sayılmaz. Değerler işletme beyanına dayanır.</p>
-    <button type="button" class="btn btn-dark show" @click="emit('show')">{{ total }} sonucu göster<ArrowRight aria-hidden="true"/></button>
+    <button type="button" class="btn btn-dark show" @click="emit('show')">{{ total === null ? 'Sonuçları göster' : `${total} sonucu göster` }}<ArrowRight aria-hidden="true"/></button>
   </div>
 </template>
 
@@ -142,6 +162,8 @@ const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
 .stops button{color:var(--ink-500)}
 .stops button.on{font-weight:700;color:var(--ink-900)}
 .muted .range,.muted .stops{opacity:.45}
+.row.off{cursor:not-allowed;color:var(--ink-300)}
+.row.off .box,.row.off .switch{cursor:not-allowed;opacity:.5}
 .note{font-size:13px;line-height:1.45;color:var(--ink-500)}
 .show{width:100%}
 </style>

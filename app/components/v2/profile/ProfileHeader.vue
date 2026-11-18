@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {MapPin, ShieldCheck, Star} from '@lucide/vue';
+import {MapPin, MessageSquare, ShieldCheck, Star} from '@lucide/vue';
 import {formatRating, type MockBusiness} from '~/data/mock/businesses';
-import type {ProfileData} from '~/data/mock/profile';
+import {addressLine, type ProfileView, type ReviewSummaryView} from '~/lib/v2/profile';
 
 // "Başlık" block of W04/W05: status tags, name, address and the rating line.
-const props = defineProps<{business: MockBusiness; profile: ProfileData}>();
+// `summary` null = not known yet (live, before the review list answers), never "no reviews".
+const props = defineProps<{business: MockBusiness; profile: ProfileView; summary: ReviewSummaryView}>();
 const emit = defineEmits<{review: []}>();
 
-const hasReviews = computed(() => props.profile.reviews.length > 0);
 const status = computed(() => {
-  if (!props.profile.hours) return {text: 'Çalışma saati bilinmiyor', tone: 'unknown'};
+  if (!props.profile.hours) return props.profile.hoursNote ? null : {text: 'Çalışma saati bilinmiyor', tone: 'unknown'};
   return {text: props.business.hoursText, tone: props.business.open ? 'open' : 'closed'};
 });
+const address = computed(() => addressLine(props.business.address, props.business.district));
 </script>
 
 <template>
@@ -21,18 +22,19 @@ const status = computed(() => {
       <span v-if="business.verified" class="pill pill-lime"><ShieldCheck :size="14" aria-hidden="true"/>Yönetim yetkisi doğrulandı</span>
       <span v-else-if="!business.claimed" class="pill pill-cream">Sahiplenilmemiş profil</span>
       <span v-else class="pill pill-cream">Doğrulama bekliyor</span>
-      <span class="pill pill-white"><i class="dot" :class="status.tone" aria-hidden="true"/>{{ status.text }}</span>
+      <span v-if="status" class="pill pill-white"><i class="dot" :class="status.tone" aria-hidden="true"/>{{ status.text }}</span>
     </div>
     <h1 class="t-h2 name">{{ business.name }}</h1>
-    <p class="address t-body-md"><MapPin :size="18" aria-hidden="true"/>{{ business.address }} / {{ business.city }}</p>
-    <div v-if="hasReviews" class="rating">
+    <p class="address t-body-md"><MapPin :size="18" aria-hidden="true"/>{{ address }} / {{ business.city }}</p>
+    <div v-if="summary && summary.count > 0" class="rating">
       <Star :size="34" class="big-star" aria-hidden="true"/>
-      <span class="t-stat">{{ formatRating(business.rating) }}</span>
+      <span class="t-stat">{{ formatRating(summary.average ?? 0) }}</span>
       <span class="rating-meta">
-        <span class="t-label-md">{{ business.reviewCount }} yorum</span>
+        <span class="t-label-md">{{ summary.count }} yorum</span>
         <span class="t-body-sm t-muted">doğrulanmış hesaplardan</span>
       </span>
     </div>
+    <p v-else-if="!summary" class="t-body-md t-muted unknown"><MessageSquare :size="18" aria-hidden="true"/>Müşteri deneyimleri aşağıda</p>
     <p v-else class="t-body-md t-muted">Henüz yorum yok · <button type="button" class="first" @click="emit('review')">İlk deneyimi sen paylaş</button></p>
   </header>
 </template>
@@ -54,6 +56,7 @@ const status = computed(() => {
 .rating{display:flex;align-items:center;gap:14px}
 .big-star{color:var(--orange-500);fill:var(--orange-500)}
 .rating-meta{display:flex;flex-direction:column;gap:2px}
+.unknown{display:flex;align-items:center;gap:8px}
 .first{color:inherit;font:inherit;text-decoration:underline;text-decoration-color:var(--cream-200);text-underline-offset:3px}
 .first:hover{color:var(--ink-900)}
 </style>

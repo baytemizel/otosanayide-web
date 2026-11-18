@@ -6,8 +6,9 @@ import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses'
 // V2/Kart/Servis (Figma 111:55): photo, name + save, verified + location, rating + open state,
 // tags, compare checkbox, call and details. States from W02: no photo, unclaimed, no reviews, unknown hours.
 // `tags` overrides the default chips (category + brands), e.g. ['Boyasız göçük', 'Kart geçerli'].
-const props = withDefaults(defineProps<{business: MockBusiness & {hoursKnown?: boolean}; compared?: boolean; saved?: boolean; highlighted?: boolean; tags?: string[]}>(), {compared: false, saved: false, highlighted: false, tags: undefined});
+const props = withDefaults(defineProps<{business: MockBusiness & {hoursKnown?: boolean; openStateKnown?: boolean}; compared?: boolean; saved?: boolean; highlighted?: boolean; tags?: string[]}>(), {compared: false, saved: false, highlighted: false, tags: undefined});
 const hoursKnown = computed(() => props.business.hoursKnown !== false);
+const openKnown = computed(() => hoursKnown.value && props.business.openStateKnown !== false);
 const chips = computed(() => (props.tags ?? [props.business.category, props.business.brands.join(' · ')]).filter(Boolean));
 const emit = defineEmits<{'update:compared': [value: boolean]; 'update:saved': [value: boolean]; hover: [id: string | null]}>();
 </script>
@@ -39,7 +40,7 @@ const emit = defineEmits<{'update:compared': [value: boolean]; 'update:saved': [
         </template>
         <span v-else class="t-body-sm t-muted">Henüz yorum yok</span>
         <span class="sep" aria-hidden="true"/>
-        <span class="state" :class="{closed: hoursKnown && !business.open, unknown: !hoursKnown}" aria-hidden="true"/>
+        <span class="state" :class="{closed: openKnown && !business.open, unknown: !openKnown}" aria-hidden="true"/>
         <span class="t-label-sm hours" :class="{muted: !hoursKnown}">{{ hoursKnown ? business.hoursText : 'Saat bilgisi yok' }}</span>
       </div>
       <div class="row tags">

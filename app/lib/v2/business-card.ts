@@ -9,6 +9,8 @@ import type {BusinessExtras} from '~/lib/search-response';
  */
 export type CardBusiness = MockBusiness & {
   hoursKnown?: boolean;
+  /** False when only free-text hours exist: the text is shown, but open/closed is not claimed. */
+  openStateKnown?: boolean;
   coords?: {latitude: number; longitude: number};
   source?: Business;
   extras?: BusinessExtras;
@@ -53,6 +55,7 @@ export function toCardBusiness(business: Business, extras: BusinessExtras = {}, 
     open: hours.open,
     hoursText: hours.known ? hours.text : business.hours ?? hours.text,
     hoursKnown: hours.known || !!business.hours,
+    openStateKnown: hours.known,
     verified: business.ownership === 'verified',
     claimed: business.ownership !== 'unclaimed',
     sponsored: false,

@@ -11,7 +11,7 @@ node dev/stub-api/server.mjs
 Then run the web with `NUXT_PUBLIC_APP_MODE=live NUXT_PUBLIC_API_ORIGIN=http://localhost:4010 npx nuxt dev --port 3001`
 (`.claude/launch.json` → `web-live-stub`). Use `localhost` for both, so the refresh cookie is same-site.
 
-Seed member: `deniz@example.com` / `ornek-sifre-123` (test value, stub only). New sign-ups work but start unverified.
+Seed members: `deniz@example.com` / `ornek-sifre-123`, and `mfa@example.com` (same password, TOTP on, code `123456`) — test values, stub only. New sign-ups work but start unverified.
 Tokens `gecersiz` make `email/verify` and `password/reset` fail. Restarting the stub resets all data.
 
 Route files in `routes/` are grouped by screen area; each one documents what it fakes.

@@ -6,14 +6,19 @@ import {allProvinces, districtsByProvince, type SearchFilters} from '~/data/mock
 
 // "Arama şeridi" (Figma 119:68): natural-language search, province and district pickers, and the
 // "Anladığımız" chips that show how the query was read. Each chip removes its filter.
-const props = defineProps<{filters: SearchFilters; chips: {key: string; label: string}[]}>();
+// Live mode passes `districts` (official list + API) and `covered` (provinces in service); the province
+// picker then groups the provinces outside coverage, which only lead to S02.
+const props = defineProps<{filters: SearchFilters; chips: {key: string; label: string}[]; districts?: string[]; covered?: string[]}>();
 const emit = defineEmits<{submit: [text: string]; place: [il: string, ilce: string]; remove: [key: string]; fix: []}>();
 
 const text = ref(props.filters.q);
 watch(() => props.filters.q, (value) => { text.value = value; });
 
 const provinces = computed(() => (allProvinces.includes(props.filters.il) ? allProvinces : [props.filters.il, ...allProvinces]));
-const districts = computed(() => districtsByProvince[props.filters.il] ?? []);
+const districts = computed(() => props.districts ?? districtsByProvince[props.filters.il] ?? []);
+const coveredSet = computed(() => new Set(props.covered ?? []));
+const inService = computed(() => provinces.value.filter((p) => coveredSet.value.has(p)));
+const outside = computed(() => provinces.value.filter((p) => !coveredSet.value.has(p)));
 
 function onProvince(event: Event) {
   emit('place', (event.target as HTMLSelectElement).value, '');
@@ -34,7 +39,17 @@ function onDistrict(event: Event) {
         <span class="t-label-sm">{{ filters.il }}</span>
         <ChevronDown :size="14" aria-hidden="true"/>
         <select :value="filters.il" aria-label="İl" @change="onProvince">
-          <option v-for="province in provinces" :key="province" :value="province">{{ province }}</option>
+          <template v-if="covered">
+            <optgroup label="Hizmet verilen iller">
+              <option v-for="province in inService" :key="province" :value="province">{{ province }}</option>
+            </optgroup>
+            <optgroup label="Henüz hizmet verilmeyen iller">
+              <option v-for="province in outside" :key="province" :value="province">{{ province }}</option>
+            </optgroup>
+          </template>
+          <template v-else>
+            <option v-for="province in provinces" :key="province" :value="province">{{ province }}</option>
+          </template>
         </select>
       </span>
       <span class="place">

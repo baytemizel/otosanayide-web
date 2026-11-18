@@ -2,10 +2,12 @@
 import {computed, ref} from 'vue';
 import {File} from '@lucide/vue';
 import GarageRecordIcon from '~/components/v2/garage/GarageRecordIcon.vue';
-import {formatShortDate, formatTry, type MockRecord} from '~/data/mock/garage';
+import {formatShortDate, type MockRecord} from '~/data/mock/garage';
+import {formatTry} from '~/lib/v2/garage';
 
 // W11 "Bakım ve gider geçmişi" (Figma 123:357): filter chips and record rows, newest first.
-const props = defineProps<{records: MockRecord[]}>();
+// Live: the account model has no record kind or document label, so the filter chips are hidden.
+const props = withDefaults(defineProps<{records: MockRecord[]; live?: boolean}>(), {live: false});
 const filters = [
   {id: 'all', label: 'Tümü'},
   {id: 'bakim', label: 'Bakım'},
@@ -15,14 +17,14 @@ const filters = [
 const filter = ref<(typeof filters)[number]['id']>('all');
 const rows = computed(() => props.records
   .filter((r) => filter.value === 'all' || (filter.value === 'belge' ? !!r.document : r.kind === filter.value))
-  .sort((a, b) => b.date.localeCompare(a.date)));
+  .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)));
 </script>
 
 <template>
   <section class="history" aria-labelledby="history-title">
     <div class="head">
       <h2 id="history-title" class="t-h4">Bakım ve gider geçmişi</h2>
-      <div class="chips" role="group" aria-label="Kayıtları süz">
+      <div v-if="!live" class="chips" role="group" aria-label="Kayıtları süz">
         <button v-for="f in filters" :key="f.id" type="button" class="chip" :class="filter === f.id ? 'chip-active' : 'chip-default'" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }}</button>
       </div>
     </div>
@@ -40,6 +42,7 @@ const rows = computed(() => props.records
         </div>
       </li>
     </ul>
+    <p v-else-if="live" class="empty t-body-sm t-muted">Bu araç için henüz kayıt yok. Yapılan bakımı “Kayıt ekle” ile gir.</p>
     <p v-else class="empty t-body-sm t-muted">Bu süzgeçte kayıt yok.</p>
   </section>
 </template>

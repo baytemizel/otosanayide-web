@@ -3,34 +3,38 @@ import {computed} from 'vue';
 import {Check, MapPin, Plus, ShieldCheck} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import {formatKm, formatRating} from '~/data/mock/businesses';
-import {paymentLabels, sameText, type SearchBusiness} from '~/data/mock/search';
+import {paymentLabels, sameText} from '~/data/mock/search';
+import type {CompareColumn} from '~/lib/v2/compare';
 
 // "Karşılaştırma tablosu" (Figma 122:664). Rows are built from the declared facts of each business;
 // a missing fact is "Bilinmiyor", never "yok". "EN İYİ" marks the best rating and the shortest distance.
-const props = defineProps<{items: SearchBusiness[]; max: number}>();
+// Live columns come from the profile endpoint; a row the API has no data for reads "Bilgi yok".
+const props = defineProps<{items: CompareColumn[]; max: number; live?: boolean}>();
 
-type Answer = 'yes' | 'unknown';
+type Answer = 'yes' | 'no' | 'unknown' | 'none';
 const placeholders = computed(() => Math.max(0, props.max - props.items.length));
 const columns = computed(() => props.items.length + placeholders.value);
 
-const rated = computed(() => props.items.filter((b) => b.reviewCount > 0));
-const bestRating = computed(() => (props.items.length > 1 && rated.value.length ? Math.max(...rated.value.map((b) => b.rating)) : null));
-const bestDistance = computed(() => (props.items.length > 1 ? Math.min(...props.items.map((b) => b.distanceKm ?? Infinity)) : null));
+const rated = computed(() => props.items.filter((b) => (b.reviews?.count ?? 0) > 0));
+const bestRating = computed(() => (props.items.length > 1 && rated.value.length ? Math.max(...rated.value.map((b) => b.reviews!.average)) : null));
+const distances = computed(() => props.items.map((b) => b.distanceKm).filter((d): d is number => d !== null));
+const bestDistance = computed(() => (props.items.length > 1 && distances.value.length ? Math.min(...distances.value) : null));
 
 // The service and brand rows follow the first business, like the Figma example (Boyasız göçük, BMW).
 const ignoredBrands = ['Tüm markalar', 'Marka bilgisi yok'];
 const service = computed(() => props.items[0]?.category ?? '');
 const brand = computed(() => props.items.flatMap((b) => b.brands).find((b) => !ignoredBrands.includes(b)) ?? '');
 
-const offers = (b: SearchBusiness, s: string): Answer => (b.services.some((x) => sameText(x, s)) || sameText(b.category, s) ? 'yes' : 'unknown');
+const offers = (b: CompareColumn, s: string): Answer => (b.services.some((x) => sameText(x, s)) || sameText(b.category, s) ? 'yes' : 'unknown');
+const card = (b: CompareColumn): Answer => (b.card === true ? 'yes' : b.card === false ? 'no' : props.live ? 'none' : 'unknown');
 const factRows = computed(() => [
-  ...(service.value ? [{label: service.value, answer: (b: SearchBusiness) => offers(b, service.value)}] : []),
-  ...(brand.value ? [{label: `${brand.value} uzmanlığı (beyan)`, answer: (b: SearchBusiness): Answer => (b.brands.some((x) => sameText(x, brand.value)) ? 'yes' : 'unknown')}] : []),
-  {label: paymentLabels.kart.row, answer: (b: SearchBusiness): Answer => (b.payments.includes('kart') ? 'yes' : 'unknown')},
+  ...(service.value ? [{label: service.value, answer: (b: CompareColumn) => offers(b, service.value)}] : []),
+  ...(brand.value ? [{label: `${brand.value} uzmanlığı (beyan)`, answer: (b: CompareColumn): Answer => (b.brands.some((x) => sameText(x, brand.value)) ? 'yes' : 'unknown')}] : []),
+  {label: paymentLabels.kart.row, answer: card},
 ]);
 
-const offerText = (b: SearchBusiness) => [b.quote && 'Teklif', b.appointment && 'Randevu'].filter(Boolean).join(' · ');
-const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
+const offerText = (b: CompareColumn) => [b.quote && 'Teklif', b.appointment && 'Randevu'].filter(Boolean).join(' · ');
+const tel = (b: CompareColumn) => `tel:${b.phone.replace(/\s/g, '')}`;
 </script>
 
 <template>
@@ -56,7 +60,8 @@ const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
         <tr>
           <th scope="row" class="label">Puan</th>
           <td v-for="b in items" :key="b.id" class="cell">
-            <span v-if="b.reviewCount" class="value">★ {{ formatRating(b.rating) }} ({{ b.reviewCount }})<span v-if="bestRating === b.rating" class="best">En iyi</span></span>
+            <span v-if="!b.reviews" class="value none">Bilgi yok</span>
+            <span v-else-if="b.reviews.count" class="value">★ {{ formatRating(b.reviews.average) }} ({{ b.reviews.count }})<span v-if="bestRating === b.reviews.average" class="best">En iyi</span></span>
             <span v-else class="value none">Henüz yorum yok</span>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell"/>
@@ -64,15 +69,16 @@ const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
         <tr>
           <th scope="row" class="label">Mesafe (kuş uçuşu)</th>
           <td v-for="b in items" :key="b.id" class="cell">
-            <span class="value">{{ formatKm(b.distanceKm) }}<span v-if="bestDistance === b.distanceKm" class="best">En iyi</span></span>
+            <span v-if="b.distanceKm === null" class="value none">Bilgi yok</span>
+            <span v-else class="value">{{ formatKm(b.distanceKm) }}<span v-if="bestDistance === b.distanceKm" class="best">En iyi</span></span>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell"/>
         </tr>
         <tr>
           <th scope="row" class="label">Sahiplik</th>
           <td v-for="b in items" :key="b.id" class="cell">
-            <span v-if="b.verified" class="own lime"><ShieldCheck :size="14" aria-hidden="true"/>Doğrulanmış</span>
-            <span v-else-if="b.claimed" class="own">Sahiplenilmiş</span>
+            <span v-if="b.ownership === 'verified'" class="own lime"><ShieldCheck :size="14" aria-hidden="true"/>Doğrulanmış</span>
+            <span v-else-if="b.ownership === 'claimed'" class="own">Sahiplenilmiş</span>
             <span v-else class="own">Sahiplenilmedi</span>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell"/>
@@ -81,6 +87,8 @@ const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
           <th scope="row" class="label">{{ row.label }}</th>
           <td v-for="b in items" :key="b.id" class="cell">
             <span v-if="row.answer(b) === 'yes'" class="value"><span class="mark yes"><Check :size="12" :stroke-width="3" aria-hidden="true"/></span>Evet</span>
+            <span v-else-if="row.answer(b) === 'no'" class="value"><span class="mark" aria-hidden="true">–</span>Hayır</span>
+            <span v-else-if="row.answer(b) === 'none'" class="value none">Bilgi yok</span>
             <span v-else class="value none"><span class="mark" aria-hidden="true">?</span>Bilinmiyor</span>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell"/>
@@ -88,7 +96,7 @@ const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
         <tr>
           <th scope="row" class="label">Şu an</th>
           <td v-for="b in items" :key="b.id" class="cell">
-            <span v-if="b.hoursKnown" class="value"><span class="dot" :class="{closed: !b.open}" aria-hidden="true"/>{{ b.hoursText }}</span>
+            <span v-if="b.hours.known" class="value"><span v-if="b.hours.open !== null" class="dot" :class="{closed: !b.hours.open}" aria-hidden="true"/>{{ b.hours.text }}</span>
             <span v-else class="value none">Saat bilgisi yok</span>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell"/>
@@ -107,7 +115,8 @@ const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
           <td class="label"/>
           <td v-for="b in items" :key="b.id" class="cell foot">
             <V2Button v-if="b.quote" :to="`/talep?isletme=${b.id}`" arrow>Teklif iste</V2Button>
-            <V2Button v-else variant="outline" :href="tel(b)" arrow>Ara</V2Button>
+            <V2Button v-else-if="b.phone" variant="outline" :href="tel(b)" arrow>Ara</V2Button>
+            <V2Button v-else variant="outline" :to="`/servis/${b.id}`" arrow>Profili aç</V2Button>
           </td>
           <td v-for="n in placeholders" :key="`p-${n}`" class="cell foot"/>
         </tr>

@@ -27,10 +27,27 @@ export default (api) => {
     return reply.json({ok: true}, 202);
   });
 
+  // Second seed member with TOTP on: login answers with a challenge, any code "123456" passes.
+  state.users.set('mfa@example.com', {uid: 'stub-user-mfa', email: 'mfa@example.com', password: 'ornek-sifre-123', emailVerified: true, mfa: true});
+  const challenges = new Map();
+
   api.post('/api/auth/login', ({body}, reply) => {
     const user = state.users.get(body?.email);
     if (!user || user.password !== body?.password) return reply.error(401, 'E-posta veya şifre hatalı.');
+    if (user.mfa) {
+      const challenge = token();
+      challenges.set(challenge, user.uid);
+      return reply.json({mfaRequired: true, challenge});
+    }
     return session(reply, user);
+  });
+
+  api.post('/api/auth/mfa/verify', ({body}, reply) => {
+    const uid = challenges.get(body?.challenge);
+    if (!uid) return reply.error(401, 'Doğrulama süresi doldu. Yeniden giriş yap.');
+    if (body?.code !== '123456') return reply.error(400, 'Kod hatalı.');
+    challenges.delete(body.challenge);
+    return session(reply, byUid(uid));
   });
 
   api.post('/api/auth/refresh', ({cookies}, reply) => {

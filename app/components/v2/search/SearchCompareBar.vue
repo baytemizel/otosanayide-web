@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import {ArrowRight, X} from '@lucide/vue';
-import type {SearchBusiness} from '~/data/mock/search';
 
 // Floating compare bar shown on /ara once 2+ services are ticked. Not drawn in the search frames;
 // built from the V2 language (ink pill, lime action) to match the rest of the redesign.
-defineProps<{items: SearchBusiness[]; href: string; max: number}>();
+defineProps<{items: {id: string; name: string}[]; href: string; max: number}>();
 const emit = defineEmits<{remove: [id: string]; clear: []}>();
 </script>
 

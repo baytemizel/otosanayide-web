@@ -2,12 +2,16 @@
 import {computed, nextTick, ref, watch} from 'vue';
 import {ArrowRight, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, Star} from '@lucide/vue';
 import SearchViewToggle from '~/components/v2/search/SearchViewToggle.vue';
-import {formatKm, formatRating} from '~/data/mock/businesses';
-import type {SearchBusiness} from '~/data/mock/search';
+import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses';
+import type {CardBusiness} from '~/lib/v2/business-card';
+import {openLabel} from '~/lib/v2/search';
 
 // "Harita · tam genişlik" (Figma 119:653). Mock map: the Figma map art as a picture, pins placed from
 // `business.map` (percent of the box), a floating result panel and a pin pop-up card. No map SDK.
-const props = defineProps<{results: SearchBusiness[]; total: number; scope: string}>();
+// Live (`live`): `map` comes from real coordinates (placeOnMap); a result without a verified pin is
+// listed in the panel but not drawn. There is no "you are here" point and no bbox search (web-05).
+type MapBusiness = MockBusiness & Pick<CardBusiness, 'hoursKnown' | 'coords' | 'source' | 'extras'>;
+const props = defineProps<{results: MapBusiness[]; total: number; scope: string; live?: boolean}>();
 const emit = defineEmits<{view: [view: 'liste' | 'harita']}>();
 
 const selectedId = ref<string | null>(props.results[0]?.id ?? null);
@@ -27,16 +31,19 @@ function point(map: {x: number; y: number}) {
   const x = 34 + map.x * 0.64;
   return {x: 50 + (x - 50) * zoom.value, y: 50 + (map.y - 50) * zoom.value};
 }
-const pins = computed(() => props.results.map((business) => ({business, ...point(business.map)})).filter((pin) => pin.x > -2 && pin.x < 102 && pin.y > -2 && pin.y < 102));
+const drawn = computed(() => (props.live ? props.results.filter((b) => b.coords) : props.results));
+const unpinned = computed(() => props.results.length - drawn.value.length);
+const pins = computed(() => drawn.value.map((business) => ({business, ...point(business.map)})).filter((pin) => pin.x > -2 && pin.x < 102 && pin.y > -2 && pin.y < 102));
 const me = computed(() => point({x: (63.3 - 34) / 0.64, y: 79.9}));
 const popup = computed(() => {
-  if (!selected.value) return null;
+  if (!selected.value || (props.live && !selected.value.coords)) return null;
   const at = point(selected.value.map);
   return {x: Math.min(Math.max(at.x, 14), 86), y: at.y, below: at.y < 52};
 });
 
-const meta = (b: SearchBusiness) => `${formatKm(b.distanceKm)} · ${!b.hoursKnown ? 'Saat bilgisi yok' : b.open ? 'Açık' : 'Kapalı'}`;
-const tel = (b: SearchBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
+const meta = (b: MapBusiness) => [formatKm(b.distanceKm), openLabel(b).text, props.live && !b.coords ? 'Haritada yok' : ''].filter(Boolean).join(' · ');
+const selectedOpen = computed(() => (selected.value ? openLabel(selected.value) : null));
+const tel = (b: MapBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
 
 async function choose(id: string) {
   selectedId.value = id;
@@ -67,8 +74,10 @@ function searchHere() {
       <div class="ground" :style="{transform: `scale(${zoom})`}" aria-hidden="true" @click="selectedId = null">
         <img src="/v2/search/map-bg.svg" alt="" width="1240" height="1653">
       </div>
-      <span class="me-ring" :style="{left: `${me.x}%`, top: `${me.y}%`}" aria-hidden="true"/>
-      <span class="me" :style="{left: `${me.x}%`, top: `${me.y}%`}" aria-hidden="true"/>
+      <template v-if="!live">
+        <span class="me-ring" :style="{left: `${me.x}%`, top: `${me.y}%`}" aria-hidden="true"/>
+        <span class="me" :style="{left: `${me.x}%`, top: `${me.y}%`}" aria-hidden="true"/>
+      </template>
 
       <button v-for="pin in pins" :key="pin.business.id" type="button" class="pin t-label-sm"
               :class="{on: pin.business.id === selectedId, hot: pin.business.id === hoveredId}"
@@ -89,12 +98,12 @@ function searchHere() {
               <Star :size="14" class="star" aria-hidden="true"/><span class="t-label-sm">{{ formatRating(selected.rating) }}</span>
               <span class="t-body-sm t-muted">({{ selected.reviewCount }} yorum) · {{ formatKm(selected.distanceKm) }}</span>
             </template>
-            <span v-else class="t-body-sm t-muted">Henüz yorum yok · {{ formatKm(selected.distanceKm) }}</span>
-            <span v-if="selected.hoursKnown" class="dot" :class="{closed: !selected.open}" aria-hidden="true"/>
-            <span v-if="selected.hoursKnown" class="t-label-sm">{{ selected.open ? 'Açık' : 'Kapalı' }}</span>
+            <span v-else class="t-body-sm t-muted">Henüz yorum yok{{ selected.distanceKm === null ? '' : ` · ${formatKm(selected.distanceKm)}` }}</span>
+            <span v-if="selectedOpen && selectedOpen.open !== null" class="dot" :class="{closed: !selectedOpen.open}" aria-hidden="true"/>
+            <span v-if="selected.hoursKnown" class="t-label-sm">{{ selectedOpen?.text }}</span>
           </p>
           <div class="pop-actions">
-            <a :href="tel(selected)" class="pop-btn dark t-label-sm"><Phone :size="15" aria-hidden="true"/>Ara</a>
+            <a v-if="selected.phone" :href="tel(selected)" class="pop-btn dark t-label-sm"><Phone :size="15" aria-hidden="true"/>Ara</a>
             <NuxtLink :to="`/servis/${selected.id}#konum`" class="pop-btn t-label-sm"><Navigation :size="15" aria-hidden="true"/>Yol tarifi</NuxtLink>
             <NuxtLink :to="`/servis/${selected.id}`" class="pop-go" :aria-label="`${selected.name} profilini aç`"><ArrowRight :size="17" aria-hidden="true"/></NuxtLink>
           </div>
@@ -102,14 +111,16 @@ function searchHere() {
       </article>
 
 
-      <button type="button" class="here t-label-sm" @click="searchHere"><Search :size="16" aria-hidden="true"/>Bu alanda ara</button>
+      <button v-if="live" type="button" class="here t-label-sm" disabled title="Harita alanında arama henüz yok; il, ilçe ya da çevre mesafesiyle ara"><Search :size="16" aria-hidden="true"/>Bu alanda ara · yakında</button>
+      <button v-else type="button" class="here t-label-sm" @click="searchHere"><Search :size="16" aria-hidden="true"/>Bu alanda ara</button>
       <div class="zoom">
         <button type="button" aria-label="Yakınlaştır" :disabled="zoom >= 2.5" @click="setZoom(0.5)"><Plus :size="18" aria-hidden="true"/></button>
         <span aria-hidden="true"/>
         <button type="button" aria-label="Uzaklaştır" :disabled="zoom <= 1" @click="setZoom(-0.5)"><Minus :size="18" aria-hidden="true"/></button>
       </div>
-      <button type="button" class="locate" aria-label="Konumuma dön" @click="locate"><LocateFixed :size="20" aria-hidden="true"/></button>
-      <p class="hint">Mesafeler kuş uçuşudur</p>
+      <button v-if="!live" type="button" class="locate" aria-label="Konumuma dön" @click="locate"><LocateFixed :size="20" aria-hidden="true"/></button>
+      <p class="hint" :class="{wide: live}">{{ live && unpinned ? `${unpinned} işletmenin doğrulanmış konumu yok; yalnız listede` : 'Mesafeler kuş uçuşudur' }}</p>
+      <p v-if="live && !drawn.length" class="empty-map t-body-sm">Bu sonuçların hiçbirinin doğrulanmış konumu yok. Liste yanda.</p>
       <p class="sr-only" aria-live="polite">{{ status }}</p>
       </div>
       <aside class="panel" aria-label="Sonuçlar">
@@ -187,6 +198,9 @@ function searchHere() {
 
 .here{position:absolute;z-index:2;left:58%;top:20px;display:inline-flex;align-items:center;gap:8px;padding:10px 18px 10px 14px;border-radius:999px;background:var(--ink-900);color:var(--white);filter:drop-shadow(0 10px 12px rgba(10,20,36,.3))}
 .here :deep(svg){color:var(--lime-400)}
+.here:disabled{opacity:.7;cursor:not-allowed}
+.hint.wide{right:20px}
+.empty-map{position:absolute;z-index:2;left:calc(380px + 60px);right:40px;top:50%;transform:translateY(-50%);padding:14px 18px;border-radius:18px;background:var(--white);color:var(--ink-700);text-align:center}
 .zoom{position:absolute;z-index:2;right:20px;top:20px;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;background:var(--white);box-shadow:0 8px 20px rgba(10,20,36,.16)}
 .zoom button{display:grid;place-items:center;width:44px;height:44px;color:var(--ink-900)}
 .zoom button:disabled{color:var(--ink-300);cursor:default}
@@ -204,6 +218,7 @@ function searchHere() {
   .here{left:16px;top:16px}
   .zoom{right:16px;top:16px}
   .hint{display:none}
+  .empty-map{left:16px;right:16px}
   .panel{position:static;width:auto;max-height:none;filter:none;border:1px solid var(--cream-200)}
   .rows{max-height:420px}
 }

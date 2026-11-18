@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue';
-import {Check} from '@lucide/vue';
+import {ArrowUpRight, Check, MapPin} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import ProfileMiniMap from './ProfileMiniMap.vue';
 import type {MockBusiness} from '~/data/mock/businesses';
-import type {ProfileData} from '~/data/mock/profile';
+import type {ProfileView} from '~/lib/v2/profile';
 
-// "Konum ve saatler": mock map, coordinate status, address, opening hours and the report link.
-const props = defineProps<{business: MockBusiness; profile: ProfileData}>();
+// "Konum ve saatler": map, coordinate status, address, opening hours and the report link.
+// Demo: the drawn mock map and a map modal. Live (`mapHref` set): the drawing only for a verified point,
+// and "Haritada aç" opens Google Maps (the point, or an address search when the point is not verified).
+const props = withDefaults(defineProps<{business: MockBusiness; profile: ProfileView; mapHref?: string | null}>(), {mapHref: null});
 const emit = defineEmits<{map: []; report: []}>();
 
 // "bugün" is resolved on the client so server and browser render the same markup.
@@ -16,13 +18,19 @@ onMounted(() => { today.value = new Date().getDay(); });
 // The base address ends with the district, which the second line already shows.
 const street = computed(() => props.business.address.replace(new RegExp(`,\\s*${props.business.district}$`), ''));
 const rows = computed(() => (props.profile.hours ?? []).map((row) => ({...row, today: today.value !== null && row.days.includes(today.value)})));
+const showMap = computed(() => !props.mapHref || props.profile.coordinateVerified);
 </script>
 
 <template>
   <section id="konum" class="profile-location" aria-labelledby="konum-baslik">
     <h2 id="konum-baslik" class="t-h3">Konum ve saatler</h2>
     <div class="card">
-      <ProfileMiniMap :label="`${business.name} konumu, örnek harita`" class="map"/>
+      <ProfileMiniMap v-if="showMap" :label="mapHref ? `${business.name} konumu, temsilî harita` : `${business.name} konumu, örnek harita`" class="map"/>
+      <div v-else class="map no-map">
+        <MapPin :size="26" aria-hidden="true"/>
+        <p class="t-label-sm">Harita noktası doğrulanıyor</p>
+        <p class="t-body-sm t-muted">Doğrulanmış konum eklendiğinde harita burada görünür.</p>
+      </div>
       <div class="info">
         <span v-if="profile.coordinateVerified" class="pill pill-lime"><Check :size="14" aria-hidden="true"/>Koordinat doğrulandı</span>
         <span v-else class="pill pill-cream">Kesin konum doğrulanmadı · Adres araması</span>
@@ -33,12 +41,14 @@ const rows = computed(() => (props.profile.hours ?? []).map((row) => ({...row, t
             <span class="time">{{ row.time }}</span>
           </li>
         </ul>
+        <p v-else-if="profile.hoursNote" class="t-body-sm hours-note">{{ profile.hoursNote }}</p>
         <p v-else class="t-body-sm t-muted unknown">Çalışma saati henüz eklenmedi. Açık olduğu varsayılmaz.</p>
-        <V2Button variant="outline" arrow @click="emit('map')">Haritada aç</V2Button>
+        <a v-if="mapHref" class="btn btn-outline" :href="mapHref" target="_blank" rel="noopener noreferrer">{{ profile.coordinateVerified ? 'Google Maps’te aç' : 'Adresi haritada ara' }}<ArrowUpRight aria-hidden="true"/></a>
+        <V2Button v-else variant="outline" arrow @click="emit('map')">Haritada aç</V2Button>
       </div>
     </div>
     <p class="foot">
-      <button type="button" class="t-label-sm report" @click="emit('report')">Yanlış bilgi bildir</button>
+      <button type="button" class="t-label-sm report" aria-haspopup="dialog" @click="emit('report')">Yanlış bilgi bildir</button>
       <span class="t-body-sm t-muted">Profil değişiklikleri eski ve yeni değerle, zamanıyla saklanır.</span>
     </p>
   </section>
@@ -60,6 +70,8 @@ address{font-style:normal;color:var(--ink-800)}
 .hours li.today{background:var(--lime-100)}
 .hours li.today .day{font-weight:600;color:var(--ink-900)}
 .unknown{max-width:340px}
+.hours-note{white-space:pre-line;overflow-wrap:anywhere;color:var(--ink-800)}
+.no-map{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:340px;height:260px;flex:none;padding:20px;border-radius:18px;background:var(--cream-100);color:var(--ink-500);text-align:center}
 .foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}
 .report{color:var(--orange-600)}
 .report:hover{text-decoration:underline;text-underline-offset:3px}

@@ -3,13 +3,21 @@ import {computed} from 'vue';
 import {GitCompareArrows, Heart, Navigation, Phone} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import type {MockBusiness} from '~/data/mock/businesses';
-import type {ProfileData} from '~/data/mock/profile';
+import type {ProfileView} from '~/lib/v2/profile';
+import {demoMode} from '~/lib/env';
 import {portalUrl} from '~/lib/portal';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
 
 // Sticky "Eylem kartı": request/appointment CTAs for managed profiles, the claim call-out for unclaimed ones.
-const props = defineProps<{business: MockBusiness; profile: ProfileData}>();
+// Live (`targets` set): "Ara" dials a checked number (core contact), "Yol tarifi" opens Google Maps
+// (core location), and the request buttons follow the core activation rule (`featureAvailable`).
+const props = withDefaults(defineProps<{
+  business: MockBusiness;
+  profile: ProfileView;
+  targets?: {call: string | null; directions: string} | null;
+  actions?: {quotes: boolean; appointments: boolean} | null;
+}>(), {targets: null, actions: null});
 const emit = defineEmits<{directions: []}>();
 
 const saved = useMockSaved();
@@ -17,25 +25,34 @@ const compare = useMockCompare();
 const isSaved = computed(() => saved.has(props.business.id));
 const inCompare = computed(() => compare.has(props.business.id));
 const compareFull = computed(() => !inCompare.value && compare.ids.value.length >= compare.max);
-const claimHref = computed(() => portalUrl('claim', {business: props.business.id}) ?? '#');
-const tel = computed(() => `tel:${props.business.phone.replace(/\s/g, '')}`);
+// Demo keeps its placeholder link; live renders the button passive until the portal origin is set.
+const claimHref = computed(() => portalUrl('claim', {business: props.business.id}) ?? (demoMode() ? '#' : null));
+const tel = computed(() => (props.targets ? props.targets.call : `tel:${props.business.phone.replace(/\s/g, '')}`));
+const quotes = computed(() => props.actions?.quotes ?? true);
+const appointments = computed(() => props.actions?.appointments ?? true);
 </script>
 
 <template>
   <aside class="profile-action-card" aria-label="Hemen ulaş">
     <template v-if="business.claimed">
       <h2 class="t-h4">Hemen ulaş</h2>
-      <V2Button size="lg" arrow :to="`/talep?servis=${business.id}`" class="wide">Teklif iste</V2Button>
-      <V2Button variant="dark" arrow :to="`/randevu?servis=${business.id}`" class="wide">Randevu al</V2Button>
+      <V2Button size="lg" arrow :to="`/talep?servis=${business.id}`" :disabled="!quotes" class="wide">Teklif iste</V2Button>
+      <V2Button variant="dark" arrow :to="`/randevu?servis=${business.id}`" :disabled="!appointments" class="wide">Randevu al</V2Button>
+      <p v-if="!quotes || !appointments" class="note">
+        {{ !quotes && !appointments ? 'Bu işletme henüz çevrim içi teklif ve randevu almıyor.' : !quotes ? 'Bu işletme henüz çevrim içi teklif almıyor.' : 'Bu işletme henüz çevrim içi randevu almıyor.' }}
+        Telefonla ulaşabilirsin.
+      </p>
     </template>
     <div class="tiles">
-      <a :href="tel" class="tile"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">Ara</span></a>
-      <button type="button" class="tile" @click="emit('directions')"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">Yol tarifi</span></button>
+      <a v-if="tel" :href="tel" class="tile"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">Ara</span></a>
+      <span v-else class="tile off" aria-disabled="true"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">Telefon yok</span></span>
+      <a v-if="targets" :href="targets.directions" target="_blank" rel="noopener noreferrer" class="tile"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">Yol tarifi</span></a>
+      <button v-else type="button" class="tile" @click="emit('directions')"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">Yol tarifi</span></button>
       <button type="button" class="tile" :class="{on: isSaved}" :aria-pressed="isSaved" @click="saved.toggle(business.id)">
         <Heart :size="20" aria-hidden="true"/><span class="t-label-sm">{{ isSaved ? 'Kaydedildi' : 'Kaydet' }}</span>
       </button>
     </div>
-    <template v-if="business.claimed">
+    <template v-if="business.claimed && profile.facts.length">
       <hr class="divider">
       <dl class="facts">
         <div v-for="fact in profile.facts" :key="fact.label" class="fact">
@@ -44,10 +61,11 @@ const tel = computed(() => `tel:${props.business.phone.replace(/\s/g, '')}`);
         </div>
       </dl>
     </template>
-    <div v-else class="claim">
+    <div v-if="!business.claimed" class="claim">
       <h2 class="t-h4">Bu işletme sizin mi?</h2>
       <p class="t-body-sm">Ücretsiz sahiplenin; bilgileri güncelleyin, yorumlara yanıt verin.</p>
-      <V2Button variant="lime" arrow :href="claimHref">Sahiplik başvurusu</V2Button>
+      <V2Button variant="lime" arrow :href="claimHref ?? undefined" :disabled="!claimHref">Sahiplik başvurusu</V2Button>
+      <p v-if="!claimHref" class="t-body-sm">İşletme portalı bağlantısı henüz hazır değil.</p>
     </div>
     <div class="compare">
       <label class="compare-toggle t-label-sm" :class="{disabled: compareFull}">
@@ -66,6 +84,8 @@ const tel = computed(() => `tel:${props.business.phone.replace(/\s/g, '')}`);
 .tiles{display:flex;gap:10px}
 .tile{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 4px;background:var(--cream-50);border:1px solid var(--cream-200);border-radius:18px;color:var(--ink-900);transition:border-color .15s ease}
 .tile:hover{border-color:var(--ink-300)}
+.tile.off{color:var(--ink-500);cursor:not-allowed}
+.tile.off:hover{border-color:var(--cream-200)}
 .tile.on :deep(svg){color:var(--orange-500);fill:var(--orange-500)}
 .facts{display:flex;flex-direction:column;gap:14px}
 .fact{display:flex;justify-content:space-between;align-items:baseline;gap:12px}

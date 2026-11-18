@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {ArrowRight, Info, RotateCcw} from '@lucide/vue';
-import {formatTry, offerTotal, type MockOffer, type OfferStatus} from '~/data/mock/requests';
+import {ArrowRight, CalendarCheck, Info, RotateCcw} from '@lucide/vue';
+import {formatMoney, type OfferCardView, type OfferStatus} from '~/lib/v2/requests';
 
 // "Ön teklif" card (W15): line items, estimated total, decision buttons.
 // Interaction note 07: the chosen offer stands out with an orange frame (`highlighted`).
-const props = defineProps<{offer: MockOffer; status: OfferStatus; highlighted?: boolean}>();
+// Live mode: `busy` disables the buttons while a decision is sent, `undoable` is off (the API has
+// no undo), an appointment offer shows the proposed time instead of line items.
+const props = withDefaults(defineProps<{
+  offer: OfferCardView;
+  status: OfferStatus;
+  highlighted?: boolean;
+  busy?: boolean;
+  undoable?: boolean;
+  bookingTo?: string | null;
+  rejectedText?: string;
+}>(), {highlighted: false, busy: false, undoable: true, bookingTo: undefined, rejectedText: 'Bu teklifi reddettin. İşletmeye bildirim gitti.'});
 const emit = defineEmits<{accept: []; reject: []; undo: []}>();
-const total = computed(() => formatTry(offerTotal(props.offer)));
+const appointment = computed(() => props.offer.kind === 'appointment');
+const total = computed(() => formatMoney(props.offer.lines.reduce((sum, line) => sum + line.amount, 0)));
+const booking = computed(() => (props.bookingTo === undefined ? `/randevu?servis=${props.offer.businessId}&teklif=${props.offer.id}` : props.bookingTo));
 </script>
 
 <template>
@@ -16,7 +28,8 @@ const total = computed(() => formatTry(offerTotal(props.offer)));
       <h2 id="quote-title" class="t-h4">Ön teklif</h2>
       <p class="t-body-sm t-muted">Geçerlilik: {{ offer.validUntil }}</p>
     </div>
-    <table class="lines">
+    <p v-if="appointment && offer.startsAtText" class="slot"><CalendarCheck :size="18" aria-hidden="true"/>Önerilen saat: <strong>{{ offer.startsAtText }}</strong> · Türkiye saati</p>
+    <table v-if="offer.lines.length" class="lines">
       <thead>
         <tr class="t-mono-sm t-muted"><th scope="col" class="c-item">KALEM</th><th scope="col">AÇIKLAMA</th><th scope="col" class="c-amount">TUTAR</th></tr>
       </thead>
@@ -24,26 +37,28 @@ const total = computed(() => formatTry(offerTotal(props.offer)));
         <tr v-for="line in offer.lines" :key="line.item">
           <th scope="row" class="c-item t-label-md">{{ line.item }}</th>
           <td class="t-body-sm desc">{{ line.description }}</td>
-          <td class="c-amount amount">{{ formatTry(line.amount) }}</td>
+          <td class="c-amount amount">{{ formatMoney(line.amount) }}</td>
         </tr>
       </tbody>
     </table>
-    <div class="total">
+    <div v-if="offer.lines.length" class="total">
       <span class="t-label-md">Toplam (tahmini)</span>
       <strong class="total-value">{{ total }}</strong>
     </div>
     <p class="note"><Info :size="16" aria-hidden="true"/>{{ offer.note }}</p>
+    <p v-for="line in offer.notes ?? []" :key="line" class="note extra">{{ line }}</p>
     <div class="actions">
       <template v-if="status === 'pending'">
-        <button type="button" class="btn btn-primary" @click="emit('accept')">Kabul et, randevu al<ArrowRight aria-hidden="true"/></button>
-        <button type="button" class="btn btn-outline" @click="emit('reject')">Reddet</button>
+        <button type="button" class="btn btn-primary" :disabled="busy || offer.expired" @click="emit('accept')">{{ appointment ? 'Saati kabul et' : bookingTo === null ? 'Teklifi kabul et' : 'Kabul et, randevu al' }}<ArrowRight aria-hidden="true"/></button>
+        <button type="button" class="btn btn-outline" :disabled="busy" @click="emit('reject')">Reddet</button>
       </template>
       <template v-else-if="status === 'accepted'">
-        <NuxtLink :to="`/randevu?servis=${offer.businessId}&teklif=${offer.id}`" class="btn btn-primary">Randevu zamanı seç<ArrowRight aria-hidden="true"/></NuxtLink>
+        <NuxtLink v-if="booking && !appointment" :to="booking" class="btn btn-primary">Randevu zamanı seç<ArrowRight aria-hidden="true"/></NuxtLink>
+        <p v-else class="t-body-sm t-muted">{{ appointment ? 'Randevun kesinleşti. Bu ekranda ödeme alınmaz.' : 'Teklifi kabul ettin. İşletme seninle bu talep üzerinden iletişime geçer.' }}</p>
       </template>
       <template v-else>
-        <p class="t-body-sm t-muted">Bu teklifi reddettin. İşletmeye bildirim gitti.</p>
-        <button type="button" class="btn btn-outline btn-sm" @click="emit('undo')"><RotateCcw aria-hidden="true"/>Geri al</button>
+        <p class="t-body-sm t-muted">{{ rejectedText }}</p>
+        <button v-if="undoable" type="button" class="btn btn-outline btn-sm" @click="emit('undo')"><RotateCcw aria-hidden="true"/>Geri al</button>
       </template>
     </div>
   </section>
@@ -67,6 +82,9 @@ const total = computed(() => formatTry(offerTotal(props.offer)));
 .total-value{font-weight:700;font-size:26px;line-height:1.2}
 .note{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.45;color:var(--ink-500);max-width:464px}
 .note svg{flex:none;margin-top:1px}
+.note.extra{padding-left:24px}
+.slot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:16px 18px;background:var(--cream-50);border:1px solid var(--cream-200);border-radius:18px;font-size:15px;color:var(--ink-800)}
+.slot svg{color:var(--green-500)}
 .actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding-top:8px}
 .rejected .total-value{text-decoration:line-through;color:var(--ink-500)}
 @media (max-width:760px){

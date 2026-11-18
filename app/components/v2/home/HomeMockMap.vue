@@ -3,17 +3,23 @@ import {computed, ref} from 'vue';
 import {Locate, Minus, Plus, Search, Star} from '@lucide/vue';
 import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses';
 import {homeMapPins} from '~/data/mock/home';
+import type {CardBusiness} from '~/lib/v2/business-card';
+import {openLabel} from '~/lib/v2/search';
 
 // Figma 111:306 "Harita · canlı": a styled mock map (no map SDK). Pins are rating bubbles;
 // the selected pin is dark and shows a small card. Hovering a list card highlights its pin.
-const props = defineProps<{businesses: MockBusiness[]; selectedId: string | null; hoverId: string | null; photos?: Record<string, string>}>();
+// Live (`live`): pins are placed from verified coordinates only (placeOnMap); there is no "you" point and
+// no bbox search, so the top button opens the full search instead.
+type MapBusiness = MockBusiness & Pick<CardBusiness, 'hoursKnown' | 'coords' | 'source' | 'extras'>;
+const props = defineProps<{businesses: MapBusiness[]; selectedId: string | null; hoverId: string | null; photos?: Record<string, string>; live?: boolean; searchHref?: string}>();
 const emit = defineEmits<{select: [id: string]}>();
 
 const W = 600;
 const H = 706;
 const zoom = ref(1);
-const pins = computed(() => props.businesses.map((b) => {
-  const at = homeMapPins[b.id] ?? {x: (b.map.x / 100) * W, y: (b.map.y / 100) * H};
+const unpinned = computed(() => (props.live ? props.businesses.filter((b) => !b.coords).length : 0));
+const pins = computed(() => (props.live ? props.businesses.filter((b) => b.coords) : props.businesses).map((b) => {
+  const at = (!props.live && homeMapPins[b.id]) || {x: (b.map.x / 100) * W, y: (b.map.y / 100) * H};
   return {business: b, left: `${(at.x / W) * 100}%`, top: `${(at.y / H) * 100}%`};
 }));
 const setZoom = (value: number) => { zoom.value = Math.min(1.6, Math.max(1, Math.round(value * 10) / 10)); };
@@ -28,7 +34,7 @@ function locate() {
   <div class="home-map" role="region" aria-label="Servis haritası (örnek)">
     <div class="layer" :style="{transform: `scale(${zoom})`}">
       <img class="base" src="/v2/home/map-base.svg" alt="" width="600" height="800" aria-hidden="true">
-      <span class="you" aria-hidden="true">
+      <span v-if="!live" class="you" aria-hidden="true">
         <img src="/v2/home/map-you-ring.svg" alt="" width="96" height="96">
         <img class="you-dot" src="/v2/home/map-you.svg" alt="" width="22" height="22">
       </span>
@@ -37,10 +43,10 @@ function locate() {
         :class="{selected: pin.business.id === selectedId, hot: pin.business.id === hoverId}"
         :style="{left: pin.left, top: pin.top, transform: `scale(${1 / zoom})`}">
         <span v-if="pin.business.id === selectedId" class="popup">
-          <img :src="photos?.[pin.business.id] ?? pin.business.photo ?? '/v2/workshop.jpg'" alt="" width="48" height="48">
+          <img v-if="!live || pin.business.photo" :src="photos?.[pin.business.id] ?? pin.business.photo ?? '/v2/workshop.jpg'" alt="" width="48" height="48">
           <span class="popup-text">
             <NuxtLink :to="`/servis/${pin.business.id}`" class="t-label-sm">{{ pin.business.name }}</NuxtLink>
-            <span class="t-body-sm t-muted">{{ formatKm(pin.business.distanceKm) }} · {{ pin.business.open ? 'Açık' : 'Kapalı' }}</span>
+            <span class="t-body-sm t-muted">{{ [formatKm(pin.business.distanceKm), live ? openLabel(pin.business).text : pin.business.open ? 'Açık' : 'Kapalı'].filter(Boolean).join(' · ') }}</span>
           </span>
         </span>
         <button
@@ -53,13 +59,15 @@ function locate() {
       </span>
     </div>
 
-    <NuxtLink to="/ara" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>Bu alanda ara</NuxtLink>
+    <NuxtLink v-if="live" :to="searchHref ?? '/ara'" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>Tüm sonuçları aç</NuxtLink>
+    <NuxtLink v-else to="/ara" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>Bu alanda ara</NuxtLink>
+    <p v-if="live && unpinned" class="unpinned t-body-sm">{{ unpinned }} işletmenin doğrulanmış konumu yok; yalnız listede.</p>
     <div class="zoom">
       <button type="button" aria-label="Yakınlaştır" :disabled="zoom >= 1.6" @click="setZoom(zoom + 0.2)"><Plus :size="18" aria-hidden="true"/></button>
       <span class="zoom-sep" aria-hidden="true"/>
       <button type="button" aria-label="Uzaklaştır" :disabled="zoom <= 1" @click="setZoom(zoom - 0.2)"><Minus :size="18" aria-hidden="true"/></button>
     </div>
-    <button type="button" class="locate" aria-label="Konumuma en yakın servisi seç" @click="locate"><Locate :size="20" aria-hidden="true"/></button>
+    <button v-if="!live" type="button" class="locate" aria-label="Konumuma en yakın servisi seç" @click="locate"><Locate :size="20" aria-hidden="true"/></button>
   </div>
 </template>
 
@@ -88,5 +96,6 @@ function locate() {
 .zoom button{display:grid;place-items:center;width:44px;height:44px;color:var(--ink-900)}
 .zoom button:disabled{color:var(--ink-300);cursor:default}
 .zoom-sep{height:1px;background:var(--cream-200)}
+.unpinned{position:absolute;left:18px;bottom:18px;right:18px;z-index:4;padding:8px 14px;border-radius:16px;background:var(--white);color:var(--ink-700);box-shadow:0 6px 8px rgba(10,20,36,.14)}
 .locate{position:absolute;right:18px;bottom:18px;display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:var(--white);color:var(--ink-900);box-shadow:0 8px 10px rgba(10,20,36,.16);z-index:4}
 </style>

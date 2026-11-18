@@ -1,10 +1,18 @@
 <script setup lang="ts">
+import {computed} from 'vue';
 import {ArrowRight} from '@lucide/vue';
 import {useMockCompare} from '~/composables/useMockCompare';
+import {useSearchCards} from '~/composables/v2/useSearch';
+import {demoMode} from '~/lib/env';
 
 // Figma 111:372 "Karşılaştırma çubuğu · yüzen": appears once a service is ticked; comparing needs two.
+// Live: the avatars come from the cards seen in live search results (ids are API ids, not mock ones).
 defineProps<{photos?: Record<string, string>}>();
 const compare = useMockCompare();
+const {cards} = useSearchCards();
+const items = computed(() => (demoMode()
+  ? compare.items.value
+  : compare.ids.value.map((id) => cards.value[id]).filter((c) => c !== undefined)));
 const initials = (name: string) => name.replace(/^Örnek\s+/, '').split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
 </script>
 
@@ -12,7 +20,7 @@ const initials = (name: string) => name.replace(/^Örnek\s+/, '').split(/\s+/).s
   <Transition name="home-compare">
     <div v-if="compare.ids.value.length" class="home-compare" role="region" aria-label="Karşılaştırma">
       <span class="avatars" aria-hidden="true">
-        <template v-for="item in compare.items.value" :key="item.id">
+        <template v-for="item in items" :key="item.id">
           <img v-if="photos?.[item.id] ?? item.photo" :src="photos?.[item.id] ?? item.photo ?? ''" alt="" width="40" height="40">
           <span v-else class="initials">{{ initials(item.name) }}</span>
         </template>

@@ -7,21 +7,38 @@ import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vu
 import RequestStepper from '~/components/v2/requests/RequestStepper.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
 import {useMemberPage} from '~/composables/useMemberPage';
+import {memberToken, requestSendError, sendRequest, useRequestBusiness} from '~/composables/v2/useRequests';
 import {
   DEFAULT_REQUEST_BUSINESS_ID, REQUEST_DESCRIPTION_MAX, requestBusiness, requestContactOptions, requestMockAnswers,
   requestServices, requestTimeOptions, requestVehicles, responseHoursFor,
 } from '~/data/mock/requests';
+import {demoMode} from '~/lib/env';
+import {istanbulToday, longDate, otherVehicleText, requestDraftProblem, vehicleOptions} from '~/lib/v2/requests';
 
 // W14 · Teklif iste (Figma 126:524). Four-step wizard; step 3 "Sorunu anlat" is the Figma frame.
-// ?adim=1..4 opens a step (later steps come pre-filled with mock answers), ?servis=<id> picks the business.
-useMemberPage();
+// Demo: ?adim=1..4 opens a step (later steps come pre-filled with mock answers), ?servis=<id> picks
+// the mock business. Live: ?servis=<id> is read from the API; the request is sent with
+// POST /api/requests only when the business offers quotes. Photos and the contact preference have
+// no API field, so they are not shown in live mode; the preferred time is an optional date.
+const app = useMemberPage();
+const demo = demoMode();
 
-useSeoMeta({title: 'Teklif iste'});
+useSeoMeta({title: 'Teklif iste', robots: 'noindex, nofollow'});
 
 const route = useRoute();
 const router = useRouter();
 
-const business = computed(() => requestBusiness(String(route.query.servis ?? '')) ?? requestBusiness(DEFAULT_REQUEST_BUSINESS_ID)!);
+const businessId = computed(() => String(route.query.servis ?? ''));
+const live = useRequestBusiness(() => businessId.value, 'quotes');
+const business = computed(() => (demo
+  ? requestBusiness(businessId.value) ?? requestBusiness(DEFAULT_REQUEST_BUSINESS_ID)!
+  : live.business.value));
+/** Live only: why the wizard cannot be shown ('' when it can). */
+const gate = computed(() => {
+  if (demo) return '';
+  if (live.state.value !== 'found') return live.state.value;
+  return live.canRequest.value ? '' : 'closed';
+});
 
 const steps = ['Hizmet', 'Araç', 'Sorun', 'Özet'];
 const titles = ['Hizmeti seç', 'Aracını seç', 'Sorunu anlat', 'Kontrol et ve gönder'];
@@ -32,7 +49,7 @@ const leads = [
   'Göndermeden önce son kez kontrol et. Talep yalnız seçtiğin işletmeye gider.',
 ];
 
-const initialStep = Math.min(4, Math.max(1, Number.parseInt(String(route.query.adim ?? '1'), 10) || 1));
+const initialStep = demo ? Math.min(4, Math.max(1, Number.parseInt(String(route.query.adim ?? '1'), 10) || 1)) : 1;
 const step = ref(initialStep);
 const submitted = ref(false);
 
@@ -47,35 +64,49 @@ const form = reactive({
   photos: (initialStep >= 3 ? requestMockAnswers.photos.map((src, index) => ({src, name: `Fotoğraf ${index + 1}`, local: false})) : []) as Photo[],
   timeId: requestMockAnswers.timeId,
   contactId: requestMockAnswers.contactId,
+  preferredDate: '',
   consent: false,
 });
 
-const service = computed(() => requestServices.find((item) => item.id === form.serviceId));
+/** Live: the business's own services; the generic list only when it lists none. */
+const serviceOptions = computed(() => (demo || !live.services.value.length
+  ? requestServices
+  : live.services.value.map((label) => ({id: label, label, hint: ''}))));
+const vehicles = computed(() => (demo ? requestVehicles.map((item) => ({...item, text: item.label})) : vehicleOptions(app.data.vehicles)));
+const today = istanbulToday();
+
+const service = computed(() => serviceOptions.value.find((item) => item.id === form.serviceId));
 const vehicleLabel = computed(() => {
   if (form.vehicleId === 'diger') {
     const text = [form.otherBrand, form.otherModel].filter(Boolean).join(' ').trim();
     return text ? `${text}${form.otherYear ? ` · ${form.otherYear}` : ''}` : '';
   }
-  return requestVehicles.find((item) => item.id === form.vehicleId)?.label ?? '';
+  return vehicles.value.find((item) => item.id === form.vehicleId)?.label ?? '';
 });
-const timeLabel = computed(() => requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? '');
+const vehicleText = computed(() => (form.vehicleId === 'diger'
+  ? otherVehicleText(form.otherBrand, form.otherModel, form.otherYear)
+  : vehicles.value.find((item) => item.id === form.vehicleId)?.text ?? ''));
+const timeLabel = computed(() => (demo
+  ? requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? ''
+  : form.preferredDate ? longDate(Date.parse(`${form.preferredDate}T12:00:00+03:00`)) : 'Belirtilmedi'));
 const contactLabel = computed(() => requestContactOptions.find((item) => item.id === form.contactId)?.label ?? '');
 
 const stepValid = computed(() => {
   if (step.value === 1) return Boolean(form.serviceId);
   if (step.value === 2) return form.vehicleId === 'diger' ? Boolean(form.otherBrand.trim() && form.otherModel.trim()) : Boolean(form.vehicleId);
-  if (step.value === 3) return form.description.trim().length >= 10;
+  if (step.value === 3) return form.description.trim().length >= 10 && (demo || !form.preferredDate || form.preferredDate >= today);
   return form.consent;
 });
 const stepHint = computed(() => [
   'Devam etmek için bir hizmet seç.',
   'Devam etmek için bir araç seç ya da marka ve modeli yaz.',
-  'Açıklama en az 10 karakter olmalı.',
+  form.description.trim().length >= 10 ? 'Tercih ettiğin tarih bugünden önce olamaz.' : 'Açıklama en az 10 karakter olmalı.',
   'Göndermek için onay kutusunu işaretle.',
 ][step.value - 1]);
 const tried = ref(false);
 
 function go(target: number) {
+  if (sending.value) return;
   step.value = target;
   tried.value = false;
   void router.replace({query: {...route.query, adim: String(target)}});
@@ -87,11 +118,38 @@ function next() {
     return;
   }
   if (step.value < 4) go(step.value + 1);
-  else submit();
+  else void submit();
 }
-function submit() {
-  submitted.value = true;
-  if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
+
+const token = memberToken();
+const sending = ref(false);
+const sendError = ref('');
+let requestKey = '';
+async function submit() {
+  if (demo) {
+    submitted.value = true;
+    if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
+    return;
+  }
+  if (sending.value || !business.value) return;
+  const draft = {
+    businessId: business.value.id, kind: 'quotes' as const, service: service.value?.label ?? '', vehicle: vehicleText.value,
+    message: form.description.trim(), preferredDate: form.preferredDate || undefined,
+  };
+  sendError.value = requestDraftProblem(draft);
+  if (sendError.value) return;
+  sending.value = true;
+  requestKey ||= crypto.randomUUID();
+  try {
+    await sendRequest(token, draft, requestKey);
+    requestKey = '';
+    submitted.value = true;
+    if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
+  } catch (error) {
+    sendError.value = requestSendError(error, 'quotes');
+  } finally {
+    sending.value = false;
+  }
 }
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -110,24 +168,45 @@ function removePhoto(index: number) {
 }
 onBeforeUnmount(() => form.photos.forEach((photo) => photo.local && URL.revokeObjectURL(photo.src)));
 
-const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}` : 'Talebi gönder'));
+const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}` : sending.value ? 'Gönderiliyor…' : 'Talebi gönder'));
 </script>
 
 <template>
   <div class="talep">
     <header class="head v2-wrap">
       <p class="t-mono-md t-eyebrow">TEKLİF İSTE</p>
-      <h1 class="t-h2">{{ submitted ? 'Talebin gönderildi' : titles[step - 1] }}</h1>
-      <RequestStepper :steps="steps" :current="submitted ? 5 : step" :done="submitted ? 4 : step - 1" @go="go"/>
+      <h1 class="t-h2">{{ submitted ? 'Talebin gönderildi' : gate ? 'Teklif iste' : titles[step - 1] }}</h1>
+      <RequestStepper v-if="!gate" :steps="steps" :current="submitted ? 5 : step" :done="submitted ? 4 : step - 1" @go="go"/>
     </header>
 
-    <div class="body v2-wrap">
+    <div v-if="gate || !business" class="body v2-wrap">
+      <section class="main surface state" :aria-busy="gate === 'loading'">
+        <p v-if="gate === 'loading'" class="t-body-md t-muted" role="status">İşletme bilgisi yükleniyor…</p>
+        <template v-else-if="gate === 'unavailable'">
+          <h2 class="t-h4">Talep şu anda açılamıyor.</h2>
+          <p class="t-body-md t-muted">İşletme bilgisi alınamadı. Bağlantını kontrol edip tekrar dene.</p>
+          <V2Button variant="outline" @click="router.go(0)">Tekrar dene</V2Button>
+        </template>
+        <template v-else>
+          <h2 class="t-h4">{{ gate === 'closed' && business ? `${business.name} şu anda teklif talebi kabul etmiyor.` : 'Teklif istenecek işletme bulunamadı.' }}</h2>
+          <p class="t-body-md t-muted">Teklif ve randevu yalnızca bu hizmeti etkinleştiren doğrulanmış işletmelerde kullanılabilir. İşletme profilindeki “Teklif iste” düğmesiyle başla.</p>
+          <div class="state-actions">
+            <V2Button v-if="business" variant="outline" :to="`/servis/${business.id}`">İşletme profiline dön</V2Button>
+            <V2Button to="/ara" arrow>Servis bul</V2Button>
+          </div>
+        </template>
+      </section>
+    </div>
+
+    <div v-else class="body v2-wrap">
       <RequestSuccessCard
         v-if="submitted"
         class="main"
         eyebrow="TALEP GÖNDERİLDİ"
         :title="`${business.name} talebini aldı.`"
-        :text="`Ortalama ${responseHoursFor(business.id)} saat içinde ön teklif gelir. Teklif gelince bildirim alırsın; Taleplerim sayfasından takip edebilirsin.`"
+        :text="demo
+          ? `Ortalama ${responseHoursFor(business.id)} saat içinde ön teklif gelir. Teklif gelince bildirim alırsın; Taleplerim sayfasından takip edebilirsin.`
+          : 'İşletme yanıtladığında bildirim alırsın; Taleplerim sayfasından takip edebilirsin. Bu talep bir fiyat taahhüdü veya randevu oluşturmaz.'"
       >
         <template #actions>
           <V2Button to="/taleplerim" size="lg" arrow>Taleplerime git</V2Button>
@@ -142,9 +221,9 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
         <fieldset v-if="step === 1" class="group">
           <legend class="field-label">Hizmet</legend>
           <div class="option-grid">
-            <label v-for="item in requestServices" :key="item.id" class="option">
+            <label v-for="item in serviceOptions" :key="item.id" class="option">
               <input v-model="form.serviceId" type="radio" name="hizmet" :value="item.id" class="radio">
-              <span class="opt-copy"><span>{{ item.label }}</span><span class="t-body-sm t-muted opt-hint">{{ item.hint }}</span></span>
+              <span class="opt-copy"><span>{{ item.label }}</span><span v-if="item.hint" class="t-body-sm t-muted opt-hint">{{ item.hint }}</span></span>
             </label>
           </div>
         </fieldset>
@@ -153,10 +232,11 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
         <fieldset v-else-if="step === 2" class="group">
           <legend class="field-label">Garajındaki araçlar</legend>
           <div class="option-list">
-            <label v-for="item in requestVehicles" :key="item.id" class="option">
+            <label v-for="item in vehicles" :key="item.id" class="option">
               <input v-model="form.vehicleId" type="radio" name="arac" :value="item.id" class="radio">
-              <span class="opt-copy"><span>{{ item.label }}</span><span class="t-body-sm t-muted opt-hint">{{ item.detail }}</span></span>
+              <span class="opt-copy"><span>{{ item.label }}</span><span v-if="item.detail" class="t-body-sm t-muted opt-hint">{{ item.detail }}</span></span>
             </label>
+            <p v-if="!vehicles.length" class="t-body-sm t-muted">Garajında araç yok. Aracını aşağıya yazabilir ya da <NuxtLink to="/araclarim" class="link">Araçlarım</NuxtLink> sayfasından ekleyebilirsin.</p>
             <label class="option">
               <input v-model="form.vehicleId" type="radio" name="arac" value="diger" class="radio">
               <span class="opt-copy"><span>Başka bir araç</span><span class="t-body-sm t-muted opt-hint">Garajına eklemeden yaz</span></span>
@@ -188,7 +268,7 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
             </div>
           </div>
 
-          <div class="group photos-group">
+          <div v-if="demo" class="group photos-group">
             <p id="talep-foto" class="field-label">Fotoğraf (isteğe bağlı)</p>
             <ul class="photos" aria-labelledby="talep-foto">
               <li v-for="(photo, index) in form.photos" :key="photo.src" class="photo">
@@ -205,14 +285,19 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
             <p class="t-body-sm t-muted small">Konum bilgisi (EXIF) yükleme sırasında temizlenir.</p>
           </div>
 
-          <div class="group">
+          <label v-if="!demo" class="field date-field">
+            <span class="field-label">Tercih ettiğin tarih (isteğe bağlı)</span>
+            <input v-model="form.preferredDate" type="date" class="input" :min="today">
+            <span class="t-body-sm t-muted">Bir istektir; işletme yanıtında sana uygun zamanı yazar.</span>
+          </label>
+          <div v-if="demo" class="group">
             <p id="talep-zaman" class="field-label">Tercih edilen zaman</p>
             <div class="chips" role="group" aria-labelledby="talep-zaman">
               <V2Chip v-for="item in requestTimeOptions" :key="item.id" as="button" :variant="form.timeId === item.id ? 'active' : 'default'" :pressed="form.timeId === item.id" @click="form.timeId = item.id">{{ item.label }}</V2Chip>
             </div>
           </div>
 
-          <div class="group">
+          <div v-if="demo" class="group">
             <p id="talep-iletisim" class="field-label">İletişim tercihi</p>
             <div class="chips" role="group" aria-labelledby="talep-iletisim">
               <V2Chip v-for="item in requestContactOptions" :key="item.id" as="button" :variant="form.contactId === item.id ? 'active' : 'default'" :pressed="form.contactId === item.id" @click="form.contactId = item.id">{{ item.label }}</V2Chip>
@@ -226,7 +311,7 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
             <div class="review-row"><dt>Hizmet</dt><dd>{{ service?.label }}</dd><button type="button" class="edit" @click="go(1)">Düzenle</button></div>
             <div class="review-row"><dt>Araç</dt><dd>{{ vehicleLabel }}</dd><button type="button" class="edit" @click="go(2)">Düzenle</button></div>
             <div class="review-row"><dt>Açıklama</dt><dd class="long">{{ form.description }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
-            <div class="review-row">
+            <div v-if="demo" class="review-row">
               <dt>Fotoğraf</dt>
               <dd>
                 <span v-if="!form.photos.length">Eklenmedi</span>
@@ -235,34 +320,35 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
               <button type="button" class="edit" @click="go(3)">Düzenle</button>
             </div>
             <div class="review-row"><dt>Tercih edilen zaman</dt><dd>{{ timeLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
-            <div class="review-row"><dt>İletişim tercihi</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
+            <div v-if="demo" class="review-row"><dt>İletişim tercihi</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
           </dl>
           <label class="consent">
             <input v-model="form.consent" type="checkbox" class="checkbox">
-            <span class="t-body-sm">Açıklamamın ve fotoğraflarımın yalnız {{ business.name }} ile paylaşılmasını onaylıyorum.</span>
+            <span class="t-body-sm">{{ demo ? 'Açıklamamın ve fotoğraflarımın' : 'Açıklamamın ve araç bilgimin' }} yalnız {{ business.name }} ile paylaşılmasını onaylıyorum.</span>
           </label>
         </template>
 
         <p v-if="tried && !stepValid" class="error t-body-sm" role="alert">{{ stepHint }}</p>
+        <p v-else-if="sendError" class="error t-body-sm" role="alert">{{ sendError }}</p>
 
         <hr class="divider">
         <div class="actions">
-          <V2Button v-if="step > 1" variant="outline" @click="go(step - 1)">Geri</V2Button>
+          <V2Button v-if="step > 1" variant="outline" :disabled="sending" @click="go(step - 1)">Geri</V2Button>
           <V2Button v-else variant="outline" :to="`/servis/${business.id}`">Vazgeç</V2Button>
           <span class="spacer"/>
-          <button type="submit" class="btn btn-primary btn-lg" :aria-disabled="!stepValid">{{ nextLabel }}<ArrowRight aria-hidden="true"/></button>
+          <button type="submit" class="btn btn-primary btn-lg" :aria-disabled="!stepValid" :disabled="sending">{{ nextLabel }}<ArrowRight aria-hidden="true"/></button>
         </div>
       </form>
 
       <aside class="summary surface" aria-label="Talep özeti">
         <p class="t-mono-sm t-muted">TALEBİN GİDECEĞİ İŞLETME</p>
         <RequestBusinessHead :business="business"/>
-        <p class="resp t-body-sm"><Clock :size="16" aria-hidden="true"/>Ortalama yanıt süresi: {{ responseHoursFor(business.id) }} saat</p>
+        <p v-if="demo" class="resp t-body-sm"><Clock :size="16" aria-hidden="true"/>Ortalama yanıt süresi: {{ responseHoursFor(business.id) }} saat</p>
         <hr class="divider">
         <p class="t-mono-sm t-muted">SEÇİMLERİN</p>
         <div class="row"><span class="t-body-sm t-muted">Hizmet</span><span class="t-label-sm">{{ service?.label || '—' }}</span></div>
         <div class="row"><span class="t-body-sm t-muted">Araç</span><span class="t-label-sm">{{ vehicleLabel || '—' }}</span></div>
-        <div class="note"><Info :size="16" aria-hidden="true"/><p class="t-body-sm">Talep yalnız bu işletmeye gider. Yanıt gelmezse benzer işletmelere göndermeyi sen seçersin.</p></div>
+        <div class="note"><Info :size="16" aria-hidden="true"/><p class="t-body-sm">{{ demo ? 'Talep yalnız bu işletmeye gider. Yanıt gelmezse benzer işletmelere göndermeyi sen seçersin.' : 'Talep yalnız bu işletmeye gider. İşletmenin kabulü olmadan randevu kesinleşmez; bu adımda ödeme alınmaz.' }}</p></div>
       </aside>
     </div>
   </div>
@@ -318,6 +404,10 @@ fieldset.group legend{padding:0;margin-bottom:10px}
 .consent .t-body-sm{padding-top:2px;color:var(--ink-700)}
 
 .error{color:var(--red-500);font-weight:600;margin-top:-8px}
+.state{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:32px}
+.state-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.date-field{max-width:320px}
+.link{color:var(--orange-600);font-weight:600}
 .actions{display:flex;align-items:center}
 .spacer{flex:1}
 .btn-primary[aria-disabled=true]{opacity:.55}

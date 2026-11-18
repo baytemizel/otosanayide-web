@@ -2,29 +2,26 @@
 import {computed} from 'vue';
 import {File, Plus} from '@lucide/vue';
 import GarageRing from '~/components/v2/garage/GarageRing.vue';
-import {daysUntil, formatLongDate, formatLongDateTime, formatRemaining, formatTry, mockToday, reminderProgress, type MockRecord, type MockReminder} from '~/data/mock/garage';
+import type {MockRecord} from '~/data/mock/garage';
+import {formatTry, type GarageReminderView} from '~/lib/v2/garage';
 
 // W11 "Özet kartları" (Figma 123:331): the two nearest active reminders as rings, then this year's expenses.
-const props = defineProps<{reminders: MockReminder[]; records: MockRecord[]}>();
+const props = defineProps<{reminders: GarageReminderView[]; records: MockRecord[]; year: number}>();
 const emit = defineEmits<{'add-reminder': []}>();
 
-const year = mockToday.getFullYear();
-const upcoming = computed(() => props.reminders.filter((r) => r.active).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 2));
-const yearRecords = computed(() => props.records.filter((r) => r.date.startsWith(String(year))));
-const total = computed(() => yearRecords.value.reduce((sum, r) => sum + r.amount, 0));
-const tone = (r: MockReminder) => (daysUntil(r.due) <= 30 ? 'orange' : 'green');
-// Figma: the service reminder shows its time (09.00), the others only the date.
-const when = (r: MockReminder) => (r.topic === 'Periyodik bakım' ? formatLongDateTime(r.due) : formatLongDate(r.due));
+const upcoming = computed(() => props.reminders.filter((r) => r.active).sort((a, b) => a.sort - b.sort).slice(0, 2));
+const yearRecords = computed(() => props.records.filter((r) => r.date.startsWith(String(props.year))));
+const total = computed(() => yearRecords.value.reduce((sum, r) => sum + Math.round(r.amount * 100), 0) / 100);
 </script>
 
 <template>
   <div class="stats">
     <article v-for="r in upcoming" :key="r.id" class="stat">
-      <GarageRing :progress="reminderProgress(r)" :tone="tone(r)"/>
+      <GarageRing :progress="r.progress" :tone="r.tone"/>
       <div class="copy">
-        <p class="t-mono-sm t-muted">{{ r.label ?? r.topic }}</p>
-        <p class="value">{{ formatRemaining(r.due) }}</p>
-        <p class="t-body-sm t-muted">{{ when(r) }}</p>
+        <p class="t-mono-sm t-muted">{{ r.label }}</p>
+        <p class="value">{{ r.remaining }}</p>
+        <p class="t-body-sm t-muted">{{ r.whenText }}</p>
       </div>
     </article>
     <button v-if="upcoming.length < 2" type="button" class="stat add" @click="emit('add-reminder')">

@@ -8,15 +8,37 @@ import ProfileReviewItem from './ProfileReviewItem.vue';
 import ProfileStarInput from './ProfileStarInput.vue';
 import type {MockBusiness} from '~/data/mock/businesses';
 import {mockMember} from '~/data/mock/session';
-import {ratingWords, resolvedOptions, reviewDimensions, visitMonths, type ProfileData, type ProfileReview} from '~/data/mock/profile';
+import {ratingWords, resolvedOptions, reviewDimensions, visitMonths} from '~/data/mock/profile';
+import {reviewScoreLabels, reviewTextLimits, type ProfileReviewView, type ProfileView, type ReviewAnswers, type ReviewScoreKey} from '~/lib/v2/profile';
 
-// W07 "Yorum yaz" modal: 1 Puan → 2 Deneyim (Figma 122:958) → 3 Fotoğraf → 4 Önizleme → success. Mock only.
-const props = withDefaults(defineProps<{open: boolean; business: MockBusiness; profile: ProfileData; demo?: boolean}>(), {demo: false});
+// W07 "Yorum yaz" modal: 1 Puan → 2 Deneyim (Figma 122:958) → 3 Fotoğraf → 4 Önizleme → success.
+// Demo: everything local (mock). Live (`submit` set): only the fields of POST /api/reviews (core
+// reviewSchema): overall rating, quality / payment / cleanliness (+ WC cleanliness), resolved, WC, text.
+// The mock-only parts (İletişim, Fiyat şeffaflığı, Hizmet, Ziyaret ayı, draft note) are not shown, and
+// the photo step is left out: review photos are added to an existing review, not sent with it.
+// A guest (`signInHref`) is asked to sign in; a member who already reviewed sees that review's status.
+const props = withDefaults(defineProps<{
+  open: boolean;
+  business: MockBusiness;
+  profile: ProfileView;
+  demo?: boolean;
+  submit?: (answers: ReviewAnswers) => Promise<{id: string; status: string}>;
+  signInHref?: string | null;
+  existing?: {status: string} | null;
+}>(), {demo: false, submit: undefined, signInHref: null, existing: null});
 const emit = defineEmits<{close: []}>();
 
-const steps = ['Puan', 'Deneyim', 'Fotoğraf', 'Önizleme'] as const;
-const maxText = 2000;
+const live = computed(() => !!props.submit);
+const steps = computed(() => (live.value ? ['Puan', 'Deneyim', 'Önizleme'] as const : ['Puan', 'Deneyim', 'Fotoğraf', 'Önizleme'] as const));
+const maxText = computed(() => (live.value ? reviewTextLimits.max : 2000));
+const minText = computed(() => (live.value ? reviewTextLimits.min : 20));
 const maxPhotos = 5;
+const liveScoreKeys = computed<ReviewScoreKey[]>(() => (form.wc === 'yes' ? ['quality', 'payment', 'cleanliness', 'wcCleanliness'] : ['quality', 'payment', 'cleanliness']));
+const wcOptions = [{value: 'yes', label: 'Evet'}, {value: 'no', label: 'Hayır'}, {value: 'unknown', label: 'Bilmiyorum'}] as const;
+const ownStatus: Record<string, string> = {pending: 'İncelemede', approved: 'Yayında', rejected: 'Reddedildi', hidden: 'Gizlendi', withdrawn: 'Geri çekildi'};
+const sending = ref(false);
+const sendError = ref('');
+const gate = computed(() => (live.value && !done.value ? (props.signInHref ? 'guest' : props.existing ? 'existing' : null) : null));
 
 const step = ref(1);
 const done = ref(false);
@@ -24,6 +46,8 @@ const form = reactive({
   rating: 0,
   dims: reviewDimensions.map(() => 0),
   resolved: '' as '' | (typeof resolvedOptions)[number],
+  scores: {} as Partial<Record<ReviewScoreKey, number>>,
+  wc: 'unknown' as ReviewAnswers['wc'],
   service: '',
   month: visitMonths[0]!,
   text: '',
@@ -35,7 +59,8 @@ let photoSeq = 0;
 function reset() {
   step.value = 1;
   done.value = false;
-  Object.assign(form, {rating: 0, dims: reviewDimensions.map(() => 0), resolved: '', service: props.profile.services[0] ?? '', month: visitMonths[0]!, text: '', consent: false});
+  Object.assign(form, {rating: 0, dims: reviewDimensions.map(() => 0), resolved: '', scores: {}, wc: 'unknown', service: props.profile.services[0] ?? '', month: visitMonths[0]!, text: '', consent: false});
+  sendError.value = '';
   clearPhotos();
 }
 
@@ -49,29 +74,54 @@ watch(() => props.open, (open) => {
   if (!open) return;
   if (done.value) reset();
   if (!form.service) form.service = props.profile.services[0] ?? '';
+  sendError.value = '';
   if (props.demo) fillDemo();
 }, {immediate: true});
 
 const dirty = computed(() => form.rating > 0 || form.text.length > 0);
 const canContinue = computed(() => {
+  if (sending.value) return false;
   if (step.value === 1) return form.rating > 0;
-  if (step.value === 2) return form.rating > 0 && form.text.trim().length >= 20 && form.consent;
+  if (step.value === 2) return form.rating > 0 && form.text.trim().length >= minText.value && form.consent;
   return true;
 });
-const primaryLabel = computed(() => (step.value < steps.length ? `Devam: ${steps[step.value]}` : 'Yorumu gönder'));
-const textHint = computed(() => (form.text.trim().length > 0 && form.text.trim().length < 20 ? 'En az 20 karakter yazın.' : 'Plaka, telefon veya fatura kimlik bilgisi yazmayın.'));
+const primaryLabel = computed(() => {
+  if (step.value < steps.value.length) return `Devam: ${steps.value[step.value]}`;
+  if (!live.value) return 'Yorumu gönder';
+  return sending.value ? 'Gönderiliyor…' : 'İncelemeye gönder';
+});
+const textHint = computed(() => (form.text.trim().length > 0 && form.text.trim().length < minText.value ? `En az ${minText.value} karakter yazın.` : 'Plaka, telefon veya fatura kimlik bilgisi yazmayın.'));
 
+async function send() {
+  if (!props.submit) return;
+  sending.value = true;
+  sendError.value = '';
+  try {
+    await props.submit({rating: form.rating, scores: {...form.scores}, resolved: form.resolved, wc: form.wc, text: form.text});
+    done.value = true;
+  } catch (error) {
+    // A Zod issue list starts with "["; the API's own message is readable Turkish.
+    sendError.value = error instanceof Error && error.message && !error.message.startsWith('[') ? error.message : 'Puanını ve yorumunu kontrol et.';
+  } finally {
+    sending.value = false;
+  }
+}
 function next() {
   if (!canContinue.value) return;
-  if (step.value < steps.length) step.value += 1;
+  if (step.value < steps.value.length) step.value += 1;
+  else if (live.value) void send();
   else done.value = true;
 }
 function back() {
+  if (sending.value) return;
   if (step.value > 1) step.value -= 1;
   else emit('close');
 }
 function close() {
-  emit('close');
+  if (!sending.value) emit('close');
+}
+function setScore(key: ReviewScoreKey, value: number) {
+  form.scores = {...form.scores, [key]: value};
 }
 
 function addPhotos(event: Event) {
@@ -93,19 +143,38 @@ function clearPhotos() {
 }
 onBeforeUnmount(clearPhotos);
 
-const previewReview = computed<ProfileReview>(() => ({
-  id: 'onizleme',
-  author: mockMember.shortName,
-  initials: mockMember.initials,
-  avatarColor: 'var(--lime-100)',
-  meta: [form.month, form.service].filter(Boolean).join(' · '),
-  rating: form.rating,
-  text: form.text.trim(),
-  resolved: form.resolved || 'Henüz belli değil',
-  photoCount: photos.value.length,
-  ownerReply: null,
-  helpful: 0,
-}));
+const previewReview = computed<ProfileReviewView>(() => (live.value
+  ? {
+    // Public reviews carry no author name; the preview shows what visitors will see.
+    id: 'onizleme',
+    author: '',
+    initials: '',
+    avatarColor: 'var(--cream-100)',
+    meta: '',
+    rating: form.rating,
+    text: form.text.trim(),
+    resolved: form.resolved || 'Henüz belli değil',
+    photoCount: 0,
+    ownerReply: null,
+    helpful: 0,
+    chips: [
+      ...liveScoreKeys.value.filter((key) => form.scores[key]).map((key) => `${reviewScoreLabels[key]} ${form.scores[key]}/5`),
+      ...(form.wc === 'unknown' ? [] : [`WC: ${form.wc === 'yes' ? 'Var' : 'Yok'}`]),
+    ],
+  }
+  : {
+    id: 'onizleme',
+    author: mockMember.shortName,
+    initials: mockMember.initials,
+    avatarColor: 'var(--lime-100)',
+    meta: [form.month, form.service].filter(Boolean).join(' · '),
+    rating: form.rating,
+    text: form.text.trim(),
+    resolved: form.resolved || 'Henüz belli değil',
+    photoCount: photos.value.length,
+    ownerReply: null,
+    helpful: 0,
+  }));
 </script>
 
 <template>
@@ -113,7 +182,18 @@ const previewReview = computed<ProfileReview>(() => ({
     <div v-if="done" class="success" role="status">
       <span class="success-icon"><Check :size="30" aria-hidden="true"/></span>
       <p class="t-h3">Teşekkürler, yorumun alındı</p>
-      <p class="t-body-md t-muted">Yorumun incelendikten sonra {{ business.name }} profilinde yayınlanır. İşletme yanıt verdiğinde sana haber vereceğiz.</p>
+      <p v-if="live" class="t-body-md t-muted">Yorumun incelemeye alındı. Onaylandığında {{ business.name }} profilinde yayınlanır; durumunu Yorumlarım sayfasından takip edebilirsin.</p>
+      <p v-else class="t-body-md t-muted">Yorumun incelendikten sonra {{ business.name }} profilinde yayınlanır. İşletme yanıt verdiğinde sana haber vereceğiz.</p>
+    </div>
+
+    <div v-else-if="gate === 'guest'" class="success">
+      <p class="t-h3">Yorum yazmak için giriş yap</p>
+      <p class="t-body-md t-muted">Yorumlar e-postası doğrulanmış üyelerden alınır ve yayımlanmadan önce incelenir.</p>
+    </div>
+
+    <div v-else-if="gate === 'existing'" class="success" role="status">
+      <p class="t-h3">Bu işletme için yorumun var</p>
+      <p class="t-body-md t-muted">İşletme başına bir değerlendirme alınır. Yorumunun durumu: <strong>{{ ownStatus[existing?.status ?? ''] ?? existing?.status }}</strong>. Düzenleme ve geri çekme Yorumlarım sayfasında.</p>
     </div>
 
     <div v-else class="body">
@@ -145,7 +225,14 @@ const previewReview = computed<ProfileReview>(() => ({
           <ProfileStarInput v-model="form.rating" label="Genel deneyim puanı" :size="28"/>
           <p class="t-label-sm t-muted word">{{ ratingWords[form.rating] }}</p>
         </div>
-        <div class="dims">
+        <div v-if="live" class="dims">
+          <div v-for="key in liveScoreKeys" :key="key" class="dim">
+            <span class="t-body-sm">{{ reviewScoreLabels[key] }}</span>
+            <ProfileStarInput :model-value="form.scores[key] ?? 0" :label="`${reviewScoreLabels[key]} puanı`" :size="18" @update:model-value="setScore(key, $event)"/>
+          </div>
+          <p class="t-body-sm t-muted dim-note">Boyut puanları isteğe bağlıdır.</p>
+        </div>
+        <div v-else class="dims">
           <div v-for="(dim, i) in reviewDimensions" :key="dim" class="dim">
             <span class="t-body-sm">{{ dim }}</span>
             <ProfileStarInput :model-value="form.dims[i] ?? 0" :label="`${dim} puanı`" :size="18" @update:model-value="form.dims[i] = $event"/>
@@ -158,7 +245,13 @@ const previewReview = computed<ProfileReview>(() => ({
             <V2Chip v-for="option in resolvedOptions" :key="option" as="button" :variant="form.resolved === option ? 'active' : 'default'" :pressed="form.resolved === option" @click="form.resolved = option">{{ option }}</V2Chip>
           </div>
         </fieldset>
-        <div class="two">
+        <fieldset v-if="live" class="group">
+          <legend class="field-label">WC var mıydı?</legend>
+          <div class="chips">
+            <V2Chip v-for="option in wcOptions" :key="option.value" as="button" :variant="form.wc === option.value ? 'active' : 'default'" :pressed="form.wc === option.value" @click="form.wc = option.value">{{ option.label }}</V2Chip>
+          </div>
+        </fieldset>
+        <div v-else class="two">
           <label class="field">
             <span class="field-label">Hizmet</span>
             <span class="select-wrap">
@@ -192,8 +285,8 @@ const previewReview = computed<ProfileReview>(() => ({
         </label>
       </section>
 
-      <!-- 3 · Fotoğraf -->
-      <section v-else-if="step === 3" class="pane" aria-label="Fotoğraf">
+      <!-- 3 · Fotoğraf (demo only) -->
+      <section v-else-if="step === 3 && !live" class="pane" aria-label="Fotoğraf">
         <label class="drop" :class="{full: photos.length >= maxPhotos}">
           <input type="file" accept="image/*" multiple class="sr-only" :disabled="photos.length >= maxPhotos" @change="addPhotos">
           <span class="drop-icon"><ImagePlus :size="26" aria-hidden="true"/></span>
@@ -209,14 +302,15 @@ const previewReview = computed<ProfileReview>(() => ({
         <p class="hint"><Info aria-hidden="true"/>Plaka, yüz ve fatura bilgisi görünmesin. Fotoğraflar yayından önce incelenir.</p>
       </section>
 
-      <!-- 4 · Önizleme -->
+      <!-- Önizleme -->
       <section v-else class="pane" aria-label="Önizleme">
         <p class="field-label">Yorumun profilde böyle görünecek</p>
         <ProfileReviewItem :review="previewReview" preview/>
-        <ul v-if="form.dims.some((d) => d > 0)" class="dim-summary t-body-sm">
+        <ul v-if="!live && form.dims.some((d) => d > 0)" class="dim-summary t-body-sm">
           <li v-for="(dim, i) in reviewDimensions" v-show="form.dims[i]" :key="dim"><span class="t-muted">{{ dim }}</span> <strong>{{ form.dims[i] }}/5</strong></li>
         </ul>
-        <p class="hint"><Info aria-hidden="true"/>Yorumun incelendikten sonra yayınlanır. İşletme yanıt verebilir; yanıtı yorumunun altında görünür.</p>
+        <p class="hint"><Info aria-hidden="true"/>{{ live ? 'Yorumun incelendikten sonra yayınlanır. İşletme başına bir değerlendirme alınır; yorumlar profilde isimsiz görünür.' : 'Yorumun incelendikten sonra yayınlanır. İşletme yanıt verebilir; yanıtı yorumunun altında görünür.' }}</p>
+        <p v-if="sendError" class="send-error t-body-sm" role="alert">{{ sendError }}</p>
       </section>
     </div>
 
@@ -224,9 +318,17 @@ const previewReview = computed<ProfileReview>(() => ({
       <template v-if="done">
         <V2Button @click="close">Kapat</V2Button>
       </template>
+      <template v-else-if="gate === 'guest'">
+        <V2Button variant="outline" @click="close">Vazgeç</V2Button>
+        <V2Button :to="signInHref ?? undefined" arrow>Giriş yap</V2Button>
+      </template>
+      <template v-else-if="gate === 'existing'">
+        <V2Button variant="outline" @click="close">Kapat</V2Button>
+        <V2Button to="/yorumlarim" arrow>Yorumlarım</V2Button>
+      </template>
       <template v-else>
-        <p v-if="dirty" class="draft t-body-sm"><Check :size="16" aria-hidden="true"/>Taslak otomatik kaydedildi</p>
-        <V2Button variant="outline" @click="back">{{ step === 1 ? 'Vazgeç' : 'Geri' }}</V2Button>
+        <p v-if="dirty && !live" class="draft t-body-sm"><Check :size="16" aria-hidden="true"/>Taslak otomatik kaydedildi</p>
+        <V2Button variant="outline" :disabled="sending" @click="back">{{ step === 1 ? 'Vazgeç' : 'Geri' }}</V2Button>
         <V2Button :arrow="step < steps.length" :disabled="!canContinue" @click="next">{{ primaryLabel }}</V2Button>
       </template>
     </template>
@@ -275,6 +377,7 @@ const previewReview = computed<ProfileReview>(() => ({
 .thumb img{width:100%;height:100%;object-fit:cover}
 .remove{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:26px;height:26px;border-radius:999px;background:var(--white);color:var(--ink-900);box-shadow:0 4px 8px rgba(10,20,36,.15)}
 
+.send-error{color:var(--red-500)}
 .dim-summary{display:flex;flex-wrap:wrap;gap:6px 18px}
 .dim-summary strong{font-weight:600}
 
