@@ -3,13 +3,12 @@ import {computed} from 'vue';
 import {ShieldCheck} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import AccountPageLayout from '~/components/v2/account/AccountPageLayout.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {claimStatusLabel, mockClaims} from '~/data/mock/account';
 import {portalUrl} from '~/lib/portal';
 
 // Başvurularım (ownership claims): linked from the Figma account menu; no Web v2 frame.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 useSeoMeta({title: 'Başvurularım'});
 const claimHref = computed(() => portalUrl('claim') ?? '/#isletmeler');
 </script>

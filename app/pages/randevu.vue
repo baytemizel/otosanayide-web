@@ -4,7 +4,7 @@ import {ArrowRight, Bell, ChevronLeft, ChevronRight, Info} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {
   DEFAULT_REQUEST_BUSINESS_ID, appointmentClosedWeekdays, appointmentDefault, appointmentFirstWeek, appointmentSlotTimes,
   appointmentTaken, appointmentWeekCount, formatTry, mockOfferById, mockRequests, offerTotal, requestBusiness,
@@ -12,8 +12,7 @@ import {
 
 // W16 · Randevu · Zaman seçimi (Figma 126:951). Week strip + time grid; "Randevu talebi gönder" shows a
 // mock success state. ?servis=<id> picks the business, ?teklif=<id> fills service, vehicle and amount.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 
 useSeoMeta({title: 'Randevu al'});
 

@@ -168,8 +168,8 @@ function matchesSymptom(business: SearchBusiness, symptom: string) {
 
 /** Location scope only (il, ilçe, area, distance). Facet counts are computed inside this scope. */
 export function inScope(business: SearchBusiness, f: SearchFilters) {
-  if (f.area === 'konum') return business.distanceKm <= f.km;
-  if (f.area === 'cevre' && sameText(f.il, 'İstanbul')) return business.distanceKm <= f.km;
+  if (f.area === 'konum') return (business.distanceKm ?? Infinity) <= f.km;
+  if (f.area === 'cevre' && sameText(f.il, 'İstanbul')) return (business.distanceKm ?? Infinity) <= f.km;
   if (!sameText(business.city, f.il)) return false;
   return f.area !== 'ilce' || !f.ilce || sameText(business.district, f.ilce);
 }
@@ -192,11 +192,11 @@ export function matchesFilters(business: SearchBusiness, f: SearchFilters, skip?
 
 export function sortBusinesses(list: SearchBusiness[], sort: SearchSort) {
   const sorted = [...list];
-  if (sort === 'yakin') return sorted.sort((a, b) => a.distanceKm - b.distanceKm);
+  if (sort === 'yakin') return sorted.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
   if (sort === 'puan') return sorted.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount);
   if (sort === 'yorum') return sorted.sort((a, b) => b.reviewCount - a.reviewCount);
   // "Önerilen": sponsored first (always labelled), then claimed profiles, then distance.
-  return sorted.sort((a, b) => Number(b.sponsored) - Number(a.sponsored) || Number(b.claimed) - Number(a.claimed) || a.distanceKm - b.distanceKm);
+  return sorted.sort((a, b) => Number(b.sponsored) - Number(a.sponsored) || Number(b.claimed) - Number(a.claimed) || (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
 }
 
 export const sortLabels: Record<SearchSort, string> = {onerilen: 'Önerilen sıralama', yakin: 'En yakın', puan: 'En yüksek puan', yorum: 'En çok yorum'};

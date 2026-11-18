@@ -10,13 +10,12 @@ import GarageStats from '~/components/v2/garage/GarageStats.vue';
 import GarageVehicleHero from '~/components/v2/garage/GarageVehicleHero.vue';
 import GarageVehicleList from '~/components/v2/garage/GarageVehicleList.vue';
 import GarageVehicleModal from '~/components/v2/garage/GarageVehicleModal.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {daysUntil, formatLongDate, useMockGarage, type MockRecord, type MockReminder, type MockVehicle} from '~/data/mock/garage';
 
 // W11 · Araçlarım (Figma 123:211) + W12 · Hatırlatma oluştur modal (Figma 125:222).
 // ?arac=<id> selects a vehicle, ?hatirlatma=yeni opens the reminder modal. Mock data in memory.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 useSeoMeta({title: 'Araçlarım'});
 
 const route = useRoute();

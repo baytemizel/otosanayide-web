@@ -19,7 +19,7 @@ const pins = computed(() => props.businesses.map((b) => {
 const setZoom = (value: number) => { zoom.value = Math.min(1.6, Math.max(1, Math.round(value * 10) / 10)); };
 function locate() {
   zoom.value = 1;
-  const nearest = [...props.businesses].sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  const nearest = [...props.businesses].sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))[0];
   if (nearest) emit('select', nearest.id);
 }
 </script>

@@ -7,12 +7,11 @@ import V2Modal from '~/components/v2/V2Modal.vue';
 import AccountPrefsList from '~/components/v2/requests/AccountPrefsList.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import NotificationRow from '~/components/v2/requests/NotificationRow.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {mockNotifications, notificationFilters, type MockNotification} from '~/data/mock/requests';
 
 // W17 · Bildirimler (Figma 127:813). Filter chips, mark one / all as read, "Tercihler" modal.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 
 useSeoMeta({title: 'Bildirimler'});
 

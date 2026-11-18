@@ -6,15 +6,14 @@ import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import SavedListModal from '~/components/v2/garage/SavedListModal.vue';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {type MockBusiness} from '~/data/mock/businesses';
 import {findBusiness} from '~/data/mock/catalog';
 import {useMockSavedLists} from '~/data/mock/garage';
 
 // W13 · Kaydedilenler ve listeler (Figma 125:387). Saved = useMockSaved(); lists are in memory.
 // "Tümü" holds every saved service; a list is a subset. Removing the heart drops it from every list.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 useSeoMeta({title: 'Kaydedilenler'});
 
 const saved = useMockSaved();

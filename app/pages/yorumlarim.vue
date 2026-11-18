@@ -3,12 +3,11 @@ import {computed} from 'vue';
 import {MessageSquare, Star} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import AccountPageLayout from '~/components/v2/account/AccountPageLayout.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {mockOwnReviews, reviewStatusLabel, type MockOwnReview} from '~/data/mock/account';
 
 // Yorumlarım: linked from the Figma account menu; no Web v2 frame, built from the W17 layout.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 useSeoMeta({title: 'Yorumlarım'});
 const reviews = useState<MockOwnReview[]>('v2-own-reviews', () => mockOwnReviews.map((review) => ({...review})));
 const count = computed(() => reviews.value.length);

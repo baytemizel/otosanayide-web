@@ -6,7 +6,7 @@ import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import OfferMessages from '~/components/v2/requests/OfferMessages.vue';
 import OfferPickCard from '~/components/v2/requests/OfferPickCard.vue';
 import OfferQuoteCard from '~/components/v2/requests/OfferQuoteCard.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {
   mockRequestById, mockRequests, offerTotal, requestBusiness, requestStatusLabel,
   type MockOffer, type OfferMessage, type OfferStatus, type RequestStatus,
@@ -15,8 +15,7 @@ import {
 // W15 · Taleplerim · Teklif ayrıntısı (Figma 126:734). The top part (header, Ön teklif, Mesajlar) is the
 // Figma frame; below it the request's incoming offers and the member's other requests.
 // ?talep=<id> selects a request, ?teklif=<id> one of its offers.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 
 useSeoMeta({title: 'Taleplerim'});
 

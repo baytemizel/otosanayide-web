@@ -9,7 +9,8 @@ export interface MockBusiness {
   brands: string[];
   district: string;
   city: string;
-  distanceKm: number;
+  /** Straight-line distance; null when the search had no location. */
+  distanceKm: number | null;
   rating: number;
   reviewCount: number;
   open: boolean;
@@ -40,4 +41,4 @@ export function mockBusiness(id: string): MockBusiness | undefined {
 }
 
 export const formatRating = (value: number) => value.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
-export const formatKm = (value: number) => `${value.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} km`;
+export const formatKm = (value: number | null) => value === null ? '' : `${value.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} km`;

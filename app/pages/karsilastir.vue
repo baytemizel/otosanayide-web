@@ -5,7 +5,7 @@ import V2Button from '~/components/v2/V2Button.vue';
 import CompareTable from '~/components/v2/search/CompareTable.vue';
 import SearchState from '~/components/v2/search/SearchState.vue';
 import {useMockCompare} from '~/composables/useMockCompare';
-import {useMockSession} from '~/composables/useMockSession';
+import {useSession} from '~/composables/useSession';
 import {searchBusiness, searchBusinesses, type SearchBusiness} from '~/data/mock/search';
 
 // W06 Karşılaştırma (Figma 122:596). Reads ?ids=a,b,c; falls back to the current compare selection,
@@ -15,7 +15,7 @@ useSeoMeta({title: 'İşletmeleri karşılaştır'});
 const route = useRoute();
 const router = useRouter();
 const compare = useMockCompare();
-const session = useMockSession();
+const session = useSession();
 
 const cleared = ref(false);
 const savedState = ref<'idle' | 'saved' | 'signin'>('idle');

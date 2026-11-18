@@ -6,7 +6,7 @@ import V2Chip from '~/components/v2/V2Chip.vue';
 import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vue';
 import RequestStepper from '~/components/v2/requests/RequestStepper.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {
   DEFAULT_REQUEST_BUSINESS_ID, REQUEST_DESCRIPTION_MAX, requestBusiness, requestContactOptions, requestMockAnswers,
   requestServices, requestTimeOptions, requestVehicles, responseHoursFor,
@@ -14,8 +14,7 @@ import {
 
 // W14 · Teklif iste (Figma 126:524). Four-step wizard; step 3 "Sorunu anlat" is the Figma frame.
 // ?adim=1..4 opens a step (later steps come pre-filled with mock answers), ?servis=<id> picks the business.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 
 useSeoMeta({title: 'Teklif iste'});
 

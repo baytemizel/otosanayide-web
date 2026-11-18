@@ -46,7 +46,7 @@ function toggleFilter(id: HomeDiscoveryFilter) {
 const results = computed(() => {
   const list = mockBusinesses.filter((b) => filters.value.every((f) => checks[f](b)));
   const rank = (b: MockBusiness) => homeDiscoveryOrder.indexOf(b.id);
-  if (sort.value === 'distance') return list.sort((a, b) => a.distanceKm - b.distanceKm);
+  if (sort.value === 'distance') return list.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
   if (sort.value === 'rating') return list.sort((a, b) => b.rating - a.rating);
   return list.sort((a, b) => rank(a) - rank(b));
 });

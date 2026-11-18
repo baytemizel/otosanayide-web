@@ -5,13 +5,12 @@ import V2Button from '~/components/v2/V2Button.vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
 import AccountPrefsList from '~/components/v2/requests/AccountPrefsList.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useMemberPage} from '~/composables/useMemberPage';
 import {ACCOUNT_DELETE_GRACE_DAYS, mockDataExport} from '~/data/mock/requests';
 
 // W18 · Hesabım · Gizlilik, veri talebi ve silme (Figma 127:1042). Mock only: the data copy request and
 // the deletion request change local state; nothing is sent. Deletion needs a confirmation modal.
-const session = useMockSession();
-if (!session.signedIn.value) session.signIn();
+useMemberPage();
 
 useSeoMeta({title: 'Gizlilik ve veri'});
 

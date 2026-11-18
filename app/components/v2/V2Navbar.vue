@@ -3,14 +3,14 @@ import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {ArrowRight, ChevronDown, Globe, Menu, X} from '@lucide/vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
 import {useLocale} from '~/composables/useLocale';
-import {useMockSession} from '~/composables/useMockSession';
+import {useSession} from '~/composables/useSession';
 import {portalUrl} from '~/lib/portal';
 
 // V2/Navbar (Figma 118:382). Guest: "Giriş yap" + "İşletmeni ekle"; member: bell + account pill.
 // Interaction note 01: shrinks and sticks to the top on scroll; the active page gets the orange dot.
 const route = useRoute();
 const {locale, setLocale} = useLocale();
-const session = useMockSession();
+const session = useSession();
 
 const links = [
   {label: 'Keşfet', to: '/ara', match: ['/ara', '/servis', '/karsilastir']},
@@ -50,9 +50,9 @@ watch(() => route.fullPath, () => {
 function toggleLocale() {
   setLocale(locale.value === 'tr' ? 'en' : 'tr');
 }
-function signOut() {
-  session.signOut();
+async function signOut() {
   accountOpen.value = false;
+  await session.signOut();
   void navigateTo('/');
 }
 </script>
@@ -79,13 +79,13 @@ function signOut() {
         </button>
 
         <template v-if="session.signedIn.value">
-          <NuxtLink to="/bildirimler" class="bell" :aria-label="`Bildirimler, ${session.member.unreadNotifications} okunmamış`">
+          <NuxtLink to="/bildirimler" class="bell" aria-label="Bildirimler">
             <img src="/v2/bell-button.svg" alt="" width="42" height="42">
           </NuxtLink>
           <div class="account">
             <button type="button" class="account-pill" :aria-expanded="accountOpen" aria-haspopup="menu" @click="accountOpen = !accountOpen">
-              <span class="initials">{{ session.member.initials }}</span>
-              <span class="name">{{ session.member.shortName }}</span>
+              <span class="initials">{{ session.label.value.initials }}</span>
+              <span class="name">{{ session.label.value.short }}</span>
               <ChevronDown :size="16" aria-hidden="true"/>
             </button>
             <ul v-if="accountOpen" class="account-menu" role="menu">

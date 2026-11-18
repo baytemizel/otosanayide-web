@@ -15,7 +15,7 @@ const columns = computed(() => props.items.length + placeholders.value);
 
 const rated = computed(() => props.items.filter((b) => b.reviewCount > 0));
 const bestRating = computed(() => (props.items.length > 1 && rated.value.length ? Math.max(...rated.value.map((b) => b.rating)) : null));
-const bestDistance = computed(() => (props.items.length > 1 ? Math.min(...props.items.map((b) => b.distanceKm)) : null));
+const bestDistance = computed(() => (props.items.length > 1 ? Math.min(...props.items.map((b) => b.distanceKm ?? Infinity)) : null));
 
 // The service and brand rows follow the first business, like the Figma example (Boyasız göçük, BMW).
 const ignoredBrands = ['Tüm markalar', 'Marka bilgisi yok'];

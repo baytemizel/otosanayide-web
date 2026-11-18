@@ -2,13 +2,13 @@
 import {computed, reactive, ref} from 'vue';
 import {ArrowRight, Check, Lock, Mail, Phone, User} from '@lucide/vue';
 import AuthField from '~/components/v2/garage/AuthField.vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useSession} from '~/composables/useSession';
 
 // W10 form panel (Figma 123:106). One form for both modes; the "Giriş yap / Kayıt ol" switch
 // moves between /giris and /kayit and keeps ?donus. Mock only: any valid values sign in.
 const props = defineProps<{mode: 'signin' | 'signup'}>();
 const route = useRoute();
-const session = useMockSession();
+const session = useSession();
 
 const method = ref<'email' | 'phone'>('email');
 const form = reactive({name: '', email: '', phone: '', password: '', remember: true});
@@ -39,8 +39,8 @@ function validate() {
   return !errors.name && !errors.email && !errors.phone && !errors.password;
 }
 
-function finish() {
-  session.signIn();
+async function finish() {
+  await session.signIn(form.email.trim(), form.password);
   return navigateTo(donus.value ?? '/araclarim');
 }
 

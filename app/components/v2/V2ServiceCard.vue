@@ -29,7 +29,7 @@ const emit = defineEmits<{'update:compared': [value: boolean]; 'update:saved': [
       <div class="row meta">
         <span v-if="business.verified" class="verified"><ShieldCheck :size="14" aria-hidden="true"/>Doğrulanmış</span>
         <span v-else-if="!business.claimed" class="tag tag-cream">Sahiplenilmedi</span>
-        <span class="place t-body-sm"><MapPin :size="14" aria-hidden="true"/>{{ business.district }}, {{ business.city }} · {{ formatKm(business.distanceKm) }}</span>
+        <span class="place t-body-sm"><MapPin :size="14" aria-hidden="true"/>{{ business.district }}, {{ business.city }}<template v-if="business.distanceKm !== null"> · {{ formatKm(business.distanceKm) }}</template></span>
       </div>
       <div class="row rating">
         <template v-if="business.reviewCount > 0">

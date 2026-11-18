@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
 import {Bell, Calendar, File, Heart, Lock, MessageSquare, ShieldCheck, User} from '@lucide/vue';
-import {useMockSession} from '~/composables/useMockSession';
+import {useSession} from '~/composables/useSession';
 
 // "Hesap menüsü" (W13, W15, W17, W18): member head + account links, the current page is the dark row.
 defineProps<{active: 'hatirlatmalar' | 'kaydedilenler' | 'taleplerim' | 'yorumlarim' | 'bildirimler' | 'basvurularim' | 'hesabim' | 'gizlilik'}>();
 
-const {member} = useMockSession();
+const {label} = useSession();
 const items = [
   {key: 'hatirlatmalar', label: 'Hatırlatmalar', to: '/hatirlatmalar', icon: Calendar},
   {key: 'kaydedilenler', label: 'Kaydedilenler', to: '/kaydedilenler', icon: Heart},
@@ -30,9 +30,9 @@ onMounted(() => {
 <template>
   <nav class="acc-menu" aria-label="Hesap menüsü">
     <div class="who">
-      <span class="initials" aria-hidden="true">{{ member.initials }}</span>
+      <span class="initials" aria-hidden="true">{{ label.initials }}</span>
       <div class="who-copy">
-        <p class="t-label-md">{{ member.shortName }}</p>
+        <p class="t-label-md">{{ label.short }}</p>
         <p class="t-body-sm t-muted">Ücretsiz hesap</p>
       </div>
     </div>
