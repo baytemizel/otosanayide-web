@@ -8,6 +8,7 @@ import {demoMode} from '~/lib/env';
 import {portalUrl} from '~/lib/portal';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
+import {useLocale} from '~/composables/useLocale';
 
 // Sticky "Eylem kartı": request/appointment CTAs for managed profiles, the claim call-out for unclaimed ones.
 // Live (`targets` set): "Ara" dials a checked number (core contact), "Yol tarifi" opens Google Maps
@@ -19,6 +20,7 @@ const props = withDefaults(defineProps<{
   actions?: {quotes: boolean; appointments: boolean} | null;
 }>(), {targets: null, actions: null});
 const emit = defineEmits<{directions: []}>();
+const {t} = useLocale();
 
 const saved = useMockSaved();
 const compare = useMockCompare();
@@ -33,48 +35,48 @@ const appointments = computed(() => props.actions?.appointments ?? true);
 </script>
 
 <template>
-  <aside class="profile-action-card" aria-label="Hemen ulaş">
+  <aside class="profile-action-card" :aria-label="t('Hemen ulaş')">
     <template v-if="business.claimed">
-      <h2 class="t-h4">Hemen ulaş</h2>
-      <V2Button size="lg" arrow :to="`/talep?servis=${business.id}`" :disabled="!quotes" class="wide">Teklif iste</V2Button>
-      <V2Button variant="dark" arrow :to="`/randevu?servis=${business.id}`" :disabled="!appointments" class="wide">Randevu al</V2Button>
+      <h2 class="t-h4">{{ t('Hemen ulaş') }}</h2>
+      <V2Button size="lg" arrow :to="`/talep?servis=${business.id}`" :disabled="!quotes" class="wide">{{ t('Teklif iste') }}</V2Button>
+      <V2Button variant="dark" arrow :to="`/randevu?servis=${business.id}`" :disabled="!appointments" class="wide">{{ t('Randevu al') }}</V2Button>
       <p v-if="!quotes || !appointments" class="note">
-        {{ !quotes && !appointments ? 'Bu işletme henüz çevrim içi teklif ve randevu almıyor.' : !quotes ? 'Bu işletme henüz çevrim içi teklif almıyor.' : 'Bu işletme henüz çevrim içi randevu almıyor.' }}
-        Telefonla ulaşabilirsin.
+        {{ !quotes && !appointments ? t('Bu işletme henüz çevrim içi teklif ve randevu almıyor.') : !quotes ? t('Bu işletme henüz çevrim içi teklif almıyor.') : t('Bu işletme henüz çevrim içi randevu almıyor.') }}
+        {{ t('Telefonla ulaşabilirsin.') }}
       </p>
     </template>
     <div class="tiles">
-      <a v-if="tel" :href="tel" class="tile"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">Ara</span></a>
-      <span v-else class="tile off" aria-disabled="true"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">Telefon yok</span></span>
-      <a v-if="targets" :href="targets.directions" target="_blank" rel="noopener noreferrer" class="tile"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">Yol tarifi</span></a>
-      <button v-else type="button" class="tile" @click="emit('directions')"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">Yol tarifi</span></button>
+      <a v-if="tel" :href="tel" class="tile"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">{{ t('Ara') }}</span></a>
+      <span v-else class="tile off" aria-disabled="true"><Phone :size="20" aria-hidden="true"/><span class="t-label-sm">{{ t('Telefon yok') }}</span></span>
+      <a v-if="targets" :href="targets.directions" target="_blank" rel="noopener noreferrer" class="tile"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">{{ t('Yol tarifi') }}</span></a>
+      <button v-else type="button" class="tile" @click="emit('directions')"><Navigation :size="20" aria-hidden="true"/><span class="t-label-sm">{{ t('Yol tarifi') }}</span></button>
       <button type="button" class="tile" :class="{on: isSaved}" :aria-pressed="isSaved" @click="saved.toggle(business.id)">
-        <Heart :size="20" aria-hidden="true"/><span class="t-label-sm">{{ isSaved ? 'Kaydedildi' : 'Kaydet' }}</span>
+        <Heart :size="20" aria-hidden="true"/><span class="t-label-sm">{{ isSaved ? t('Kaydedildi') : t('Kaydet') }}</span>
       </button>
     </div>
     <template v-if="business.claimed && profile.facts.length">
       <hr class="divider">
       <dl class="facts">
         <div v-for="fact in profile.facts" :key="fact.label" class="fact">
-          <dt class="t-body-sm t-muted">{{ fact.label }}</dt>
-          <dd class="t-label-sm">{{ fact.value }}</dd>
+          <dt class="t-body-sm t-muted">{{ t(fact.label) }}</dt>
+          <dd class="t-label-sm">{{ t(fact.value) }}</dd>
         </div>
       </dl>
     </template>
     <div v-if="!business.claimed" class="claim">
-      <h2 class="t-h4">Bu işletme sizin mi?</h2>
-      <p class="t-body-sm">Ücretsiz sahiplenin; bilgileri güncelleyin, yorumlara yanıt verin.</p>
-      <V2Button variant="lime" arrow :href="claimHref ?? undefined" :disabled="!claimHref">Sahiplik başvurusu</V2Button>
-      <p v-if="!claimHref" class="t-body-sm">İşletme portalı bağlantısı henüz hazır değil.</p>
+      <h2 class="t-h4">{{ t('Bu işletme sizin mi?') }}</h2>
+      <p class="t-body-sm">{{ t('Ücretsiz sahiplenin; bilgileri güncelleyin, yorumlara yanıt verin.') }}</p>
+      <V2Button variant="lime" arrow :href="claimHref ?? undefined" :disabled="!claimHref">{{ t('Sahiplik başvurusu') }}</V2Button>
+      <p v-if="!claimHref" class="t-body-sm">{{ t('İşletme portalı bağlantısı henüz hazır değil.') }}</p>
     </div>
     <div class="compare">
       <label class="compare-toggle t-label-sm" :class="{disabled: compareFull}">
         <input type="checkbox" class="checkbox" :checked="inCompare" :disabled="compareFull" @change="compare.toggle(business.id)">
-        <GitCompareArrows :size="16" aria-hidden="true"/>Karşılaştırmaya ekle
+        <GitCompareArrows :size="16" aria-hidden="true"/>{{ t('Karşılaştırmaya ekle') }}
       </label>
-      <NuxtLink v-if="compare.ids.value.length > 1" :to="compare.href.value" class="t-label-sm compare-link">Karşılaştır ({{ compare.ids.value.length }})</NuxtLink>
+      <NuxtLink v-if="compare.ids.value.length > 1" :to="compare.href.value" class="t-label-sm compare-link">{{ t('Karşılaştır ({count})', {count: compare.ids.value.length}) }}</NuxtLink>
     </div>
-    <p v-if="business.claimed" class="note">Arama, yol tarifi ve yorum okuma üyeliksizdir.</p>
+    <p v-if="business.claimed" class="note">{{ t('Arama, yol tarifi ve yorum okuma üyeliksizdir.') }}</p>
   </aside>
 </template>
 

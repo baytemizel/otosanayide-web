@@ -1,4 +1,5 @@
 import {securityErrorMessage} from '../account-security';
+import {turkish, type Translate} from '../i18n';
 import {SessionRequestError} from '../session';
 
 /** Password rule of the API (AUTH_API: at least 10 characters). */
@@ -17,35 +18,40 @@ export function returnPath(value: unknown): string | null {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : null;
 }
 
-/** User-facing message for a failed /api/auth/* call, chosen by status code (never the API text). */
-export function authErrorMessage(action: AuthAction, error: unknown): string {
+/**
+ * User-facing message for a failed /api/auth/* call, chosen by status code (never the API text).
+ * `t` translates the Turkish source text (K223); the default keeps Turkish for tests.
+ */
+export function authErrorMessage(action: AuthAction, error: unknown, t: Translate = turkish): string {
   const status = error instanceof SessionRequestError ? error.status : 0;
-  if (status === 429) return 'Çok fazla deneme yapıldı. Biraz sonra tekrar dene.';
+  // securityErrorMessage answers in Turkish; its text is a dictionary key as well.
+  const security = (fallback: string) => t(securityErrorMessage(error, fallback));
+  if (status === 429) return t('Çok fazla deneme yapıldı. Biraz sonra tekrar dene.');
   switch (action) {
     case 'login':
-      if (status === 401 || status === 400) return 'E-posta adresi veya şifre hatalı.';
-      if (status === 403) return 'Bu adresten giriş yapılamıyor. Sayfayı yenileyip tekrar dene.';
-      return status ? securityErrorMessage(error, 'Giriş tamamlanamadı. Tekrar dene.') : 'Giriş tamamlanamadı. Bilgilerini ve bağlantını kontrol et.';
+      if (status === 401 || status === 400) return t('E-posta adresi veya şifre hatalı.');
+      if (status === 403) return t('Bu adresten giriş yapılamıyor. Sayfayı yenileyip tekrar dene.');
+      return status ? security('Giriş tamamlanamadı. Tekrar dene.') : t('Giriş tamamlanamadı. Bilgilerini ve bağlantını kontrol et.');
     case 'mfa':
-      if (status === 400 || status === 401) return 'Kod doğrulanamadı ya da süresi doldu. Kodu kontrol et; gerekirse girişi baştan yap.';
-      return 'Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene.';
+      if (status === 400 || status === 401) return t('Kod doğrulanamadı ya da süresi doldu. Kodu kontrol et; gerekirse girişi baştan yap.');
+      return t('Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene.');
     case 'register':
-      if (status === 400) return `E-posta adresini ve en az ${PASSWORD_MIN} karakterlik şifreni kontrol et.`;
-      return status ? securityErrorMessage(error, 'Hesap oluşturulamadı. Tekrar dene.') : 'Hesap oluşturulamadı. Bilgilerini ve bağlantını kontrol et.';
+      if (status === 400) return t('E-posta adresini ve en az {min} karakterlik şifreni kontrol et.', {min: PASSWORD_MIN});
+      return status ? security('Hesap oluşturulamadı. Tekrar dene.') : t('Hesap oluşturulamadı. Bilgilerini ve bağlantını kontrol et.');
     case 'forgot':
-      if (status === 400) return 'E-posta adresini kontrol et.';
-      return 'Kurtarma e-postası istenemedi. Bağlantını kontrol edip tekrar dene.';
+      if (status === 400) return t('E-posta adresini kontrol et.');
+      return t('Kurtarma e-postası istenemedi. Bağlantını kontrol edip tekrar dene.');
     case 'reset':
-      if (status === 400) return `Bağlantı geçersiz ya da süresi dolmuş olabilir; şifren en az ${PASSWORD_MIN} karakter olmalı.`;
-      return status ? securityErrorMessage(error, 'Şifre güncellenemedi. Tekrar dene.') : 'Şifre güncellenemedi. Bağlantını kontrol edip tekrar dene.';
+      if (status === 400) return t('Bağlantı geçersiz ya da süresi dolmuş olabilir; şifren en az {min} karakter olmalı.', {min: PASSWORD_MIN});
+      return status ? security('Şifre güncellenemedi. Tekrar dene.') : t('Şifre güncellenemedi. Bağlantını kontrol edip tekrar dene.');
     case 'verify':
-      return 'Bağlantı geçersiz ya da süresi dolmuş.';
+      return t('Bağlantı geçersiz ya da süresi dolmuş.');
     case 'code':
-      if (status === 400) return 'Kod hatalı ya da süresi dolmuş. Kodu kontrol et ya da yeni kod iste.';
-      return 'Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene.';
+      if (status === 400) return t('Kod hatalı ya da süresi dolmuş. Kodu kontrol et ya da yeni kod iste.');
+      return t('Kod doğrulanamadı. Bağlantını kontrol edip tekrar dene.');
     case 'resetCode':
-      if (status === 400) return `Doğrulamanın süresi dolmuş olabilir; şifren en az ${PASSWORD_MIN} karakter olmalı. Gerekirse yeni kod iste.`;
-      return status ? securityErrorMessage(error, 'Şifre güncellenemedi. Tekrar dene.') : 'Şifre güncellenemedi. Bağlantını kontrol edip tekrar dene.';
+      if (status === 400) return t('Doğrulamanın süresi dolmuş olabilir; şifren en az {min} karakter olmalı. Gerekirse yeni kod iste.', {min: PASSWORD_MIN});
+      return status ? security('Şifre güncellenemedi. Tekrar dene.') : t('Şifre güncellenemedi. Bağlantını kontrol edip tekrar dene.');
   }
 }
 
@@ -59,10 +65,10 @@ export const NAME_MAX = 80;
 export const normalizeName = (value: string) => value.trim().replace(/\s+/g, ' ').normalize('NFC');
 
 /** Field error for a full name ('' when valid). `required` follows the screen: sign-up asks for it, /hesabim may clear it. */
-export function nameError(value: string, required = true) {
+export function nameError(value: string, required = true, t: Translate = turkish) {
   const name = normalizeName(value);
-  if (!name) return required ? 'Adını ve soyadını yaz.' : '';
-  if (name.length < 2 || name.length > NAME_MAX || !NAME_PATTERN.test(name)) return `Ad soyad 2–${NAME_MAX} karakter olmalı; harf, boşluk, kesme, tire ve nokta kullanılabilir.`;
+  if (!name) return required ? t('Adını ve soyadını yaz.') : '';
+  if (name.length < 2 || name.length > NAME_MAX || !NAME_PATTERN.test(name)) return t('Ad soyad 2–{max} karakter olmalı; harf, boşluk, kesme, tire ve nokta kullanılabilir.', {max: NAME_MAX});
   return '';
 }
 
@@ -77,10 +83,10 @@ export function nameLabel(full: string | null | undefined): {initials: string; s
 }
 
 /** Field errors of the sign-in / sign-up form (live rules). */
-export function credentialErrors(email: string, password: string, signup: boolean) {
+export function credentialErrors(email: string, password: string, signup: boolean, t: Translate = turkish) {
   const address = email.trim();
   return {
-    email: !address ? 'E-posta adresini yaz.' : EMAIL_PATTERN.test(address) ? '' : 'Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).',
-    password: !password ? (signup ? 'Bir şifre belirle.' : 'Şifreni yaz.') : signup && password.length < PASSWORD_MIN ? `Şifre en az ${PASSWORD_MIN} karakter olmalı.` : '',
+    email: !address ? t('E-posta adresini yaz.') : EMAIL_PATTERN.test(address) ? '' : t('Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).'),
+    password: !password ? (signup ? t('Bir şifre belirle.') : t('Şifreni yaz.')) : signup && password.length < PASSWORD_MIN ? t('Şifre en az {min} karakter olmalı.', {min: PASSWORD_MIN}) : '',
   };
 }

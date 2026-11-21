@@ -2,12 +2,14 @@
 import {computed} from 'vue';
 import {File, Plus} from '@lucide/vue';
 import GarageRing from '~/components/v2/garage/GarageRing.vue';
+import {useLocale} from '~/composables/useLocale';
 import type {MockRecord} from '~/data/mock/garage';
 import {formatTry, type GarageReminderView} from '~/lib/v2/garage';
 
 // W11 "Özet kartları" (Figma 123:331): the two nearest active reminders as rings, then this year's expenses.
 const props = defineProps<{reminders: GarageReminderView[]; records: MockRecord[]; year: number}>();
 const emit = defineEmits<{'add-reminder': []}>();
+const {t, localeTag} = useLocale();
 
 const upcoming = computed(() => props.reminders.filter((r) => r.active).sort((a, b) => a.sort - b.sort).slice(0, 2));
 const yearRecords = computed(() => props.records.filter((r) => r.date.startsWith(String(props.year))));
@@ -27,17 +29,17 @@ const total = computed(() => yearRecords.value.reduce((sum, r) => sum + Math.rou
     <button v-if="upcoming.length < 2" type="button" class="stat add" @click="emit('add-reminder')">
       <span class="badge" aria-hidden="true"><Plus :size="24"/></span>
       <span class="copy">
-        <span class="t-mono-sm t-muted">Hatırlatma</span>
-        <span class="t-label-md">Hatırlatma ekle</span>
-        <span class="t-body-sm t-muted">Bakım, muayene, sigorta</span>
+        <span class="t-mono-sm t-muted">{{ t('Hatırlatma') }}</span>
+        <span class="t-label-md">{{ t('Hatırlatma ekle') }}</span>
+        <span class="t-body-sm t-muted">{{ t('Bakım, muayene, sigorta') }}</span>
       </span>
     </button>
     <article class="stat">
       <span class="badge lime" aria-hidden="true"><File :size="24"/></span>
       <div class="copy">
-        <p class="t-mono-sm t-muted">{{ year }} gideri</p>
-        <p class="value">{{ formatTry(total) }}</p>
-        <p class="t-body-sm t-muted">{{ yearRecords.length }} kayıt</p>
+        <p class="t-mono-sm t-muted">{{ t('{year} gideri', {year}) }}</p>
+        <p class="value">{{ formatTry(total, localeTag) }}</p>
+        <p class="t-body-sm t-muted">{{ t('{count} kayıt', {count: yearRecords.length}) }}</p>
       </div>
     </article>
   </div>

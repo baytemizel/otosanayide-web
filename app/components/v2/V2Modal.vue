@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import {nextTick, onBeforeUnmount, ref, watch} from 'vue';
 import {X} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Modal shell from the v2 modal frames (S08, W07, W12): white panel, 32 px radius, dark scrim.
 const props = withDefaults(defineProps<{open: boolean; title: string; subtitle?: string; width?: number}>(), {width: 640});
 const emit = defineEmits<{close: []}>();
+const {t} = useLocale();
 const panel = ref<HTMLElement | null>(null);
 let previous: Element | null = null;
 
@@ -44,7 +46,7 @@ onBeforeUnmount(() => {
             <p v-if="subtitle" class="t-body-sm t-muted">{{ subtitle }}</p>
             <slot name="head"/>
           </div>
-          <button type="button" class="close" aria-label="Kapat" @click="emit('close')"><X :size="18" aria-hidden="true"/></button>
+          <button type="button" class="close" :aria-label="t('Kapat')" @click="emit('close')"><X :size="18" aria-hidden="true"/></button>
         </header>
         <slot/>
         <template v-if="$slots.footer">

@@ -1,10 +1,13 @@
 import {categories, type Business} from '@otosanayide/core';
 import type {SearchBusiness} from '~/data/mock/search';
+import {turkish, type Translate} from '~/lib/i18n';
 import {hoursState} from '~/lib/v2/business-card';
 import type {BusinessExtras} from '~/lib/search-response';
 
 /**
- * One column of the W06 comparison table. Demo columns come from the mock search facts, live ones
+ * One column of the W06 comparison table. `category`, `services` and `brands` stay in the catalogue's
+ * Turkish (rows match on them); the table translates them when it shows them. `hours.text` is built in the
+ * page language (`t`, locale tag). Demo columns come from the mock search facts, live ones
  * from `GET /api/businesses/{id}?v=2`. `null` means the source has no data for that row ("Bilgi yok");
  * a declared list that does not mention a service or brand is "Bilinmiyor", never "Hayır".
  */
@@ -28,7 +31,7 @@ export interface CompareColumn {
   phone: string;
 }
 
-export function compareFromMock(b: SearchBusiness): CompareColumn {
+export function compareFromMock(b: SearchBusiness, t: Translate = turkish): CompareColumn {
   return {
     id: b.id,
     name: b.name,
@@ -40,7 +43,7 @@ export function compareFromMock(b: SearchBusiness): CompareColumn {
     services: b.services,
     brands: b.brands,
     card: b.payments.includes('kart') ? true : null,
-    hours: {known: b.hoursKnown, open: b.open, text: b.hoursKnown ? b.hoursText : 'Saat bilgisi yok'},
+    hours: {known: b.hoursKnown, open: b.open, text: t(b.hoursKnown ? b.hoursText : 'Saat bilgisi yok')},
     quote: b.quote,
     appointment: b.appointment,
     phone: b.phone,
@@ -50,8 +53,8 @@ export function compareFromMock(b: SearchBusiness): CompareColumn {
 const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
 
 /** A live column. `distanceKm` comes from the search that selected it (the profile endpoint has none). */
-export function compareFromLive(business: Business, extras: BusinessExtras, distanceKm: number | null = null, now = new Date()): CompareColumn {
-  const hours = hoursState(extras.openingHours, now);
+export function compareFromLive(business: Business, extras: BusinessExtras, distanceKm: number | null = null, now = new Date(), t: Translate = turkish, localeTag = 'tr-TR'): CompareColumn {
+  const hours = hoursState(extras.openingHours, now, t, localeTag);
   return {
     id: business.id,
     name: business.name,
@@ -71,8 +74,8 @@ export function compareFromLive(business: Business, extras: BusinessExtras, dist
 }
 
 /** Default name of a saved comparison: the business names, cut to the API's 60 characters. */
-export function comparisonName(columns: Pick<CompareColumn, 'name'>[]) {
+export function comparisonName(columns: Pick<CompareColumn, 'name'>[], t: Translate = turkish) {
   const short = columns.map((c) => c.name.replace(/^Örnek\s+/, '')).join(' · ');
-  const name = `Karşılaştırma: ${short}`;
+  const name = t('Karşılaştırma: {names}', {names: short});
   return name.length > 60 ? `${name.slice(0, 59).trimEnd()}…` : name;
 }

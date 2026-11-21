@@ -1,4 +1,5 @@
 import {errorStatus} from '../api-read';
+import {turkish, type Translate} from '../i18n';
 import type {SavedList} from '../member-api';
 
 /** W13 named lists (web-13): name 1–60 characters, at most 20 lists, 100 services each. */
@@ -9,10 +10,10 @@ export const LIST_ITEM_LIMIT = 100;
 /** A chip on /kaydedilenler, demo or live. */
 export type SavedChip = {id: string; name: string; ids: string[]; source?: SavedList};
 
-export function listNameError(name: string, max = LIST_NAME_MAX) {
+export function listNameError(name: string, max = LIST_NAME_MAX, t: Translate = turkish) {
   const value = name.trim();
-  if (!value) return 'Listeye bir ad ver.';
-  if (value.length > max) return `Liste adı en çok ${max} karakter olabilir.`;
+  if (!value) return t('Listeye bir ad ver.');
+  if (value.length > max) return t('Liste adı en çok {max} karakter olabilir.', {max});
   return '';
 }
 
@@ -21,7 +22,7 @@ export function liveChips(lists: SavedList[]): SavedChip[] {
   return lists.filter((l) => l.kind === 'list').map((l) => ({id: l.id, name: l.name, ids: l.businessIds, source: l}));
 }
 
-/** Readable message for a failed /api/me/lists call. */
+/** Readable message for a failed /api/me/lists call, in Turkish (the page translates it when it is shown). */
 export function listErrorMessage(error: unknown) {
   switch (errorStatus(error)) {
     case 400: return 'Liste kaydedilemedi. Ad 1–60 karakter olmalı; listeye yalnız yayındaki servisler eklenebilir.';

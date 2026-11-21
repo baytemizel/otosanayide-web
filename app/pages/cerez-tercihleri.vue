@@ -3,11 +3,14 @@ import {onMounted, ref} from 'vue';
 import {Lock} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import {consentCookie, defaultConsent, readConsent} from '~/lib/consent';
+import {useLocale} from '~/composables/useLocale';
 
 // S07 · Çerez tercihleri (Figma 128:739). The choice stays in this browser only; optional ones default to off.
-useSeoMeta({title: 'Çerez tercihleri', robots: 'noindex'});
+const {t} = useLocale();
+useSeoMeta({title: () => t('Çerez tercihleri'), robots: 'noindex'});
 const measurement = ref(false);
 const adMeasurement = ref(false);
+// Turkish source text of the status line; translated at render so it follows a language change.
 const message = ref('');
 
 onMounted(() => {
@@ -31,29 +34,29 @@ function store(next: {measurement: boolean; adMeasurement: boolean}) {
 <template>
   <section class="page v2-wrap">
     <div class="card">
-      <p class="t-mono-md t-eyebrow">Çerezler</p>
-      <h1 class="t-h3">Çerez tercihleri</h1>
-      <p class="t-body-md t-muted">Zorunlu çerezler sitenin çalışması için gerekir. Diğerlerini sen seçersin; kapalı gelir.</p>
+      <p class="t-mono-md t-eyebrow">{{ t('Çerezler') }}</p>
+      <h1 class="t-h3">{{ t('Çerez tercihleri') }}</h1>
+      <p class="t-body-md t-muted">{{ t('Zorunlu çerezler sitenin çalışması için gerekir. Diğerlerini sen seçersin; kapalı gelir.') }}</p>
       <hr class="divider">
       <div class="row">
-        <div class="copy"><p class="name">Zorunlu</p><p class="t-body-sm t-muted">Oturum, güvenlik, dil tercihi</p></div>
-        <span class="always"><Lock :size="13" aria-hidden="true"/>Her zaman açık</span>
+        <div class="copy"><p class="name">{{ t('Zorunlu') }}</p><p class="t-body-sm t-muted">{{ t('Oturum, güvenlik, dil tercihi') }}</p></div>
+        <span class="always"><Lock :size="13" aria-hidden="true"/>{{ t('Her zaman açık') }}</span>
       </div>
       <hr class="divider">
       <label class="row">
-        <span class="copy"><span class="name">Analitik</span><span class="t-body-sm t-muted">Anonim kullanım istatistikleri</span></span>
+        <span class="copy"><span class="name">{{ t('Analitik') }}</span><span class="t-body-sm t-muted">{{ t('Anonim kullanım istatistikleri') }}</span></span>
         <input v-model="measurement" type="checkbox" role="switch" class="switch">
       </label>
       <hr class="divider">
       <label class="row">
-        <span class="copy"><span class="name">Reklam ölçümü</span><span class="t-body-sm t-muted">Sponsorlu alan gösterim ölçümü</span></span>
+        <span class="copy"><span class="name">{{ t('Reklam ölçümü') }}</span><span class="t-body-sm t-muted">{{ t('Sponsorlu alan gösterim ölçümü') }}</span></span>
         <input v-model="adMeasurement" type="checkbox" role="switch" class="switch">
       </label>
       <hr class="divider">
       <div class="actions">
-        <p v-if="message" class="t-body-sm saved" role="status">{{ message }}</p>
-        <V2Button variant="outline" @click="store({measurement: false, adMeasurement: false})">Yalnız zorunlu</V2Button>
-        <V2Button arrow @click="store({measurement, adMeasurement})">Seçimleri kaydet</V2Button>
+        <p v-if="message" class="t-body-sm saved" role="status">{{ t(message) }}</p>
+        <V2Button variant="outline" @click="store({measurement: false, adMeasurement: false})">{{ t('Yalnız zorunlu') }}</V2Button>
+        <V2Button arrow @click="store({measurement, adMeasurement})">{{ t('Seçimleri kaydet') }}</V2Button>
       </div>
     </div>
   </section>

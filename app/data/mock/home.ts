@@ -1,5 +1,7 @@
 // Synthetic content for the Web v2 home page (Figma 107:38 "W-V2 · Ana sayfa · Misafir").
 // Every business is "Örnek …", every person a first name + initial. Later each block is fed by the API.
+// UI labels here are Turkish source text that the home components translate at render (English in
+// app/locales/v2-shell.json); business names, people, places, vehicles and review texts stay as they are.
 import type {MockReview} from '~/components/v2/V2ReviewCard.vue';
 
 /* Hero + smart search (108:42) */
@@ -56,11 +58,11 @@ export const homeSymptoms: HomeSymptom[] = [
 ];
 export const homeSymptomDefault = ['fren-sesi', 'direksiyon-titreme'];
 export const homeSymptomArea = 'Kadıköy';
-export const homeCategoryStats: Record<string, {count: number; nearest: string; open: number}> = {
-  'Mekanik Servis': {count: 14, nearest: '1,2 km', open: 9},
-  'Elektrik & Elektronik': {count: 8, nearest: '1,8 km', open: 5},
-  'Klima': {count: 6, nearest: '3,9 km', open: 4},
-  'Lastik & Jant': {count: 11, nearest: '2,1 km', open: 8},
+export const homeCategoryStats: Record<string, {count: number; nearestKm: number; open: number}> = {
+  'Mekanik Servis': {count: 14, nearestKm: 1.2, open: 9},
+  'Elektrik & Elektronik': {count: 8, nearestKm: 1.8, open: 5},
+  'Klima': {count: 6, nearestKm: 3.9, open: 4},
+  'Lastik & Jant': {count: 11, nearestKm: 2.1, open: 8},
 };
 
 /* Keşif · liste + harita (111:104). Ids refer to app/data/mock/businesses.ts. */
@@ -107,11 +109,12 @@ export const homeQuoteSteps = [
   {title: 'Teklifleri karşılaştır', text: 'Fiyat, puan, mesafe ve randevu saatini yan yana gör.'},
 ];
 export const homeQuoteRequest = {title: 'Fren balatası değişimi', vehicle: 'Volkswagen Golf · 2018 · Kadıköy'};
-export interface HomeQuoteOffer {id: string; name: string; rating: string; distance: string; earliest: string; badge: string; tone: 'sky' | 'lime' | 'orange'; price: string; photo: string}
+/** `price` in Turkish lira; rating, distance and price are formatted in the current language. */
+export interface HomeQuoteOffer {id: string; name: string; rating: number; distanceKm: number; earliest: string; badge: string; tone: 'sky' | 'lime' | 'orange'; price: number; photo: string}
 export const homeQuoteOffers: HomeQuoteOffer[] = [
-  {id: 'teknik', name: 'Örnek Teknik Garaj', rating: '4,5', distance: '1,2 km', earliest: 'Yarın 10.30', badge: 'En yakın', tone: 'sky', price: '₺3.450', photo: '/v2/workshop.jpg'},
-  {id: 'fren', name: 'Örnek Fren Atölyesi', rating: '4,7', distance: '2,8 km', earliest: 'Bugün 16.00', badge: 'En uygun', tone: 'lime', price: '₺3.250', photo: '/v2/home/cat-mechanic.jpg'},
-  {id: 'yetkin', name: 'Örnek Yetkin Oto', rating: '4,9', distance: '5,1 km', earliest: 'Cuma 09.00', badge: 'En yüksek puan', tone: 'orange', price: '₺3.900', photo: '/v2/home/car-detail.jpg'},
+  {id: 'teknik', name: 'Örnek Teknik Garaj', rating: 4.5, distanceKm: 1.2, earliest: 'Yarın 10.30', badge: 'En yakın', tone: 'sky', price: 3450, photo: '/v2/workshop.jpg'},
+  {id: 'fren', name: 'Örnek Fren Atölyesi', rating: 4.7, distanceKm: 2.8, earliest: 'Bugün 16.00', badge: 'En uygun', tone: 'lime', price: 3250, photo: '/v2/home/cat-mechanic.jpg'},
+  {id: 'yetkin', name: 'Örnek Yetkin Oto', rating: 4.9, distanceKm: 5.1, earliest: 'Cuma 09.00', badge: 'En yüksek puan', tone: 'orange', price: 3900, photo: '/v2/home/car-detail.jpg'},
 ];
 export const homeQuoteDefaultOffer = 'fren';
 
@@ -165,11 +168,12 @@ export const homeQuiz: HomeQuizQuestion[] = [
 /* İşletmeler için (113:463) */
 export const homeBusinessPanel = {
   views: 128,
-  change: '+%18',
+  /** Week-on-week change in per cent. */
+  changePercent: 18,
   bars: [
     {day: 'Pt', height: 34}, {day: 'Sa', height: 52}, {day: 'Ça', height: 40}, {day: 'Pe', height: 66},
     {day: 'Cu', height: 58}, {day: 'Ct', height: 84}, {day: 'Pz', height: 72},
   ],
   peak: 5,
-  stats: ['14 arama', '9 yol tarifi', '3 teklif'],
+  stats: [{count: 14, label: '{count} arama'}, {count: 9, label: '{count} yol tarifi'}, {count: 3, label: '{count} teklif'}],
 };

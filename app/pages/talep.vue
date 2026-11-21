@@ -6,6 +6,7 @@ import V2Chip from '~/components/v2/V2Chip.vue';
 import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vue';
 import RequestStepper from '~/components/v2/requests/RequestStepper.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {memberToken, requestKeyKeeper, requestSendError, sendRequest, useRequestBusiness} from '~/composables/v2/useRequests';
 import {
@@ -23,8 +24,9 @@ import {contactParam, otherVehicleText, requestDraftProblem, vehicleOptions, win
 // Photos have no API field, so they are not shown in live mode.
 const app = useMemberPage();
 const demo = demoMode();
+const {t, localeTag} = useLocale();
 
-useSeoMeta({title: 'Teklif iste', robots: 'noindex, nofollow'});
+useSeoMeta({title: () => t('Teklif iste'), robots: 'noindex, nofollow'});
 
 const route = useRoute();
 const router = useRouter();
@@ -41,20 +43,21 @@ const gate = computed(() => {
   return live.canRequest.value ? '' : 'closed';
 });
 
-const steps = ['Hizmet', 'Araç', 'Sorun', 'Özet'];
-const titles = ['Hizmeti seç', 'Aracını seç', 'Sorunu anlat', 'Kontrol et ve gönder'];
-const leads = [
-  'Yaptırmak istediğin işi seç. Emin değilsen en yakın olanı seçmen yeterli.',
-  'Ön teklif aracına göre hazırlanır. Garajındaki araçlardan birini seç ya da yenisini yaz.',
-  'İşletme, açıklamana göre ön teklif hazırlar. Kesin fiyat ön incelemeden sonra netleşir.',
-  'Göndermeden önce son kez kontrol et. Talep yalnız seçtiğin işletmeye gider.',
-];
+const steps = computed(() => [t('Hizmet'), t('Araç'), t('Sorun'), t('Özet')]);
+const titles = computed(() => [t('Hizmeti seç'), t('Aracını seç'), t('Sorunu anlat'), t('Kontrol et ve gönder')]);
+const leads = computed(() => [
+  t('Yaptırmak istediğin işi seç. Emin değilsen en yakın olanı seçmen yeterli.'),
+  t('Ön teklif aracına göre hazırlanır. Garajındaki araçlardan birini seç ya da yenisini yaz.'),
+  t('İşletme, açıklamana göre ön teklif hazırlar. Kesin fiyat ön incelemeden sonra netleşir.'),
+  t('Göndermeden önce son kez kontrol et. Talep yalnız seçtiğin işletmeye gider.'),
+]);
 
 const initialStep = demo ? Math.min(4, Math.max(1, Number.parseInt(String(route.query.adim ?? '1'), 10) || 1)) : 1;
 const step = ref(initialStep);
 const submitted = ref(false);
 
-interface Photo { src: string; name: string; local: boolean }
+/** `n`: number of a demo photo, named "Fotoğraf {n}" at render; uploads keep their file name. */
+interface Photo { src: string; name: string; local: boolean; n?: number }
 const form = reactive({
   serviceId: initialStep >= 2 ? requestMockAnswers.serviceId : '',
   vehicleId: initialStep >= 3 ? requestMockAnswers.vehicleId : '',
@@ -62,17 +65,23 @@ const form = reactive({
   otherModel: '',
   otherYear: '',
   description: initialStep >= 3 ? requestMockAnswers.description : '',
-  photos: (initialStep >= 3 ? requestMockAnswers.photos.map((src, index) => ({src, name: `Fotoğraf ${index + 1}`, local: false})) : []) as Photo[],
+  photos: (initialStep >= 3 ? requestMockAnswers.photos.map((src, index) => ({src, name: '', local: false, n: index + 1})) : []) as Photo[],
   timeId: requestMockAnswers.timeId,
   contactId: requestMockAnswers.contactId,
   consent: false,
 });
 
-/** Live: the business's own services; the generic list only when it lists none. */
+/**
+ * Live: the business's own services (API text, shown as sent); the generic list only when it lists none.
+ * `text` is what the request carries: the generic list keeps its Turkish name, only `label` is translated.
+ */
 const serviceOptions = computed(() => (demo || !live.services.value.length
-  ? requestServices
-  : live.services.value.map((label) => ({id: label, label, hint: ''}))));
-const vehicles = computed(() => (demo ? requestVehicles.map((item) => ({...item, text: item.label})) : vehicleOptions(app.data.vehicles)));
+  ? requestServices.map((item) => ({id: item.id, label: t(item.label), hint: t(item.hint), text: item.label}))
+  : live.services.value.map((label) => ({id: label, label, hint: '', text: label}))));
+const vehicles = computed(() => (demo
+  ? requestVehicles.map((item) => ({...item, detail: t(item.detail), text: item.label}))
+  : vehicleOptions(app.data.vehicles, localeTag.value)));
+const photoName = (photo: Photo) => (photo.n ? t('Fotoğraf {n}', {n: photo.n}) : photo.name);
 
 const service = computed(() => serviceOptions.value.find((item) => item.id === form.serviceId));
 const vehicleLabel = computed(() => {
@@ -85,8 +94,8 @@ const vehicleLabel = computed(() => {
 const vehicleText = computed(() => (form.vehicleId === 'diger'
   ? otherVehicleText(form.otherBrand, form.otherModel, form.otherYear)
   : vehicles.value.find((item) => item.id === form.vehicleId)?.text ?? ''));
-const timeLabel = computed(() => requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? '');
-const contactLabel = computed(() => requestContactOptions.find((item) => item.id === form.contactId)?.label ?? '');
+const timeLabel = computed(() => t(requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? ''));
+const contactLabel = computed(() => t(requestContactOptions.find((item) => item.id === form.contactId)?.label ?? ''));
 
 const stepValid = computed(() => {
   if (step.value === 1) return Boolean(form.serviceId);
@@ -95,10 +104,10 @@ const stepValid = computed(() => {
   return form.consent;
 });
 const stepHint = computed(() => [
-  'Devam etmek için bir hizmet seç.',
-  'Devam etmek için bir araç seç ya da marka ve modeli yaz.',
-  'Açıklama en az 10 karakter olmalı.',
-  'Göndermek için onay kutusunu işaretle.',
+  t('Devam etmek için bir hizmet seç.'),
+  t('Devam etmek için bir araç seç ya da marka ve modeli yaz.'),
+  t('Açıklama en az 10 karakter olmalı.'),
+  t('Göndermek için onay kutusunu işaretle.'),
 ][step.value - 1]);
 const tried = ref(false);
 
@@ -130,11 +139,11 @@ async function submit() {
   }
   if (sending.value || !business.value) return;
   const draft = {
-    businessId: business.value.id, kind: 'quotes' as const, service: service.value?.label ?? '', vehicle: vehicleText.value,
+    businessId: business.value.id, kind: 'quotes' as const, service: service.value?.text ?? '', vehicle: vehicleText.value,
     message: form.description.trim(), preferredWindow: windowParam[form.timeId], contactPreference: contactParam[form.contactId],
     ...(form.vehicleId && form.vehicleId !== 'diger' ? {vehicleId: form.vehicleId} : {}),
   };
-  sendError.value = requestDraftProblem(draft);
+  sendError.value = requestDraftProblem(draft, t);
   if (sendError.value) return;
   sending.value = true;
   try {
@@ -143,7 +152,7 @@ async function submit() {
     submitted.value = true;
     if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
   } catch (error) {
-    sendError.value = requestSendError(error, 'quotes');
+    sendError.value = requestSendError(error, 'quotes', t);
   } finally {
     sending.value = false;
   }
@@ -165,31 +174,33 @@ function removePhoto(index: number) {
 }
 onBeforeUnmount(() => form.photos.forEach((photo) => photo.local && URL.revokeObjectURL(photo.src)));
 
-const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}` : sending.value ? 'Gönderiliyor…' : 'Talebi gönder'));
+const nextLabel = computed(() => (step.value < 4 ? t('Devam: {step}', {step: steps.value[step.value]!}) : sending.value ? t('Gönderiliyor…') : t('Talebi gönder')));
+/** "Garajında araç yok. … {link} sayfasından …" split around {link}, so "Araçlarım" can be a link. */
+const noVehicleParts = computed(() => t('Garajında araç yok. Aracını aşağıya yazabilir ya da {link} sayfasından ekleyebilirsin.').split('{link}'));
 </script>
 
 <template>
   <div class="talep">
     <header class="head v2-wrap">
-      <p class="t-mono-md t-eyebrow">TEKLİF İSTE</p>
-      <h1 class="t-h2">{{ submitted ? 'Talebin gönderildi' : gate ? 'Teklif iste' : titles[step - 1] }}</h1>
+      <p class="t-mono-md t-eyebrow">{{ t('TEKLİF İSTE') }}</p>
+      <h1 class="t-h2">{{ submitted ? t('Talebin gönderildi') : gate ? t('Teklif iste') : titles[step - 1] }}</h1>
       <RequestStepper v-if="!gate" :steps="steps" :current="submitted ? 5 : step" :done="submitted ? 4 : step - 1" @go="go"/>
     </header>
 
     <div v-if="gate || !business" class="body v2-wrap">
       <section class="main surface state" :aria-busy="gate === 'loading'">
-        <p v-if="gate === 'loading'" class="t-body-md t-muted" role="status">İşletme bilgisi yükleniyor…</p>
+        <p v-if="gate === 'loading'" class="t-body-md t-muted" role="status">{{ t('İşletme bilgisi yükleniyor…') }}</p>
         <template v-else-if="gate === 'unavailable'">
-          <h2 class="t-h4">Talep şu anda açılamıyor.</h2>
-          <p class="t-body-md t-muted">İşletme bilgisi alınamadı. Bağlantını kontrol edip tekrar dene.</p>
-          <V2Button variant="outline" @click="router.go(0)">Tekrar dene</V2Button>
+          <h2 class="t-h4">{{ t('Talep şu anda açılamıyor.') }}</h2>
+          <p class="t-body-md t-muted">{{ t('İşletme bilgisi alınamadı. Bağlantını kontrol edip tekrar dene.') }}</p>
+          <V2Button variant="outline" @click="router.go(0)">{{ t('Tekrar dene') }}</V2Button>
         </template>
         <template v-else>
-          <h2 class="t-h4">{{ gate === 'closed' && business ? `${business.name} şu anda teklif talebi kabul etmiyor.` : 'Teklif istenecek işletme bulunamadı.' }}</h2>
-          <p class="t-body-md t-muted">Teklif ve randevu yalnızca bu hizmeti etkinleştiren doğrulanmış işletmelerde kullanılabilir. İşletme profilindeki “Teklif iste” düğmesiyle başla.</p>
+          <h2 class="t-h4">{{ gate === 'closed' && business ? t('{name} şu anda teklif talebi kabul etmiyor.', {name: business.name}) : t('Teklif istenecek işletme bulunamadı.') }}</h2>
+          <p class="t-body-md t-muted">{{ t('Teklif ve randevu yalnızca bu hizmeti etkinleştiren doğrulanmış işletmelerde kullanılabilir. İşletme profilindeki “Teklif iste” düğmesiyle başla.') }}</p>
           <div class="state-actions">
-            <V2Button v-if="business" variant="outline" :to="`/servis/${business.id}`">İşletme profiline dön</V2Button>
-            <V2Button to="/ara" arrow>Servis bul</V2Button>
+            <V2Button v-if="business" variant="outline" :to="`/servis/${business.id}`">{{ t('İşletme profiline dön') }}</V2Button>
+            <V2Button to="/ara" arrow>{{ t('Servis bul') }}</V2Button>
           </div>
         </template>
       </section>
@@ -199,15 +210,15 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
       <RequestSuccessCard
         v-if="submitted"
         class="main"
-        eyebrow="TALEP GÖNDERİLDİ"
-        :title="`${business.name} talebini aldı.`"
+        :eyebrow="t('TALEP GÖNDERİLDİ')"
+        :title="t('{name} talebini aldı.', {name: business.name})"
         :text="demo
-          ? `Ortalama ${responseHoursFor(business.id)} saat içinde ön teklif gelir. Teklif gelince bildirim alırsın; Taleplerim sayfasından takip edebilirsin.`
-          : 'İşletme yanıtladığında bildirim alırsın; Taleplerim sayfasından takip edebilirsin. Bu talep bir fiyat taahhüdü veya randevu oluşturmaz.'"
+          ? t('Ortalama {count} saat içinde ön teklif gelir. Teklif gelince bildirim alırsın; Taleplerim sayfasından takip edebilirsin.', {count: responseHoursFor(business.id)})
+          : t('İşletme yanıtladığında bildirim alırsın; Taleplerim sayfasından takip edebilirsin. Bu talep bir fiyat taahhüdü veya randevu oluşturmaz.')"
       >
         <template #actions>
-          <V2Button to="/taleplerim" size="lg" arrow>Taleplerime git</V2Button>
-          <V2Button to="/" variant="outline">Ana sayfaya dön</V2Button>
+          <V2Button to="/taleplerim" size="lg" arrow>{{ t('Taleplerime git') }}</V2Button>
+          <V2Button to="/" variant="outline">{{ t('Ana sayfaya dön') }}</V2Button>
         </template>
       </RequestSuccessCard>
 
@@ -216,7 +227,7 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
 
         <!-- 1 · Hizmet -->
         <fieldset v-if="step === 1" class="group">
-          <legend class="field-label">Hizmet</legend>
+          <legend class="field-label">{{ t('Hizmet') }}</legend>
           <div class="option-grid">
             <label v-for="item in serviceOptions" :key="item.id" class="option">
               <input v-model="form.serviceId" type="radio" name="hizmet" :value="item.id" class="radio">
@@ -227,97 +238,97 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
 
         <!-- 2 · Araç -->
         <fieldset v-else-if="step === 2" class="group">
-          <legend class="field-label">Garajındaki araçlar</legend>
+          <legend class="field-label">{{ t('Garajındaki araçlar') }}</legend>
           <div class="option-list">
             <label v-for="item in vehicles" :key="item.id" class="option">
               <input v-model="form.vehicleId" type="radio" name="arac" :value="item.id" class="radio">
               <span class="opt-copy"><span>{{ item.label }}</span><span v-if="item.detail" class="t-body-sm t-muted opt-hint">{{ item.detail }}</span></span>
             </label>
-            <p v-if="!vehicles.length" class="t-body-sm t-muted">Garajında araç yok. Aracını aşağıya yazabilir ya da <NuxtLink to="/araclarim" class="link">Araçlarım</NuxtLink> sayfasından ekleyebilirsin.</p>
+            <p v-if="!vehicles.length" class="t-body-sm t-muted">{{ noVehicleParts[0] }}<NuxtLink to="/araclarim" class="link">{{ t('Araçlarım') }}</NuxtLink>{{ noVehicleParts[1] }}</p>
             <label class="option">
               <input v-model="form.vehicleId" type="radio" name="arac" value="diger" class="radio">
-              <span class="opt-copy"><span>Başka bir araç</span><span class="t-body-sm t-muted opt-hint">Garajına eklemeden yaz</span></span>
+              <span class="opt-copy"><span>{{ t('Başka bir araç') }}</span><span class="t-body-sm t-muted opt-hint">{{ t('Garajına eklemeden yaz') }}</span></span>
             </label>
           </div>
           <div v-if="form.vehicleId === 'diger'" class="other">
-            <label class="field"><span class="field-label">Marka</span><input v-model="form.otherBrand" class="input" placeholder="Örn. Toyota" autocomplete="off"></label>
-            <label class="field"><span class="field-label">Model</span><input v-model="form.otherModel" class="input" placeholder="Örn. Corolla" autocomplete="off"></label>
-            <label class="field"><span class="field-label">Yıl</span><input v-model="form.otherYear" class="input" inputmode="numeric" maxlength="4" placeholder="2020" autocomplete="off"></label>
+            <label class="field"><span class="field-label">{{ t('Marka') }}</span><input v-model="form.otherBrand" class="input" :placeholder="t('Örn. Toyota')" autocomplete="off"></label>
+            <label class="field"><span class="field-label">{{ t('Model') }}</span><input v-model="form.otherModel" class="input" :placeholder="t('Örn. Corolla')" autocomplete="off"></label>
+            <label class="field"><span class="field-label">{{ t('Yıl') }}</span><input v-model="form.otherYear" class="input" inputmode="numeric" maxlength="4" placeholder="2020" autocomplete="off"></label>
           </div>
         </fieldset>
 
         <!-- 3 · Sorun (Figma) -->
         <template v-else-if="step === 3">
           <div class="field">
-            <label for="talep-aciklama" class="field-label">Açıklama</label>
+            <label for="talep-aciklama" class="field-label">{{ t('Açıklama') }}</label>
             <textarea
               id="talep-aciklama"
               v-model="form.description"
               class="textarea desc"
               :class="{filled: form.description}"
               :maxlength="REQUEST_DESCRIPTION_MAX"
-              placeholder="Ne oldu, ne zamandır var, hangi durumda ortaya çıkıyor?"
+              :placeholder="t('Ne oldu, ne zamandır var, hangi durumda ortaya çıkıyor?')"
               aria-describedby="talep-aciklama-not"
             />
             <div id="talep-aciklama-not" class="desc-foot">
-              <span class="hint"><Lock :size="14" aria-hidden="true"/>Plaka ve telefon gibi kişisel bilgileri yazman gerekmez.</span>
+              <span class="hint"><Lock :size="14" aria-hidden="true"/>{{ t('Plaka ve telefon gibi kişisel bilgileri yazman gerekmez.') }}</span>
               <span class="t-mono-sm t-muted count">{{ form.description.length }} / {{ REQUEST_DESCRIPTION_MAX }}</span>
             </div>
           </div>
 
           <div v-if="demo" class="group photos-group">
-            <p id="talep-foto" class="field-label">Fotoğraf (isteğe bağlı)</p>
+            <p id="talep-foto" class="field-label">{{ t('Fotoğraf (isteğe bağlı)') }}</p>
             <ul class="photos" aria-labelledby="talep-foto">
               <li v-for="(photo, index) in form.photos" :key="photo.src" class="photo">
-                <img :src="photo.src" :alt="photo.name" width="112" height="112">
-                <button type="button" class="photo-x" :aria-label="`${photo.name} kaldır`" @click="removePhoto(index)"><X :size="14" aria-hidden="true"/></button>
+                <img :src="photo.src" :alt="photoName(photo)" width="112" height="112">
+                <button type="button" class="photo-x" :aria-label="t('{name} kaldır', {name: photoName(photo)})" @click="removePhoto(index)"><X :size="14" aria-hidden="true"/></button>
               </li>
               <li v-if="form.photos.length < MAX_PHOTOS">
                 <button type="button" class="add" @click="fileInput?.click()">
-                  <Plus :size="22" aria-hidden="true"/><span class="t-label-sm">Ekle</span>
+                  <Plus :size="22" aria-hidden="true"/><span class="t-label-sm">{{ t('Ekle') }}</span>
                 </button>
                 <input ref="fileInput" type="file" accept="image/*" multiple class="sr-only" tabindex="-1" aria-hidden="true" @change="onFiles">
               </li>
             </ul>
-            <p class="t-body-sm t-muted small">Konum bilgisi (EXIF) yükleme sırasında temizlenir.</p>
+            <p class="t-body-sm t-muted small">{{ t('Konum bilgisi (EXIF) yükleme sırasında temizlenir.') }}</p>
           </div>
 
           <div class="group">
-            <p id="talep-zaman" class="field-label">Tercih edilen zaman</p>
+            <p id="talep-zaman" class="field-label">{{ t('Tercih edilen zaman') }}</p>
             <div class="chips" role="group" aria-labelledby="talep-zaman">
-              <V2Chip v-for="item in requestTimeOptions" :key="item.id" as="button" :variant="form.timeId === item.id ? 'active' : 'default'" :pressed="form.timeId === item.id" @click="form.timeId = item.id">{{ item.label }}</V2Chip>
+              <V2Chip v-for="item in requestTimeOptions" :key="item.id" as="button" :variant="form.timeId === item.id ? 'active' : 'default'" :pressed="form.timeId === item.id" @click="form.timeId = item.id">{{ t(item.label) }}</V2Chip>
             </div>
           </div>
 
           <div class="group">
-            <p id="talep-iletisim" class="field-label">İletişim tercihi</p>
+            <p id="talep-iletisim" class="field-label">{{ t('İletişim tercihi') }}</p>
             <div class="chips" role="group" aria-labelledby="talep-iletisim">
-              <V2Chip v-for="item in requestContactOptions" :key="item.id" as="button" :variant="form.contactId === item.id ? 'active' : 'default'" :pressed="form.contactId === item.id" @click="form.contactId = item.id">{{ item.label }}</V2Chip>
+              <V2Chip v-for="item in requestContactOptions" :key="item.id" as="button" :variant="form.contactId === item.id ? 'active' : 'default'" :pressed="form.contactId === item.id" @click="form.contactId = item.id">{{ t(item.label) }}</V2Chip>
             </div>
-            <p v-if="!demo" class="t-body-sm t-muted small">Tercihin işletmeye iletilir. Telefon numaran ve e-posta adresin işletmeyle paylaşılmaz; yazışma Taleplerim sayfasından sürer.</p>
+            <p v-if="!demo" class="t-body-sm t-muted small">{{ t('Tercihin işletmeye iletilir. Telefon numaran ve e-posta adresin işletmeyle paylaşılmaz; yazışma Taleplerim sayfasından sürer.') }}</p>
           </div>
         </template>
 
         <!-- 4 · Özet -->
         <template v-else>
           <dl class="review">
-            <div class="review-row"><dt>Hizmet</dt><dd>{{ service?.label }}</dd><button type="button" class="edit" @click="go(1)">Düzenle</button></div>
-            <div class="review-row"><dt>Araç</dt><dd>{{ vehicleLabel }}</dd><button type="button" class="edit" @click="go(2)">Düzenle</button></div>
-            <div class="review-row"><dt>Açıklama</dt><dd class="long">{{ form.description }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
+            <div class="review-row"><dt>{{ t('Hizmet') }}</dt><dd>{{ service?.label }}</dd><button type="button" class="edit" @click="go(1)">{{ t('Düzenle') }}</button></div>
+            <div class="review-row"><dt>{{ t('Araç') }}</dt><dd>{{ vehicleLabel }}</dd><button type="button" class="edit" @click="go(2)">{{ t('Düzenle') }}</button></div>
+            <div class="review-row"><dt>{{ t('Açıklama') }}</dt><dd class="long">{{ form.description }}</dd><button type="button" class="edit" @click="go(3)">{{ t('Düzenle') }}</button></div>
             <div v-if="demo" class="review-row">
-              <dt>Fotoğraf</dt>
+              <dt>{{ t('Fotoğraf') }}</dt>
               <dd>
-                <span v-if="!form.photos.length">Eklenmedi</span>
-                <span v-else class="mini-photos"><img v-for="photo in form.photos" :key="photo.src" :src="photo.src" :alt="photo.name" width="48" height="48"></span>
+                <span v-if="!form.photos.length">{{ t('Eklenmedi') }}</span>
+                <span v-else class="mini-photos"><img v-for="photo in form.photos" :key="photo.src" :src="photo.src" :alt="photoName(photo)" width="48" height="48"></span>
               </dd>
-              <button type="button" class="edit" @click="go(3)">Düzenle</button>
+              <button type="button" class="edit" @click="go(3)">{{ t('Düzenle') }}</button>
             </div>
-            <div class="review-row"><dt>Tercih edilen zaman</dt><dd>{{ timeLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
-            <div class="review-row"><dt>İletişim tercihi</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
+            <div class="review-row"><dt>{{ t('Tercih edilen zaman') }}</dt><dd>{{ timeLabel }}</dd><button type="button" class="edit" @click="go(3)">{{ t('Düzenle') }}</button></div>
+            <div class="review-row"><dt>{{ t('İletişim tercihi') }}</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">{{ t('Düzenle') }}</button></div>
           </dl>
           <label class="consent">
             <input v-model="form.consent" type="checkbox" class="checkbox">
-            <span class="t-body-sm">{{ demo ? 'Açıklamamın ve fotoğraflarımın' : 'Açıklamamın ve araç bilgimin' }} yalnız {{ business.name }} ile paylaşılmasını onaylıyorum.</span>
+            <span class="t-body-sm">{{ demo ? t('Açıklamamın ve fotoğraflarımın yalnız {name} ile paylaşılmasını onaylıyorum.', {name: business.name}) : t('Açıklamamın ve araç bilgimin yalnız {name} ile paylaşılmasını onaylıyorum.', {name: business.name}) }}</span>
           </label>
         </template>
 
@@ -326,22 +337,22 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
 
         <hr class="divider">
         <div class="actions">
-          <V2Button v-if="step > 1" variant="outline" :disabled="sending" @click="go(step - 1)">Geri</V2Button>
-          <V2Button v-else variant="outline" :to="`/servis/${business.id}`">Vazgeç</V2Button>
+          <V2Button v-if="step > 1" variant="outline" :disabled="sending" @click="go(step - 1)">{{ t('Geri') }}</V2Button>
+          <V2Button v-else variant="outline" :to="`/servis/${business.id}`">{{ t('Vazgeç') }}</V2Button>
           <span class="spacer"/>
           <button type="submit" class="btn btn-primary btn-lg" :aria-disabled="!stepValid" :disabled="sending">{{ nextLabel }}<ArrowRight aria-hidden="true"/></button>
         </div>
       </form>
 
-      <aside class="summary surface" aria-label="Talep özeti">
-        <p class="t-mono-sm t-muted">TALEBİN GİDECEĞİ İŞLETME</p>
+      <aside class="summary surface" :aria-label="t('Talep özeti')">
+        <p class="t-mono-sm t-muted">{{ t('TALEBİN GİDECEĞİ İŞLETME') }}</p>
         <RequestBusinessHead :business="business"/>
-        <p v-if="demo" class="resp t-body-sm"><Clock :size="16" aria-hidden="true"/>Ortalama yanıt süresi: {{ responseHoursFor(business.id) }} saat</p>
+        <p v-if="demo" class="resp t-body-sm"><Clock :size="16" aria-hidden="true"/>{{ t('Ortalama yanıt süresi: {count} saat', {count: responseHoursFor(business.id)}) }}</p>
         <hr class="divider">
-        <p class="t-mono-sm t-muted">SEÇİMLERİN</p>
-        <div class="row"><span class="t-body-sm t-muted">Hizmet</span><span class="t-label-sm">{{ service?.label || '—' }}</span></div>
-        <div class="row"><span class="t-body-sm t-muted">Araç</span><span class="t-label-sm">{{ vehicleLabel || '—' }}</span></div>
-        <div class="note"><Info :size="16" aria-hidden="true"/><p class="t-body-sm">{{ demo ? 'Talep yalnız bu işletmeye gider. Yanıt gelmezse benzer işletmelere göndermeyi sen seçersin.' : 'Talep yalnız bu işletmeye gider. İşletmenin kabulü olmadan randevu kesinleşmez; bu adımda ödeme alınmaz.' }}</p></div>
+        <p class="t-mono-sm t-muted">{{ t('SEÇİMLERİN') }}</p>
+        <div class="row"><span class="t-body-sm t-muted">{{ t('Hizmet') }}</span><span class="t-label-sm">{{ service?.label || '—' }}</span></div>
+        <div class="row"><span class="t-body-sm t-muted">{{ t('Araç') }}</span><span class="t-label-sm">{{ vehicleLabel || '—' }}</span></div>
+        <div class="note"><Info :size="16" aria-hidden="true"/><p class="t-body-sm">{{ demo ? t('Talep yalnız bu işletmeye gider. Yanıt gelmezse benzer işletmelere göndermeyi sen seçersin.') : t('Talep yalnız bu işletmeye gider. İşletmenin kabulü olmadan randevu kesinleşmez; bu adımda ödeme alınmaz.') }}</p></div>
       </aside>
     </div>
   </div>

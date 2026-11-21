@@ -9,14 +9,14 @@ import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
+import {useLocale} from '~/composables/useLocale';
 import {useMemberProfile, useSession} from '~/composables/useSession';
 import {useAccountSecurity, useDataExports, usePrivacyRequest} from '~/composables/v2/useAccountData';
 import {privacyLabels, privacyReasonLabels, privacyScopeLabels} from '@otosanayide/core/privacy-requests';
 import {ACCOUNT_DELETE_GRACE_DAYS, mockDataExport} from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
-import {localeOptions, profileChanges, type ProfileLocale} from '~/lib/v2/account';
+import {localeOptions, longDay, profileChanges, type ProfileLocale} from '~/lib/v2/account';
 import {NAME_MAX, nameError, normalizeName} from '~/lib/v2/auth';
-import {longDate} from '~/lib/v2/requests';
 
 // W18 · Hesabım · Gizlilik, veri talebi ve silme (Figma 127:1042). Deletion needs a confirmation modal.
 // Demo: the data copy request and the deletion request change local state; nothing is sent.
@@ -26,8 +26,9 @@ import {longDate} from '~/lib/v2/requests';
 useMemberPage();
 const demo = demoMode();
 const session = useSession();
+const {t, localeTag} = useLocale();
 
-useSeoMeta({title: 'Gizlilik ve veri', robots: 'noindex, nofollow'});
+useSeoMeta({title: () => t('Gizlilik ve veri'), robots: 'noindex, nofollow'});
 
 // This page renders client-side, so a deep link such as /hesabim#veri (footer) is scrolled to after mount.
 const route = useRoute();
@@ -48,7 +49,7 @@ const deleteRequested = ref(false);
 const deleteUntil = computed(() => {
   const date = new Date();
   date.setDate(date.getDate() + ACCOUNT_DELETE_GRACE_DAYS);
-  return date.toLocaleDateString('tr-TR', {day: 'numeric', month: 'long', year: 'numeric'});
+  return date.toLocaleDateString(localeTag.value, {day: 'numeric', month: 'long', year: 'numeric'});
 });
 
 function openDelete() {
@@ -93,7 +94,7 @@ watch(() => session.profile.value, (value) => {
 }, {immediate: true});
 const pendingProfile = computed(() => (session.profile.value ? profileChanges(session.profile.value, {displayName: normalizeName(profileForm.displayName), locale: profileForm.locale}) : {}));
 async function saveProfile() {
-  profileNameError.value = nameError(profileForm.displayName, false);
+  profileNameError.value = nameError(profileForm.displayName, false, t);
   if (profileNameError.value) return;
   await profileApi.save(pendingProfile.value);
 }
@@ -105,167 +106,167 @@ async function saveProfile() {
 
     <div class="col">
       <header class="titles">
-        <p class="t-mono-md t-eyebrow">HESABIM</p>
-        <h1 class="t-h2">Gizlilik ve veri</h1>
+        <p class="t-mono-md t-eyebrow">{{ t('HESABIM') }}</p>
+        <h1 class="t-h2">{{ t('Gizlilik ve veri') }}</h1>
       </header>
 
       <section v-if="!demo" id="profil" class="card security" aria-labelledby="profile-title" :aria-busy="profileApi.loading.value || profileApi.busy.value">
-        <h2 id="profile-title" class="t-h4">Profil</h2>
-        <p v-if="profileApi.loading.value && !session.profile.value" class="t-body-sm t-muted" role="status">Profil bilgileri yükleniyor…</p>
+        <h2 id="profile-title" class="t-h4">{{ t('Profil') }}</h2>
+        <p v-if="profileApi.loading.value && !session.profile.value" class="t-body-sm t-muted" role="status">{{ t('Profil bilgileri yükleniyor…') }}</p>
         <form v-else-if="session.profile.value" class="profile-form" novalidate @submit.prevent="saveProfile">
           <label class="field">
-            <span class="field-label"><User :size="14" aria-hidden="true"/>Ad soyad</span>
+            <span class="field-label"><User :size="14" aria-hidden="true"/>{{ t('Ad soyad') }}</span>
             <input v-model="profileForm.displayName" class="input" :class="{invalid: !!profileNameError}" type="text" autocomplete="name" :maxlength="NAME_MAX" placeholder="Deniz Kaya" :aria-invalid="!!profileNameError" :aria-describedby="profileNameError ? 'profile-name-err' : 'profile-name-hint'">
             <span v-if="profileNameError" id="profile-name-err" class="t-body-sm err-text">{{ profileNameError }}</span>
-            <span v-else id="profile-name-hint" class="t-body-sm t-muted">Başkalarına kısaltılarak görünür (ör. “Deniz K.”). Boş bırakırsan adın kaldırılır.</span>
+            <span v-else id="profile-name-hint" class="t-body-sm t-muted">{{ t('Başkalarına kısaltılarak görünür (ör. “Deniz K.”). Boş bırakırsan adın kaldırılır.') }}</span>
           </label>
           <div class="field">
-            <span id="profile-locale-label" class="field-label">Dil tercihi</span>
-            <V2Select v-model="profileForm.locale" :options="localeOptions" placeholder="Seçilmedi" aria-labelledby="profile-locale-label"/>
-            <span class="t-body-sm t-muted">Tercihin hesabına kaydedilir; e-postaların dili henüz buna göre seçilmez.</span>
+            <span id="profile-locale-label" class="field-label">{{ t('Dil tercihi') }}</span>
+            <V2Select v-model="profileForm.locale" :options="localeOptions" :placeholder="t('Seçilmedi')" aria-labelledby="profile-locale-label"/>
+            <span class="t-body-sm t-muted">{{ t('Tercihin hesabına kaydedilir; e-postaların dili henüz buna göre seçilmez.') }}</span>
           </div>
-          <V2Button type="submit" variant="outline" size="sm" :disabled="profileApi.busy.value || !Object.keys(pendingProfile).length">{{ profileApi.busy.value ? 'Kaydediliyor…' : 'Kaydet' }}</V2Button>
+          <V2Button type="submit" variant="outline" size="sm" :disabled="profileApi.busy.value || !Object.keys(pendingProfile).length">{{ profileApi.busy.value ? t('Kaydediliyor…') : t('Kaydet') }}</V2Button>
         </form>
         <p v-if="profileApi.saved.value" class="sec-msg ok t-body-sm" role="status">{{ profileApi.saved.value }}</p>
         <p v-if="profileApi.error.value" class="sec-msg err t-body-sm" role="alert">{{ profileApi.error.value }}</p>
-        <V2Button v-if="profileApi.error.value && !session.profile.value" variant="outline" size="sm" :disabled="profileApi.loading.value" @click="profileApi.load()">Tekrar dene</V2Button>
+        <V2Button v-if="profileApi.error.value && !session.profile.value" variant="outline" size="sm" :disabled="profileApi.loading.value" @click="profileApi.load()">{{ t('Tekrar dene') }}</V2Button>
       </section>
 
       <section v-if="!demo" id="guvenlik" class="card security" aria-labelledby="security-title" :aria-busy="!!security.busy.value">
-        <h2 id="security-title" class="t-h4">Hesap ve güvenlik</h2>
+        <h2 id="security-title" class="t-h4">{{ t('Hesap ve güvenlik') }}</h2>
         <div class="sec-row">
           <Mail :size="20" aria-hidden="true"/>
           <div class="sec-copy">
-            <span class="t-label-md">E-posta adresi</span>
+            <span class="t-label-md">{{ t('E-posta adresi') }}</span>
             <span class="t-body-sm t-muted mail">{{ session.email.value }}</span>
           </div>
-          <span v-if="session.emailVerified.value" class="tag tag-lime"><BadgeCheck :size="14" aria-hidden="true"/>Doğrulandı</span>
-          <span v-else class="tag tag-orange">Doğrulanmadı</span>
+          <span v-if="session.emailVerified.value" class="tag tag-lime"><BadgeCheck :size="14" aria-hidden="true"/>{{ t('Doğrulandı') }}</span>
+          <span v-else class="tag tag-orange">{{ t('Doğrulanmadı') }}</span>
         </div>
         <div class="sec-row">
           <ShieldCheck :size="20" aria-hidden="true"/>
           <div class="sec-copy">
-            <span class="t-label-md">İki adımlı doğrulama</span>
-            <span class="t-body-sm t-muted">{{ security.totp.value === 'unknown' ? 'Durum okunamadı.' : 'Girişte kimlik doğrulama uygulamasındaki 6 haneli kod da istenir.' }}</span>
+            <span class="t-label-md">{{ t('İki adımlı doğrulama') }}</span>
+            <span class="t-body-sm t-muted">{{ security.totp.value === 'unknown' ? t('Durum okunamadı.') : t('Girişte kimlik doğrulama uygulamasındaki 6 haneli kod da istenir.') }}</span>
           </div>
-          <span v-if="security.totp.value === 'on'" class="tag tag-lime">Etkin</span>
-          <span v-else-if="security.totp.value === 'off'" class="tag tag-cream">Kapalı</span>
+          <span v-if="security.totp.value === 'on'" class="tag tag-lime">{{ t('Etkin') }}</span>
+          <span v-else-if="security.totp.value === 'off'" class="tag tag-cream">{{ t('Kapalı', {ctx: 'switch'}) }}</span>
         </div>
         <p v-if="security.message.value" class="sec-msg t-body-sm" :class="security.message.value.tone" :role="security.message.value.tone === 'err' ? 'alert' : 'status'">{{ security.message.value.text }}</p>
         <div class="sec-forms">
           <form class="sec-form" @submit.prevent="changeEmail">
-            <h3 class="t-label-md"><Mail :size="16" aria-hidden="true"/>E-posta adresini değiştir</h3>
-            <label class="field"><span class="field-label">Yeni e-posta</span><input v-model="emailForm.newEmail" class="input" type="email" autocomplete="email" required maxlength="254"></label>
-            <label class="field"><span class="field-label">Mevcut şifre</span><input v-model="emailForm.password" class="input" type="password" autocomplete="current-password" required></label>
-            <label v-if="security.totp.value !== 'off'" class="field"><span class="field-label">Doğrulama kodu (iki adımlı doğrulama açıksa)</span><input v-model="emailForm.code" class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
-            <V2Button type="submit" variant="outline" size="sm" :disabled="!!security.busy.value || !emailForm.newEmail || !emailForm.password">{{ security.busy.value === 'email' ? 'Gönderiliyor…' : 'Onay bağlantısı gönder' }}</V2Button>
+            <h3 class="t-label-md"><Mail :size="16" aria-hidden="true"/>{{ t('E-posta adresini değiştir') }}</h3>
+            <label class="field"><span class="field-label">{{ t('Yeni e-posta') }}</span><input v-model="emailForm.newEmail" class="input" type="email" autocomplete="email" required maxlength="254"></label>
+            <label class="field"><span class="field-label">{{ t('Mevcut şifre') }}</span><input v-model="emailForm.password" class="input" type="password" autocomplete="current-password" required></label>
+            <label v-if="security.totp.value !== 'off'" class="field"><span class="field-label">{{ t('Doğrulama kodu (iki adımlı doğrulama açıksa)') }}</span><input v-model="emailForm.code" class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
+            <V2Button type="submit" variant="outline" size="sm" :disabled="!!security.busy.value || !emailForm.newEmail || !emailForm.password">{{ security.busy.value === 'email' ? t('Gönderiliyor…') : t('Onay bağlantısı gönder') }}</V2Button>
           </form>
           <form class="sec-form" @submit.prevent="changePassword">
-            <h3 class="t-label-md"><KeyRound :size="16" aria-hidden="true"/>Şifreni değiştir</h3>
-            <label class="field"><span class="field-label">Mevcut şifre</span><input v-model="passwordForm.current" class="input" type="password" autocomplete="current-password" required></label>
-            <label class="field"><span class="field-label">Yeni şifre (en az 10 karakter)</span><input v-model="passwordForm.next" class="input" type="password" autocomplete="new-password" minlength="10" required></label>
-            <label v-if="security.totp.value !== 'off'" class="field"><span class="field-label">Doğrulama kodu (iki adımlı doğrulama açıksa)</span><input v-model="passwordForm.code" class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
-            <V2Button type="submit" variant="outline" size="sm" :disabled="!!security.busy.value || !passwordForm.current || passwordForm.next.length < 10">{{ security.busy.value === 'password' ? 'Kaydediliyor…' : 'Şifreyi güncelle' }}</V2Button>
+            <h3 class="t-label-md"><KeyRound :size="16" aria-hidden="true"/>{{ t('Şifreni değiştir') }}</h3>
+            <label class="field"><span class="field-label">{{ t('Mevcut şifre') }}</span><input v-model="passwordForm.current" class="input" type="password" autocomplete="current-password" required></label>
+            <label class="field"><span class="field-label">{{ t('Yeni şifre (en az 10 karakter)') }}</span><input v-model="passwordForm.next" class="input" type="password" autocomplete="new-password" minlength="10" required></label>
+            <label v-if="security.totp.value !== 'off'" class="field"><span class="field-label">{{ t('Doğrulama kodu (iki adımlı doğrulama açıksa)') }}</span><input v-model="passwordForm.code" class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
+            <V2Button type="submit" variant="outline" size="sm" :disabled="!!security.busy.value || !passwordForm.current || passwordForm.next.length < 10">{{ security.busy.value === 'password' ? t('Kaydediliyor…') : t('Şifreyi güncelle') }}</V2Button>
           </form>
         </div>
       </section>
 
       <section class="card prefs-card" aria-labelledby="prefs-title">
-        <h2 id="prefs-title" class="t-h4">Bildirim ve iletişim tercihleri</h2>
+        <h2 id="prefs-title" class="t-h4">{{ t('Bildirim ve iletişim tercihleri') }}</h2>
         <AccountPrefsList/>
       </section>
 
       <section id="veri" class="card export" aria-labelledby="export-title">
         <span class="export-icon" aria-hidden="true"><Download :size="24"/></span>
         <div v-if="demo" class="export-copy">
-          <h2 id="export-title" class="t-h4">Verilerini indir</h2>
-          <p class="t-body-sm t-muted">Hesap, araç, yorum ve talep kayıtlarının kopyasını hazırlarız.</p>
-          <span v-if="exportState === 'ready'" class="tag tag-lime state"><Check :size="14" class="ok" aria-hidden="true"/>Son talep: hazır · {{ mockDataExport.lastRequest }}</span>
-          <span v-else class="tag tag-orange state" role="status"><Clock :size="14" aria-hidden="true"/>Yeni kopya hazırlanıyor · hazır olunca e-posta gelir</span>
+          <h2 id="export-title" class="t-h4">{{ t('Verilerini indir') }}</h2>
+          <p class="t-body-sm t-muted">{{ t('Hesap, araç, yorum ve talep kayıtlarının kopyasını hazırlarız.') }}</p>
+          <span v-if="exportState === 'ready'" class="tag tag-lime state"><Check :size="14" class="ok" aria-hidden="true"/>{{ t('Son talep: hazır · {date}', {date: t(mockDataExport.lastRequest)}) }}</span>
+          <span v-else class="tag tag-orange state" role="status"><Clock :size="14" aria-hidden="true"/>{{ t('Yeni kopya hazırlanıyor · hazır olunca e-posta gelir') }}</span>
         </div>
         <V2Button v-if="demo" variant="dark" :disabled="exportState === 'preparing'" @click="requestExport">
-          {{ exportState === 'preparing' ? 'Talep alındı' : 'Veri kopyası iste' }}<ArrowRight v-if="exportState === 'ready'" aria-hidden="true"/>
+          {{ exportState === 'preparing' ? t('Talep alındı') : t('Veri kopyası iste') }}<ArrowRight v-if="exportState === 'ready'" aria-hidden="true"/>
         </V2Button>
         <div v-if="!demo" class="export-copy" :aria-busy="exportsLive.loading.value">
-          <h2 id="export-title" class="t-h4">Verilerinin kopyası</h2>
-          <p class="t-body-sm t-muted">Hesap, araç, yorum ve talep kayıtlarının kopyasını isteyebilirsin. Kopya otomatik üretilmez: bir görevli hazırlar ve teslim eder; bu sayfada indirme yoktur.</p>
-          <p v-if="exportsLive.loading.value" class="t-body-sm t-muted" role="status">Talepler yükleniyor…</p>
+          <h2 id="export-title" class="t-h4">{{ t('Verilerinin kopyası') }}</h2>
+          <p class="t-body-sm t-muted">{{ t('Hesap, araç, yorum ve talep kayıtlarının kopyasını isteyebilirsin. Kopya otomatik üretilmez: bir görevli hazırlar ve teslim eder; bu sayfada indirme yoktur.') }}</p>
+          <p v-if="exportsLive.loading.value" class="t-body-sm t-muted" role="status">{{ t('Talepler yükleniyor…') }}</p>
           <span v-else-if="exportsLive.summary.value.latest" class="tag state" :class="`tag-${exportsLive.summary.value.tone}`" role="status">
-            <Check v-if="exportsLive.summary.value.latest.status === 'delivered'" :size="14" class="ok" aria-hidden="true"/><Clock v-else :size="14" aria-hidden="true"/>Son talep: {{ exportsLive.summary.value.label }}
+            <Check v-if="exportsLive.summary.value.latest.status === 'delivered'" :size="14" class="ok" aria-hidden="true"/><Clock v-else :size="14" aria-hidden="true"/>{{ t('Son talep: {status}', {status: exportsLive.summary.value.label}) }}
           </span>
-          <span v-else-if="exportsLive.loaded.value" class="t-body-sm t-muted">Henüz veri kopyası istemedin.</span>
+          <span v-else-if="exportsLive.loaded.value" class="t-body-sm t-muted">{{ t('Henüz veri kopyası istemedin.') }}</span>
           <p v-if="exportsLive.done.value" class="t-body-sm ok-text" role="status">{{ exportsLive.done.value }}</p>
           <p v-if="exportsLive.error.value" class="t-body-sm err-text" role="alert">{{ exportsLive.error.value }}</p>
         </div>
         <div v-if="!demo" class="export-actions">
           <V2Button variant="dark" :disabled="exportsLive.busy.value || exportsLive.loading.value || exportsLive.summary.value.open" @click="exportsLive.request()">
-            {{ exportsLive.busy.value ? 'Gönderiliyor…' : exportsLive.summary.value.open ? 'Talep alındı' : 'Veri kopyası iste' }}
+            {{ exportsLive.busy.value ? t('Gönderiliyor…') : exportsLive.summary.value.open ? t('Talep alındı') : t('Veri kopyası iste') }}
           </V2Button>
-          <V2Button v-if="exportsLive.summary.value.latest?.status === 'submitted'" variant="ghost" size="sm" :disabled="exportsLive.busy.value" @click="exportsLive.cancel(exportsLive.summary.value.latest!)">Talebi iptal et</V2Button>
+          <V2Button v-if="exportsLive.summary.value.latest?.status === 'submitted'" variant="ghost" size="sm" :disabled="exportsLive.busy.value" @click="exportsLive.cancel(exportsLive.summary.value.latest!)">{{ t('Talebi iptal et') }}</V2Button>
         </div>
       </section>
 
       <section class="card danger" aria-labelledby="delete-title">
-        <h2 id="delete-title" class="t-h4 danger-title">Hesabı sil</h2>
+        <h2 id="delete-title" class="t-h4 danger-title">{{ t('Hesabı sil') }}</h2>
         <template v-if="!demo">
-          <p v-if="privacy.loading.value" class="t-body-sm t-muted" role="status">Talep durumu yükleniyor…</p>
+          <p v-if="privacy.loading.value" class="t-body-sm t-muted" role="status">{{ t('Talep durumu yükleniyor…') }}</p>
           <template v-else-if="privacyActive && privacy.request.value">
             <div class="requested" role="status">
-              <p class="t-label-md">{{ privacyLabels[privacy.request.value.status] }} · {{ privacyScopeLabels[privacy.request.value.scope] }}</p>
-              <p class="t-body-sm body">Talep tarihi: {{ longDate(privacy.request.value.createdAtMs) }}. Talep incelenir; verilerin henüz silinmedi ve şu anda otomatik kalıcı silme yapılmaz.</p>
-              <p v-if="privacy.request.value.reason" class="t-body-sm body">{{ privacyReasonLabels[privacy.request.value.reason] }}</p>
+              <p class="t-label-md">{{ t(privacyLabels[privacy.request.value.status]) }} · {{ t(privacyScopeLabels[privacy.request.value.scope]) }}</p>
+              <p class="t-body-sm body">{{ t('Talep tarihi: {date}. Talep incelenir; verilerin henüz silinmedi ve şu anda otomatik kalıcı silme yapılmaz.', {date: longDay(privacy.request.value.createdAtMs, localeTag)}) }}</p>
+              <p v-if="privacy.request.value.reason" class="t-body-sm body">{{ t(privacyReasonLabels[privacy.request.value.reason]) }}</p>
               <div class="row-actions">
-                <V2Button v-if="privacy.request.value.status === 'needs_confirmation'" variant="dark" size="sm" :disabled="privacy.busy.value" @click="privacy.confirm()">Kapsamı tekrar onayla</V2Button>
-                <V2Button variant="outline" size="sm" :disabled="privacy.busy.value" @click="privacy.cancel()"><RotateCcw aria-hidden="true"/>Talebi iptal et</V2Button>
+                <V2Button v-if="privacy.request.value.status === 'needs_confirmation'" variant="dark" size="sm" :disabled="privacy.busy.value" @click="privacy.confirm()">{{ t('Kapsamı tekrar onayla') }}</V2Button>
+                <V2Button variant="outline" size="sm" :disabled="privacy.busy.value" @click="privacy.cancel()"><RotateCcw aria-hidden="true"/>{{ t('Talebi iptal et') }}</V2Button>
               </div>
             </div>
           </template>
           <template v-else-if="privacy.loaded.value">
-            <p class="t-body-sm body">Silme talebi oluşturabilir, durumunu takip edebilir ve iptal edebilirsin. Talep vermek verileri hemen silmez; işletme yetkileri, yorumlar ve ödeme kayıtları kapsamına göre ayrıca incelenir.</p>
-            <button type="button" class="btn btn-danger-outline" aria-haspopup="dialog" :disabled="privacy.busy.value" @click="openDelete">Silme talebi oluştur</button>
+            <p class="t-body-sm body">{{ t('Silme talebi oluşturabilir, durumunu takip edebilir ve iptal edebilirsin. Talep vermek verileri hemen silmez; işletme yetkileri, yorumlar ve ödeme kayıtları kapsamına göre ayrıca incelenir.') }}</p>
+            <button type="button" class="btn btn-danger-outline" aria-haspopup="dialog" :disabled="privacy.busy.value" @click="openDelete">{{ t('Silme talebi oluştur') }}</button>
           </template>
           <p v-if="privacy.notice.value" class="t-body-sm ok-text" role="status">{{ privacy.notice.value }}</p>
           <p v-if="privacy.error.value && !deleteOpen" class="t-body-sm err-text" role="alert">{{ privacy.error.value }}</p>
         </template>
         <template v-else-if="!deleteRequested">
-          <p class="t-body-sm body">Silme talebinden sonra {{ ACCOUNT_DELETE_GRACE_DAYS }} gün içinde geri alabilirsin. Süre dolunca hesabın ve kayıtların kalıcı olarak silinir.</p>
-          <p class="warn t-body-sm"><TriangleExclamationPoint :size="18" aria-hidden="true"/>Aktif randevun veya işletme yönetici rolün varsa önce bunları kapatman gerekir.</p>
-          <button type="button" class="btn btn-danger-outline" aria-haspopup="dialog" @click="openDelete">Hesap silme talebi oluştur</button>
+          <p class="t-body-sm body">{{ t('Silme talebinden sonra {count} gün içinde geri alabilirsin. Süre dolunca hesabın ve kayıtların kalıcı olarak silinir.', {count: ACCOUNT_DELETE_GRACE_DAYS}) }}</p>
+          <p class="warn t-body-sm"><TriangleExclamationPoint :size="18" aria-hidden="true"/>{{ t('Aktif randevun veya işletme yönetici rolün varsa önce bunları kapatman gerekir.') }}</p>
+          <button type="button" class="btn btn-danger-outline" aria-haspopup="dialog" @click="openDelete">{{ t('Hesap silme talebi oluştur') }}</button>
         </template>
         <div v-else class="requested" role="status">
-          <p class="t-label-md">Silme talebin alındı.</p>
-          <p class="t-body-sm body">Hesabın {{ deleteUntil }} tarihine kadar geri alınabilir durumda. Bu sürede giriş yapıp talebi geri alabilirsin; süre dolunca hesabın ve kayıtların kalıcı olarak silinir.</p>
-          <V2Button variant="outline" size="sm" @click="deleteRequested = false"><RotateCcw aria-hidden="true"/>Talebi geri al</V2Button>
+          <p class="t-label-md">{{ t('Silme talebin alındı.') }}</p>
+          <p class="t-body-sm body">{{ t('Hesabın {date} tarihine kadar geri alınabilir durumda. Bu sürede giriş yapıp talebi geri alabilirsin; süre dolunca hesabın ve kayıtların kalıcı olarak silinir.', {date: deleteUntil}) }}</p>
+          <V2Button variant="outline" size="sm" @click="deleteRequested = false"><RotateCcw aria-hidden="true"/>{{ t('Talebi geri al') }}</V2Button>
         </div>
       </section>
     </div>
 
-    <V2Modal :open="deleteOpen" title="Hesabını silmek istiyor musun?" subtitle="Bu işlem bir silme talebi oluşturur." :width="560" @close="deleteOpen = false">
+    <V2Modal :open="deleteOpen" :title="t('Hesabını silmek istiyor musun?')" :subtitle="t('Bu işlem bir silme talebi oluşturur.')" :width="560" @close="deleteOpen = false">
       <template v-if="!demo">
         <fieldset class="scopes">
-          <legend class="field-label">İncelenecek kapsam</legend>
-          <label v-for="value in (['account', 'garage'] as const)" :key="value" class="option"><input v-model="deleteScope" type="radio" name="silme-kapsam" :value="value" class="radio"><span>{{ privacyScopeLabels[value] }}</span></label>
+          <legend class="field-label">{{ t('İncelenecek kapsam') }}</legend>
+          <label v-for="value in (['account', 'garage'] as const)" :key="value" class="option"><input v-model="deleteScope" type="radio" name="silme-kapsam" :value="value" class="radio"><span>{{ t(privacyScopeLabels[value]) }}</span></label>
         </fieldset>
         <ul class="consequences t-body-sm">
-          <li>Talep vermek verileri hemen silmez; ekip kapsamı inceler. Şu anda otomatik kalıcı silme yapılmaz.</li>
-          <li>Cihazdaki garaj ve fotoğraflar bu taleple silinmez. İşletme yetkileri, yorumlar ve ödeme kayıtları ayrıca incelenir.</li>
-          <li>İnceleme bitmeden bu sayfadan talebi iptal edebilirsin.</li>
+          <li>{{ t('Talep vermek verileri hemen silmez; ekip kapsamı inceler. Şu anda otomatik kalıcı silme yapılmaz.') }}</li>
+          <li>{{ t('Cihazdaki garaj ve fotoğraflar bu taleple silinmez. İşletme yetkileri, yorumlar ve ödeme kayıtları ayrıca incelenir.') }}</li>
+          <li>{{ t('İnceleme bitmeden bu sayfadan talebi iptal edebilirsin.') }}</li>
         </ul>
         <p class="t-body-sm"><b>{{ session.email.value }}</b></p>
         <p v-if="privacy.error.value" class="t-body-sm err-text" role="alert">{{ privacy.error.value }}</p>
       </template>
       <ul v-else class="consequences t-body-sm">
-        <li>Profilin, araçların, hatırlatmaların ve kayıtlı listelerin {{ ACCOUNT_DELETE_GRACE_DAYS }} gün sonra kalıcı olarak silinir.</li>
-        <li>Yayınlanan yorumların anonimleştirilir.</li>
-        <li>{{ ACCOUNT_DELETE_GRACE_DAYS }} gün içinde giriş yaparak talebi geri alabilirsin.</li>
+        <li>{{ t('Profilin, araçların, hatırlatmaların ve kayıtlı listelerin {count} gün sonra kalıcı olarak silinir.', {count: ACCOUNT_DELETE_GRACE_DAYS}) }}</li>
+        <li>{{ t('Yayınlanan yorumların anonimleştirilir.') }}</li>
+        <li>{{ t('{count} gün içinde giriş yaparak talebi geri alabilirsin.', {count: ACCOUNT_DELETE_GRACE_DAYS}) }}</li>
       </ul>
       <label class="option confirm">
         <input v-model="deleteUnderstood" type="checkbox" class="checkbox">
-        <span>{{ demo ? 'Anladım, hesap silme talebi oluşturmak istiyorum.' : 'Kapsamı ve henüz kalıcı silme yapılmadığını anladım.' }}</span>
+        <span>{{ demo ? t('Anladım, hesap silme talebi oluşturmak istiyorum.') : t('Kapsamı ve henüz kalıcı silme yapılmadığını anladım.') }}</span>
       </label>
       <template #footer>
-        <V2Button variant="outline" @click="deleteOpen = false">Vazgeç</V2Button>
-        <button type="button" class="btn btn-danger" :disabled="!deleteUnderstood || privacy.busy.value" @click="confirmDelete">{{ privacy.busy.value ? 'Gönderiliyor…' : 'Silme talebini onayla' }}</button>
+        <V2Button variant="outline" @click="deleteOpen = false">{{ t('Vazgeç') }}</V2Button>
+        <button type="button" class="btn btn-danger" :disabled="!deleteUnderstood || privacy.busy.value" @click="confirmDelete">{{ privacy.busy.value ? t('Gönderiliyor…') : t('Silme talebini onayla') }}</button>
       </template>
     </V2Modal>
   </div>

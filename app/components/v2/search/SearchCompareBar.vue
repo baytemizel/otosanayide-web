@@ -1,26 +1,28 @@
 <script setup lang="ts">
 import {ArrowRight, X} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Floating compare bar shown on /ara once 2+ services are ticked. Not drawn in the search frames;
 // built from the V2 language (ink pill, lime action) to match the rest of the redesign.
 defineProps<{items: {id: string; name: string}[]; href: string; max: number}>();
 const emit = defineEmits<{remove: [id: string]; clear: []}>();
+const {t} = useLocale();
 </script>
 
 <template>
-  <div class="bar" role="region" aria-label="Karşılaştırma">
+  <div class="bar" role="region" :aria-label="t('Karşılaştırma')">
     <div class="count">
-      <span class="t-label-md">{{ items.length }} işletme seçildi</span>
-      <span class="t-mono-sm">En fazla {{ max }}</span>
+      <span class="t-label-md">{{ t('{count} işletme seçildi', {count: items.length}) }}</span>
+      <span class="t-mono-sm">{{ t('En fazla {max}', {max}) }}</span>
     </div>
     <ul class="picked">
       <li v-for="item in items" :key="item.id" class="t-label-sm">
         <span class="label">{{ item.name }}</span>
-        <button type="button" :aria-label="`${item.name} karşılaştırmadan çıkar`" @click="emit('remove', item.id)"><X :size="13" aria-hidden="true"/></button>
+        <button type="button" :aria-label="t('{name} karşılaştırmadan çıkar', {name: item.name})" @click="emit('remove', item.id)"><X :size="13" aria-hidden="true"/></button>
       </li>
     </ul>
-    <button type="button" class="clear t-label-sm" @click="emit('clear')">Temizle</button>
-    <NuxtLink :to="href" class="btn btn-lime go">Karşılaştır<ArrowRight aria-hidden="true"/></NuxtLink>
+    <button type="button" class="clear t-label-sm" @click="emit('clear')">{{ t('Temizle') }}</button>
+    <NuxtLink :to="href" class="btn btn-lime go">{{ t('Karşılaştır') }}<ArrowRight aria-hidden="true"/></NuxtLink>
   </div>
 </template>
 

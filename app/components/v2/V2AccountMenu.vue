@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {onMounted, ref} from 'vue';
 import {Bell, Calendar, File, Heart, Lock, MessageSquare, ShieldCheck, User} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {useSession} from '~/composables/useSession';
 import {useUnreadCount} from '~/composables/v2/useUnreadCount';
 import {unreadBadge} from '~/lib/v2/account';
@@ -10,6 +11,7 @@ import {unreadBadge} from '~/lib/v2/account';
 // count the navbar and /bildirimler read from GET /api/notifications?v=2 (null in demo, nothing shown).
 defineProps<{active: 'hatirlatmalar' | 'kaydedilenler' | 'taleplerim' | 'yorumlarim' | 'bildirimler' | 'basvurularim' | 'hesabim' | 'gizlilik'}>();
 
+const {t} = useLocale();
 const {label} = useSession();
 const {value: unreadCount} = useUnreadCount();
 const items = [
@@ -23,6 +25,8 @@ const items = [
   {key: 'gizlilik', label: 'Gizlilik ve veri', to: '/hesabim#gizlilik', icon: Lock},
 ] as const;
 
+// Labels stay Turkish source text and are translated at render (app/locales/v2-shell.json).
+
 // On narrow screens the links become a horizontal strip: bring the current page into view.
 const list = ref<HTMLElement | null>(null);
 onMounted(() => {
@@ -33,19 +37,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <nav class="acc-menu" aria-label="Hesap menüsü">
+  <nav class="acc-menu" :aria-label="t('Hesap menüsü')">
     <div class="who">
       <span class="initials" aria-hidden="true">{{ label.initials }}</span>
       <div class="who-copy">
         <p class="t-label-md">{{ label.short }}</p>
-        <p class="t-body-sm t-muted">Ücretsiz hesap</p>
+        <p class="t-body-sm t-muted">{{ t('Ücretsiz hesap') }}</p>
       </div>
     </div>
     <ul ref="list" class="links">
       <li v-for="item in items" :key="item.key">
         <NuxtLink :to="item.to" class="link" :class="{on: item.key === active}" :aria-current="item.key === active ? 'page' : undefined">
-          <component :is="item.icon" :size="18" aria-hidden="true"/>{{ item.label }}
-          <span v-if="item.key === 'bildirimler' && unreadCount" class="count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span>
+          <component :is="item.icon" :size="18" aria-hidden="true"/>{{ t(item.label) }}
+          <span v-if="item.key === 'bildirimler' && unreadCount" class="count">{{ unreadBadge(unreadCount) }}<span class="sr-only">{{ t(' okunmamış') }}</span></span>
         </NuxtLink>
       </li>
     </ul>

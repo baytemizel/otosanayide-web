@@ -3,14 +3,16 @@ import {computed} from 'vue';
 import {MapPin, MessageSquare, ShieldCheck, Star} from '@lucide/vue';
 import {formatRating, type MockBusiness} from '~/data/mock/businesses';
 import {addressLine, type ProfileView, type ReviewSummaryView} from '~/lib/v2/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // "Başlık" block of W04/W05: status tags, name, address and the rating line.
 // `summary` null = not known yet (live, before the review list answers), never "no reviews".
 const props = defineProps<{business: MockBusiness; profile: ProfileView; summary: ReviewSummaryView}>();
 const emit = defineEmits<{review: []}>();
+const {t, localeTag} = useLocale();
 
 const status = computed(() => {
-  if (!props.profile.hours) return props.profile.hoursNote ? null : {text: 'Çalışma saati bilinmiyor', tone: 'unknown'};
+  if (!props.profile.hours) return props.profile.hoursNote ? null : {text: t('Çalışma saati bilinmiyor'), tone: 'unknown'};
   return {text: props.business.hoursText, tone: props.business.open ? 'open' : 'closed'};
 });
 const address = computed(() => addressLine(props.business.address, props.business.district));
@@ -19,23 +21,23 @@ const address = computed(() => addressLine(props.business.address, props.busines
 <template>
   <header id="genel" class="profile-header">
     <div class="tags">
-      <span v-if="business.verified" class="pill pill-lime"><ShieldCheck :size="14" aria-hidden="true"/>Yönetim yetkisi doğrulandı</span>
-      <span v-else-if="!business.claimed" class="pill pill-cream">Sahiplenilmemiş profil</span>
-      <span v-else class="pill pill-cream">Doğrulama bekliyor</span>
+      <span v-if="business.verified" class="pill pill-lime"><ShieldCheck :size="14" aria-hidden="true"/>{{ t('Yönetim yetkisi doğrulandı') }}</span>
+      <span v-else-if="!business.claimed" class="pill pill-cream">{{ t('Sahiplenilmemiş profil') }}</span>
+      <span v-else class="pill pill-cream">{{ t('Doğrulama bekliyor') }}</span>
       <span v-if="status" class="pill pill-white"><i class="dot" :class="status.tone" aria-hidden="true"/>{{ status.text }}</span>
     </div>
     <h1 class="t-h2 name">{{ business.name }}</h1>
     <p class="address t-body-md"><MapPin :size="18" aria-hidden="true"/>{{ address }} / {{ business.city }}</p>
     <div v-if="summary && summary.count > 0" class="rating">
       <Star :size="34" class="big-star" aria-hidden="true"/>
-      <span class="t-stat">{{ formatRating(summary.average ?? 0) }}</span>
+      <span class="t-stat">{{ formatRating(summary.average ?? 0, localeTag) }}</span>
       <span class="rating-meta">
-        <span class="t-label-md">{{ summary.count }} yorum</span>
-        <span class="t-body-sm t-muted">doğrulanmış hesaplardan</span>
+        <span class="t-label-md">{{ t('{count} yorum', {count: summary.count}) }}</span>
+        <span class="t-body-sm t-muted">{{ t('doğrulanmış hesaplardan') }}</span>
       </span>
     </div>
-    <p v-else-if="!summary" class="t-body-md t-muted unknown"><MessageSquare :size="18" aria-hidden="true"/>Müşteri deneyimleri aşağıda</p>
-    <p v-else class="t-body-md t-muted">Henüz yorum yok · <button type="button" class="first" @click="emit('review')">İlk deneyimi sen paylaş</button></p>
+    <p v-else-if="!summary" class="t-body-md t-muted unknown"><MessageSquare :size="18" aria-hidden="true"/>{{ t('Müşteri deneyimleri aşağıda') }}</p>
+    <p v-else class="t-body-md t-muted">{{ t('Henüz yorum yok') }} · <button type="button" class="first" @click="emit('review')">{{ t('İlk deneyimi sen paylaş') }}</button></p>
   </header>
 </template>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="T extends string | number">
 import {computed, nextTick, onBeforeUnmount, ref, useId, watch} from 'vue';
 import {Check, ChevronDown} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Custom dropdown that replaces the browser's native <select> list everywhere in Web v2.
 // It follows the WAI-ARIA "select-only combobox" pattern: focus stays on the trigger button and the
@@ -26,12 +27,16 @@ const props = withDefaults(defineProps<{
   ariaLabel?: string;
   disabled?: boolean;
   invalid?: boolean;
-}>(), {modelValue: null, placeholder: 'Seç', variant: 'field', anchor: undefined, stretch: false, matchWidth: true, id: undefined, ariaLabel: undefined, disabled: false, invalid: false});
+}>(), {modelValue: null, placeholder: undefined, variant: 'field', anchor: undefined, stretch: false, matchWidth: true, id: undefined, ariaLabel: undefined, disabled: false, invalid: false});
 
 defineOptions({inheritAttrs: false});
+// Without a `placeholder` prop the trigger shows "Seç" in the current language.
+const {t, localeTag} = useLocale();
 const emit = defineEmits<{'update:modelValue': [value: T]; change: [value: T]}>();
 
 type Item = {value: T; label: string; hint?: string; disabled: boolean; group?: string; key: string};
+/** `value`: custom trigger content (e.g. an icon and a short code) while the list keeps the full labels. */
+defineSlots<{value?: (props: {item: Item | undefined}) => unknown}>();
 
 const uid = useId();
 const listId = `${uid}-list`;
@@ -137,7 +142,7 @@ function move(to: number) {
 // Type-to-select, as in a native select: letters typed within half a second build one search string.
 let typed = '';
 let typedAt = 0;
-const fold = (s: string) => s.toLocaleLowerCase('tr-TR');
+const fold = (s: string) => s.toLocaleLowerCase(localeTag.value);
 function typeahead(char: string) {
   const now = Date.now();
   typed = now - typedAt > 500 ? char : typed + char;
@@ -215,7 +220,7 @@ defineExpose({focus: () => trigger.value?.focus()});
     role="combobox" aria-haspopup="listbox" :aria-expanded="open" :aria-controls="listId" :aria-label="ariaLabel"
     :aria-activedescendant="open && items[active] ? items[active].key : undefined" :aria-invalid="invalid ? 'true' : undefined"
     :disabled="disabled" @click="toggle" @keydown="onKeydown">
-    <span class="v2-select-value">{{ selected ? selected.label : placeholder }}</span>
+    <span class="v2-select-value"><slot name="value" :item="selected">{{ selected ? selected.label : placeholder ?? t('Seç') }}</slot></span>
     <ChevronDown :size="16" class="v2-select-chev" aria-hidden="true"/>
   </button>
   <Teleport to="body">

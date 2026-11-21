@@ -2,6 +2,7 @@
 import {computed, nextTick, ref, watch} from 'vue';
 import {ArrowRight, LocateFixed, MapPin, Minus, Navigation, Phone, Plus, Search, Star} from '@lucide/vue';
 import SearchViewToggle from '~/components/v2/search/SearchViewToggle.vue';
+import {useLocale} from '~/composables/useLocale';
 import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses';
 import type {CardBusiness} from '~/lib/v2/business-card';
 import {openLabel} from '~/lib/v2/search';
@@ -13,6 +14,9 @@ import {openLabel} from '~/lib/v2/search';
 type MapBusiness = MockBusiness & Pick<CardBusiness, 'hoursKnown' | 'coords' | 'source' | 'extras'>;
 const props = defineProps<{results: MapBusiness[]; total: number; scope: string; live?: boolean}>();
 const emit = defineEmits<{view: [view: 'liste' | 'harita']}>();
+const {t, localeTag} = useLocale();
+const km = (value: number | null) => formatKm(value, localeTag.value);
+const rating = (value: number) => formatRating(value, localeTag.value);
 
 const selectedId = ref<string | null>(props.results[0]?.id ?? null);
 const hoveredId = ref<string | null>(null);
@@ -41,8 +45,8 @@ const popup = computed(() => {
   return {x: Math.min(Math.max(at.x, 14), 86), y: at.y, below: at.y < 52};
 });
 
-const meta = (b: MapBusiness) => [formatKm(b.distanceKm), openLabel(b).text, props.live && !b.coords ? 'Haritada yok' : ''].filter(Boolean).join(' · ');
-const selectedOpen = computed(() => (selected.value ? openLabel(selected.value) : null));
+const meta = (b: MapBusiness) => [km(b.distanceKm), openLabel(b, t).text, props.live && !b.coords ? t('Haritada yok') : ''].filter(Boolean).join(' · ');
+const selectedOpen = computed(() => (selected.value ? openLabel(selected.value, t) : null));
 const tel = (b: MapBusiness) => `tel:${b.phone.replace(/\s/g, '')}`;
 
 async function choose(id: string) {
@@ -60,15 +64,15 @@ function setZoom(delta: number) {
 }
 function locate() {
   zoom.value = 1;
-  status.value = 'Harita konumuna göre ortalandı.';
+  status.value = t('Harita konumuna göre ortalandı.');
 }
 function searchHere() {
-  status.value = `Bu alanda ${props.total} işletme gösteriliyor.`;
+  status.value = t('Bu alanda {count} işletme gösteriliyor.', {count: props.total});
 }
 </script>
 
 <template>
-  <section class="map-wrap v2-wrap" aria-label="Harita görünümü">
+  <section class="map-wrap v2-wrap" :aria-label="t('Harita görünümü')">
     <div class="map" @keydown.esc="selectedId = null">
       <div class="stage">
       <div class="ground" :style="{transform: `scale(${zoom})`}" aria-hidden="true" @click="selectedId = null">
@@ -82,10 +86,10 @@ function searchHere() {
       <button v-for="pin in pins" :key="pin.business.id" type="button" class="pin t-label-sm"
               :class="{on: pin.business.id === selectedId, hot: pin.business.id === hoveredId}"
               :style="{left: `${pin.x}%`, top: `${pin.y}%`}"
-              :aria-label="`${pin.business.name}, ${pin.business.reviewCount ? `puan ${formatRating(pin.business.rating)}` : 'henüz yorum yok'}`"
+              :aria-label="pin.business.reviewCount ? t('{name}, puan {rating}', {name: pin.business.name, rating: rating(pin.business.rating)}) : t('{name}, henüz yorum yok', {name: pin.business.name})"
               :aria-pressed="pin.business.id === selectedId"
               @click="choose(pin.business.id)" @mouseenter="hoveredId = pin.business.id" @mouseleave="hoveredId = null">
-        <Star :size="14" class="star" aria-hidden="true"/>{{ pin.business.reviewCount ? formatRating(pin.business.rating) : '—' }}
+        <Star :size="14" class="star" aria-hidden="true"/>{{ pin.business.reviewCount ? rating(pin.business.rating) : '—' }}
       </button>
 
       <article v-if="selected && popup" class="pop" :class="{below: popup.below}" :style="{left: `${popup.x}%`, top: `${popup.y}%`}" aria-live="polite">
@@ -95,38 +99,38 @@ function searchHere() {
           <h3 class="pop-name">{{ selected.name }}</h3>
           <p class="pop-meta">
             <template v-if="selected.reviewCount">
-              <Star :size="14" class="star" aria-hidden="true"/><span class="t-label-sm">{{ formatRating(selected.rating) }}</span>
-              <span class="t-body-sm t-muted">({{ selected.reviewCount }} yorum) · {{ formatKm(selected.distanceKm) }}</span>
+              <Star :size="14" class="star" aria-hidden="true"/><span class="t-label-sm">{{ rating(selected.rating) }}</span>
+              <span class="t-body-sm t-muted">({{ t('{count} yorum', {count: selected.reviewCount}) }}) · {{ km(selected.distanceKm) }}</span>
             </template>
-            <span v-else class="t-body-sm t-muted">Henüz yorum yok{{ selected.distanceKm === null ? '' : ` · ${formatKm(selected.distanceKm)}` }}</span>
+            <span v-else class="t-body-sm t-muted">{{ t('Henüz yorum yok') }}{{ selected.distanceKm === null ? '' : ` · ${km(selected.distanceKm)}` }}</span>
             <span v-if="selectedOpen && selectedOpen.open !== null" class="dot" :class="{closed: !selectedOpen.open}" aria-hidden="true"/>
             <span v-if="selected.hoursKnown" class="t-label-sm">{{ selectedOpen?.text }}</span>
           </p>
           <div class="pop-actions">
-            <a v-if="selected.phone" :href="tel(selected)" class="pop-btn dark t-label-sm"><Phone :size="15" aria-hidden="true"/>Ara</a>
-            <NuxtLink :to="`/servis/${selected.id}#konum`" class="pop-btn t-label-sm"><Navigation :size="15" aria-hidden="true"/>Yol tarifi</NuxtLink>
-            <NuxtLink :to="`/servis/${selected.id}`" class="pop-go" :aria-label="`${selected.name} profilini aç`"><ArrowRight :size="17" aria-hidden="true"/></NuxtLink>
+            <a v-if="selected.phone" :href="tel(selected)" class="pop-btn dark t-label-sm"><Phone :size="15" aria-hidden="true"/>{{ t('Ara') }}</a>
+            <NuxtLink :to="`/servis/${selected.id}#konum`" class="pop-btn t-label-sm"><Navigation :size="15" aria-hidden="true"/>{{ t('Yol tarifi') }}</NuxtLink>
+            <NuxtLink :to="`/servis/${selected.id}`" class="pop-go" :aria-label="t('{name} profilini aç', {name: selected.name})"><ArrowRight :size="17" aria-hidden="true"/></NuxtLink>
           </div>
         </div>
       </article>
 
 
-      <button v-if="live" type="button" class="here t-label-sm" disabled title="Harita alanında arama henüz yok; il, ilçe ya da çevre mesafesiyle ara"><Search :size="16" aria-hidden="true"/>Bu alanda ara · yakında</button>
-      <button v-else type="button" class="here t-label-sm" @click="searchHere"><Search :size="16" aria-hidden="true"/>Bu alanda ara</button>
+      <button v-if="live" type="button" class="here t-label-sm" disabled :title="t('Harita alanında arama henüz yok; il, ilçe ya da çevre mesafesiyle ara')"><Search :size="16" aria-hidden="true"/>{{ t('Bu alanda ara · yakında') }}</button>
+      <button v-else type="button" class="here t-label-sm" @click="searchHere"><Search :size="16" aria-hidden="true"/>{{ t('Bu alanda ara') }}</button>
       <div class="zoom">
-        <button type="button" aria-label="Yakınlaştır" :disabled="zoom >= 2.5" @click="setZoom(0.5)"><Plus :size="18" aria-hidden="true"/></button>
+        <button type="button" :aria-label="t('Yakınlaştır')" :disabled="zoom >= 2.5" @click="setZoom(0.5)"><Plus :size="18" aria-hidden="true"/></button>
         <span aria-hidden="true"/>
-        <button type="button" aria-label="Uzaklaştır" :disabled="zoom <= 1" @click="setZoom(-0.5)"><Minus :size="18" aria-hidden="true"/></button>
+        <button type="button" :aria-label="t('Uzaklaştır')" :disabled="zoom <= 1" @click="setZoom(-0.5)"><Minus :size="18" aria-hidden="true"/></button>
       </div>
-      <button v-if="!live" type="button" class="locate" aria-label="Konumuma dön" @click="locate"><LocateFixed :size="20" aria-hidden="true"/></button>
-      <p class="hint" :class="{wide: live}">{{ live && unpinned ? `${unpinned} işletmenin doğrulanmış konumu yok; yalnız listede` : 'Mesafeler kuş uçuşudur' }}</p>
-      <p v-if="live && !drawn.length" class="empty-map t-body-sm">Bu sonuçların hiçbirinin doğrulanmış konumu yok. Liste yanda.</p>
+      <button v-if="!live" type="button" class="locate" :aria-label="t('Konumuma dön')" @click="locate"><LocateFixed :size="20" aria-hidden="true"/></button>
+      <p class="hint" :class="{wide: live}">{{ live && unpinned ? t('{count} işletmenin doğrulanmış konumu yok; yalnız listede', {count: unpinned}) : t('Mesafeler kuş uçuşudur') }}</p>
+      <p v-if="live && !drawn.length" class="empty-map t-body-sm">{{ t('Bu sonuçların hiçbirinin doğrulanmış konumu yok. Liste yanda.') }}</p>
       <p class="sr-only" aria-live="polite">{{ status }}</p>
       </div>
-      <aside class="panel" aria-label="Sonuçlar">
+      <aside class="panel" :aria-label="t('Sonuçlar')">
         <div class="panel-head">
           <div>
-            <h2 class="t-h4">{{ total }} işletme</h2>
+            <h2 class="t-h4">{{ t('{count} işletme', {count: total}) }}</h2>
             <p class="t-body-sm t-muted">{{ scope }}</p>
           </div>
           <SearchViewToggle view="harita" @change="emit('view', $event)"/>
@@ -140,13 +144,13 @@ function searchHere() {
               <span class="row-text">
                 <span class="t-label-md name">{{ b.name }}</span>
                 <span class="t-body-sm t-muted">{{ meta(b) }}</span>
-                <span v-if="b.reviewCount" class="rate"><Star :size="13" class="star" aria-hidden="true"/><span class="t-label-sm">{{ formatRating(b.rating) }}</span><span class="t-body-sm t-muted">({{ b.reviewCount }})</span></span>
-                <span v-else class="t-body-sm t-muted">Henüz yorum yok</span>
+                <span v-if="b.reviewCount" class="rate"><Star :size="13" class="star" aria-hidden="true"/><span class="t-label-sm">{{ rating(b.rating) }}</span><span class="t-body-sm t-muted">({{ b.reviewCount }})</span></span>
+                <span v-else class="t-body-sm t-muted">{{ t('Henüz yorum yok') }}</span>
               </span>
             </button>
           </li>
         </ul>
-        <button type="button" class="btn btn-outline all" @click="emit('view', 'liste')">Tüm listeyi aç<ArrowRight aria-hidden="true"/></button>
+        <button type="button" class="btn btn-outline all" @click="emit('view', 'liste')">{{ t('Tüm listeyi aç') }}<ArrowRight aria-hidden="true"/></button>
       </aside>
     </div>
   </section>

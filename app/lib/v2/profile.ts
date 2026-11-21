@@ -8,7 +8,8 @@ import type {OwnReviewView} from '@otosanayide/core/review-author-client';
 import {caseInput, reportReasons as reviewReportReasonValues, type ReviewReportReason} from '@otosanayide/core/review-cases';
 import type {ProfileData, ProfileHoursRow, ProfilePhoto, ProfileReview} from '~/data/mock/profile';
 import {reportReasonLabels, reportReasons, type ReportReason} from '~/lib/business-report';
-import {weekRows, type OpeningHours} from '~/lib/opening-hours';
+import {turkish, type Translate} from '~/lib/i18n';
+import {weekdayName, weekRows, type OpeningHours} from '~/lib/opening-hours';
 import type {BusinessExtras, ReviewSummary} from '~/lib/search-response';
 
 /**
@@ -16,6 +17,10 @@ import type {BusinessExtras, ReviewSummary} from '~/lib/search-response';
  * mock `ProfileData`; these functions turn the API records (`GET /api/businesses/{id}?v=2`,
  * `GET /api/reviews`) into that shape plus the few fields only live data has. Demo mode keeps
  * using `app/data/mock/profile.ts` unchanged.
+ *
+ * Language: labels in these view models are the Turkish source texts (hours rows, facts, source note,
+ * score and reason labels, `resolved`); the components translate them with `t` when they are shown.
+ * Functions that build sentences or dates take `t` / a locale tag and default to Turkish.
  */
 
 /** A photo with an optional thumbnail (live media URLs have both sizes). */
@@ -49,6 +54,18 @@ export type ReviewSummaryView = ReviewSummary | null;
 
 const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const clock = (hhmm: string) => hhmm.replace(':', '.');
+
+/**
+ * Label of an hours row in another language, from its JS weekday numbers (0 = Sunday, Monday-first order):
+ * "Monday" or "Wednesday – Friday". Turkish screens keep the row's own label.
+ */
+export function dayRangeLabel(days: number[], localeTag: string) {
+  const name = (jsDay: number) => weekdayName(jsDay === 0 ? 7 : jsDay, localeTag);
+  const first = days[0];
+  const last = days.at(-1);
+  if (first === undefined || last === undefined) return '';
+  return first === last ? name(first) : `${name(first)} – ${name(last)}`;
+}
 
 /** Monday-first week table; consecutive days with the same hours share a row ("Pazartesi – Cuma"). */
 export function hoursRows(hours: OpeningHours): ProfileHoursRow[] {
@@ -141,10 +158,12 @@ export function aspectDimensions(aspects: ReviewAspects | undefined): ProfileDim
 }
 
 const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-/** "2026-10" → "Ekim 2026". */
-export function monthLabel(month: string) {
+/** "2026-10" → "Ekim 2026" (Turkish) or "October 2026" (another locale tag, from Intl). */
+export function monthLabel(month: string, localeTag = 'tr-TR') {
   const [year, m] = month.split('-').map(Number);
-  return year && m && m >= 1 && m <= 12 ? `${monthNames[m - 1]} ${year}` : month;
+  if (!(year && m && m >= 1 && m <= 12)) return month;
+  if (localeTag.startsWith('tr')) return `${monthNames[m - 1]} ${year}`;
+  return new Intl.DateTimeFormat(localeTag, {month: 'long', year: 'numeric', timeZone: 'UTC'}).format(new Date(Date.UTC(year, m - 1, 1)));
 }
 /** The current calendar month in Europe/Istanbul as [year, month]. */
 function istanbulMonth(now: Date) {
@@ -160,12 +179,12 @@ export function visitMonthAllowed(month: string, now = new Date()) {
   return diff >= 0 && diff <= 24;
 }
 /** "Ziyaret ayı" choices: this month first, back to 24 months ago. */
-export function visitMonthOptions(now = new Date()) {
+export function visitMonthOptions(now = new Date(), localeTag = 'tr-TR') {
   const [year, current] = istanbulMonth(now);
   return Array.from({length: 25}, (_, i) => {
     const index = year * 12 + current - 1 - i;
     const value = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
-    return {value, label: monthLabel(value)};
+    return {value, label: monthLabel(value, localeTag)};
   });
 }
 
@@ -177,26 +196,37 @@ export function nameInitials(name: string) {
   const letters = parts.length === 1 ? [...parts[0]!].slice(0, 2).join('') : [...parts[0]!][0]! + [...parts.at(-1)!][0]!;
   return letters.toLocaleUpperCase('tr-TR');
 }
-const publishedFormat = new Intl.DateTimeFormat('tr-TR', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul'});
+const publishedFormat = (localeTag: string) => new Intl.DateTimeFormat(localeTag, {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul'});
+
+/** "Hizmet kalitesi 5/5" chip of a review card, in the page language. */
+export function scoreChip(key: ReviewScoreKey, score: number, t: Translate = turkish) {
+  return t('{label} {score}/5', {label: t(reviewScoreLabels[key]), score});
+}
+/** "WC: Var" chip of a review card, in the page language. */
+export function wcChip(wc: 'yes' | 'no', t: Translate = turkish) {
+  return wc === 'yes' ? t('WC: Var') : t('WC: Yok');
+}
 
 /**
  * A public review as a profile card. `media` builds the review photo URL (thumbnail or full size). The v2 fields
  * become what the demo card shows: the short author name with avatar letters and the "Ekim 2026 · Hizmet" line.
+ * Chips, photo labels and dates are built in the page language (`t`, locale tag); `resolved` stays the Turkish
+ * label and is translated by the card.
  */
-export function reviewView(item: PublicReviewItem, media: (id: string, thumbnail: boolean) => string): ProfileReviewView {
+export function reviewView(item: PublicReviewItem, media: (id: string, thumbnail: boolean) => string, t: Translate = turkish, localeTag = 'tr-TR'): ProfileReviewView {
   const chips = (Object.keys(reviewScoreLabels) as ReviewScoreKey[])
     .filter((key) => item[key] !== undefined)
-    .map((key) => `${reviewScoreLabels[key]} ${item[key]}/5`);
-  if (item.wc !== 'unknown') chips.push(`WC: ${wcLabel[item.wc]}`);
-  const photos = (item.photoIds ?? []).map((id, i) => ({src: media(id, false), thumb: media(id, true), alt: `Yorum fotoğrafı ${i + 1}`}));
+    .map((key) => scoreChip(key, item[key]!, t));
+  if (item.wc !== 'unknown') chips.push(wcChip(item.wc, t));
+  const photos = (item.photoIds ?? []).map((id, i) => ({src: media(id, false), thumb: media(id, true), alt: t('Yorum fotoğrafı {n}', {n: i + 1})}));
   const author = item.author?.displayName.trim() ?? '';
   return {
     id: item.id,
     author,
     initials: author ? nameInitials(author) : '',
     avatarColor: author ? avatarColors[[...author].reduce((sum, c) => sum + c.codePointAt(0)!, 0) % avatarColors.length]! : 'var(--cream-100)',
-    meta: [item.visitMonth ? monthLabel(item.visitMonth) : '', item.service?.trim() ?? ''].filter(Boolean).join(' · '),
-    published: item.publishedAtMs ? {iso: new Date(item.publishedAtMs).toISOString(), label: publishedFormat.format(item.publishedAtMs)} : null,
+    meta: [item.visitMonth ? monthLabel(item.visitMonth, localeTag) : '', item.service?.trim() ?? ''].filter(Boolean).join(' · '),
+    published: item.publishedAtMs ? {iso: new Date(item.publishedAtMs).toISOString(), label: publishedFormat(localeTag).format(item.publishedAtMs)} : null,
     rating: item.rating,
     text: item.text,
     resolved: resolvedLabel[item.resolved],
@@ -285,8 +315,8 @@ export const reviewTextLimits = {min: 10, max: 3000} as const;
 export const reviewCreated = z.object({id: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/), status: z.literal('pending')}).strict();
 
 /** /yorumlarim meta line from the v2-03 fields of an own review: "Ziyaret: Ekim 2026 · Periyodik bakım" ('' when neither is given). */
-export function ownReviewMeta(review: {visitMonth?: string | null; service?: string | null}) {
-  return [review.visitMonth ? `Ziyaret: ${monthLabel(review.visitMonth)}` : '', review.service?.trim() ?? ''].filter(Boolean).join(' · ');
+export function ownReviewMeta(review: {visitMonth?: string | null; service?: string | null}, t: Translate = turkish, localeTag = 'tr-TR') {
+  return [review.visitMonth ? t('Ziyaret: {month}', {month: monthLabel(review.visitMonth, localeTag)}) : '', review.service?.trim() ?? ''].filter(Boolean).join(' · ');
 }
 
 /** Review report reasons (v2-03, `POST /api/review-cases`). Only "Diğer" needs a written explanation. */
@@ -312,11 +342,11 @@ export const liveReportReasons = reportReasons.map((value) => ({value, label: re
 export type {ReportReason};
 
 /** Title and description for the page head, built only from returned fields. */
-export function profileSeo(business: Business) {
+export function profileSeo(business: Business, t: Translate = turkish) {
   const category = categories.find((c) => c.id === business.categories[0])?.name;
-  const title = [business.name, [business.district, business.city].join(' / '), category ?? ''].filter(Boolean).join(' · ');
+  const title = [business.name, [business.district, business.city].join(' / '), category ? t(category) : ''].filter(Boolean).join(' · ');
   const services = business.services.slice(0, 4).join(', ');
-  const description = `${business.name}, ${business.district} / ${business.city}. Hizmetler: ${services || '—'}. Telefon, yol tarifi ve yorumlar Otosanayide’de.`;
+  const description = t('{name}, {district} / {city}. Hizmetler: {services}. Telefon, yol tarifi ve yorumlar Otosanayide’de.', {name: business.name, district: business.district, city: business.city, services: services || '—'});
   return {title, description};
 }
 

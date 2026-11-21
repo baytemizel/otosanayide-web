@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
 import {ArrowRight} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {allBrands, allServices, distanceSteps, paymentLabels, primaryBrands, primaryServices, type PaymentMethod, type SearchArea, type SearchFilters} from '~/data/mock/search';
 
 // "Filtre paneli" (Figma 119:118). Every control patches the page's filter state; counts are
@@ -15,15 +16,17 @@ const props = defineProps<{
   live?: {services: string[]; primaryServices: string[]; brands: string[]; primaryBrands: string[]};
 }>();
 const emit = defineEmits<{patch: [patch: Partial<SearchFilters>]; clear: []; show: []}>();
+// Option values (services, brands, payment keys) go to the filter state and the API as they are; only labels are translated.
+const {t} = useLocale();
 
 const moreServices = ref(false);
 const moreBrands = ref(false);
 
 const place = computed(() => props.filters.ilce || props.filters.il);
 const areas = computed<{value: SearchArea; label: string}[]>(() => [
-  {value: 'ilce', label: props.filters.ilce ? 'Yalnız seçili ilçe' : `Yalnız ${props.filters.il}`},
-  {value: 'cevre', label: `${place.value} çevresi`},
-  {value: 'konum', label: 'Konumumu kullan'},
+  {value: 'ilce', label: props.filters.ilce ? t('Yalnız seçili ilçe') : t('Yalnız {place}', {place: props.filters.il})},
+  {value: 'cevre', label: t('{place} çevresi', {place: place.value})},
+  {value: 'konum', label: t('Konumumu kullan')},
 ]);
 
 const withSelected = (base: string[], all: string[], selected: string[], more: boolean) =>
@@ -35,7 +38,7 @@ const brands = computed(() => (props.live
   ? withSelected(props.live.primaryBrands, props.live.brands, props.filters.brands, moreBrands.value)
   : withSelected(primaryBrands, allBrands, props.filters.brands, moreBrands.value)));
 const payments: PaymentMethod[] = ['kart', 'taksit', 'nakit'];
-const unsupported = 'Bu filtre henüz aramada yok';
+const unsupported = computed(() => t('Bu filtre henüz aramada yok'));
 const paymentOff = (payment: PaymentMethod) => !!props.live && payment !== 'kart';
 /** Distance applies to "çevresi" and "konum"; in live mode a city-only search sends no radius. */
 const distanceOff = computed(() => !!props.live && props.filters.area === 'ilce');
@@ -54,13 +57,13 @@ const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
 <template>
   <div class="panel">
     <div class="head">
-      <h2 id="filtreler" class="t-h4" tabindex="-1">Filtreler</h2>
-      <button type="button" class="clear t-label-sm" @click="emit('clear')">Temizle</button>
+      <h2 id="filtreler" class="t-h4" tabindex="-1">{{ t('Filtreler') }}</h2>
+      <button type="button" class="clear t-label-sm" @click="emit('clear')">{{ t('Temizle') }}</button>
     </div>
     <hr class="divider">
 
     <fieldset class="group">
-      <legend class="t-mono-sm t-muted">Arama alanı</legend>
+      <legend class="t-mono-sm t-muted">{{ t('Arama alanı') }}</legend>
       <label v-for="area in areas" :key="area.value" class="row" :class="{on: filters.area === area.value}">
         <input type="radio" class="radio" name="arama-alani" :value="area.value" :checked="filters.area === area.value" @change="emit('patch', {area: area.value})">
         <span>{{ area.label }}</span>
@@ -69,70 +72,70 @@ const count = (map: Record<string, number>, key: string) => map[key] ?? 0;
     <hr class="divider">
 
     <div class="group" :class="{muted: filters.area === 'ilce'}">
-      <label for="arama-mesafesi" class="t-mono-sm t-muted">Arama mesafesi</label>
+      <label for="arama-mesafesi" class="t-mono-sm t-muted">{{ t('Arama mesafesi') }}</label>
       <input id="arama-mesafesi" type="range" :disabled="distanceOff" class="range" min="0" :max="distanceSteps.length - 1" step="1" :value="step"
              :style="{'--fill': fill}" :aria-valuetext="`${filters.km} km`"
              @input="emit('patch', {km: distanceSteps[Number(($event.target as HTMLInputElement).value)]})">
       <div class="stops">
         <button v-for="km in distanceSteps" :key="km" type="button" class="t-mono-sm" :class="{on: filters.km === km}" :aria-pressed="filters.km === km" :disabled="distanceOff" @click="emit('patch', {km})">{{ km }} km</button>
       </div>
-      <p class="note">Mesafeler kuş uçuşudur; gerçek yol süresi farklı olabilir.</p>
-      <p v-if="distanceOff" class="note">Mesafe yalnız “çevresi” ya da “Konumumu kullan” seçiliyken uygulanır.</p>
+      <p class="note">{{ t('Mesafeler kuş uçuşudur; gerçek yol süresi farklı olabilir.') }}</p>
+      <p v-if="distanceOff" class="note">{{ t('Mesafe yalnız “çevresi” ya da “Konumumu kullan” seçiliyken uygulanır.') }}</p>
     </div>
     <hr class="divider">
 
     <fieldset class="group">
-      <legend class="t-mono-sm t-muted">Hizmet</legend>
+      <legend class="t-mono-sm t-muted">{{ t('Hizmet') }}</legend>
       <label v-for="service in services" :key="service" class="row" :class="{on: filters.services.includes(service)}">
         <input type="checkbox" class="box" :checked="filters.services.includes(service)" @change="emit('patch', {services: pick(filters.services, service)})">
-        <span>{{ service }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.services, service) }}</span>
+        <span>{{ t(service) }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.services, service) }}</span>
       </label>
-      <button type="button" class="more t-label-sm" :aria-expanded="moreServices" @click="moreServices = !moreServices">{{ moreServices ? 'Daha az göster' : 'Tümünü göster' }}</button>
-      <p v-if="live" class="note">Aynı anda bir hizmet seçilebilir.</p>
+      <button type="button" class="more t-label-sm" :aria-expanded="moreServices" @click="moreServices = !moreServices">{{ moreServices ? t('Daha az göster') : t('Tümünü göster') }}</button>
+      <p v-if="live" class="note">{{ t('Aynı anda bir hizmet seçilebilir.') }}</p>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
-      <legend class="t-mono-sm t-muted">Marka uzmanlığı</legend>
+      <legend class="t-mono-sm t-muted">{{ t('Marka uzmanlığı') }}</legend>
       <label v-for="brand in brands" :key="brand" class="row" :class="{on: filters.brands.includes(brand)}">
         <input type="checkbox" class="box" :checked="filters.brands.includes(brand)" @change="emit('patch', {brands: pick(filters.brands, brand)})">
-        <span>{{ brand }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.brands, brand) }}</span>
+        <span>{{ t(brand) }}</span><span class="fill" aria-hidden="true"/><span v-if="counts" class="t-mono-sm t-muted">{{ count(counts.brands, brand) }}</span>
       </label>
-      <button type="button" class="more t-label-sm" :aria-expanded="moreBrands" @click="moreBrands = !moreBrands">{{ moreBrands ? 'Daha az göster' : 'Tümünü göster' }}</button>
-      <p v-if="live" class="note">Aynı anda bir marka seçilebilir.</p>
+      <button type="button" class="more t-label-sm" :aria-expanded="moreBrands" @click="moreBrands = !moreBrands">{{ moreBrands ? t('Daha az göster') : t('Tümünü göster') }}</button>
+      <p v-if="live" class="note">{{ t('Aynı anda bir marka seçilebilir.') }}</p>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
-      <legend class="t-mono-sm t-muted">Ödeme</legend>
+      <legend class="t-mono-sm t-muted">{{ t('Ödeme') }}</legend>
       <label v-for="payment in payments" :key="payment" class="row" :class="{on: filters.payments.includes(payment), off: paymentOff(payment)}" :title="paymentOff(payment) ? unsupported : undefined">
         <input type="checkbox" class="box" :checked="filters.payments.includes(payment) && !paymentOff(payment)" :disabled="paymentOff(payment)" @change="emit('patch', {payments: toggle(filters.payments, payment)})">
-        <span>{{ paymentLabels[payment].option }}</span><span class="fill" aria-hidden="true"/>
-        <span v-if="paymentOff(payment)" class="t-mono-sm t-muted">Yakında</span>
+        <span>{{ t(paymentLabels[payment].option) }}</span><span class="fill" aria-hidden="true"/>
+        <span v-if="paymentOff(payment)" class="t-mono-sm t-muted">{{ t('Yakında') }}</span>
         <span v-else-if="counts" class="t-mono-sm t-muted">{{ counts.payments[payment] }}</span>
       </label>
     </fieldset>
     <hr class="divider">
 
     <fieldset class="group">
-      <legend class="t-mono-sm t-muted">Durum</legend>
+      <legend class="t-mono-sm t-muted">{{ t('Durum') }}</legend>
       <label class="row toggle" :class="{off: live}" :title="live ? unsupported : undefined">
-        <span>Şu an açık</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">Yakında</span>
+        <span>{{ t('Şu an açık') }}</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">{{ t('Yakında') }}</span>
         <input type="checkbox" role="switch" class="switch" :checked="filters.openNow && !live" :disabled="!!live" @change="emit('patch', {openNow: !filters.openNow})">
       </label>
       <label class="row toggle" :class="{off: live}" :title="live ? unsupported : undefined">
-        <span>Hafta sonu açık</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">Yakında</span>
+        <span>{{ t('Hafta sonu açık') }}</span><span class="fill" aria-hidden="true"/><span v-if="live" class="t-mono-sm t-muted">{{ t('Yakında') }}</span>
         <input type="checkbox" role="switch" class="switch" :checked="filters.weekend && !live" :disabled="!!live" @change="emit('patch', {weekend: !filters.weekend})">
       </label>
       <label class="row toggle">
-        <span>Sadece doğrulanmış</span><span class="fill" aria-hidden="true"/>
+        <span>{{ t('Sadece doğrulanmış') }}</span><span class="fill" aria-hidden="true"/>
         <input type="checkbox" role="switch" class="switch" :checked="filters.verifiedOnly" @change="emit('patch', {verifiedOnly: !filters.verifiedOnly})">
       </label>
     </fieldset>
 
-    <p v-if="live" class="note">Taksit, nakit, şu an açık ve hafta sonu filtreleri henüz aramada yok; sonuç sayısı filtre başına gösterilmez.</p>
-    <p class="note">Bilinmeyen bilgi “var” sayılmaz. Değerler işletme beyanına dayanır.</p>
-    <button type="button" class="btn btn-dark show" @click="emit('show')">{{ total === null ? 'Sonuçları göster' : `${total} sonucu göster` }}<ArrowRight aria-hidden="true"/></button>
+    <p v-if="live" class="note">{{ t('Taksit, nakit, şu an açık ve hafta sonu filtreleri henüz aramada yok; sonuç sayısı filtre başına gösterilmez.') }}</p>
+    <p class="note">{{ t('Bilinmeyen bilgi “var” sayılmaz. Değerler işletme beyanına dayanır.') }}</p>
+    <button type="button" class="btn btn-dark show" @click="emit('show')">{{ total === null ? t('Sonuçları göster') : t('{count} sonucu göster', {count: total}) }}<ArrowRight aria-hidden="true"/></button>
   </div>
 </template>
 

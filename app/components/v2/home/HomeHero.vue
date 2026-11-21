@@ -3,13 +3,18 @@ import {computed} from 'vue';
 import {ArrowRight, Check, Navigation, Phone, ShieldCheck, Star} from '@lucide/vue';
 import HomeCounterStrip from '~/components/v2/home/HomeCounterStrip.vue';
 import HomeSmartSearch from '~/components/v2/home/HomeSmartSearch.vue';
-import {formatKm, formatRating, mockBusiness} from '~/data/mock/businesses';
+import {mockBusiness} from '~/data/mock/businesses';
 import {homeHeroTrust} from '~/data/mock/home';
 import {useCoverage} from '~/composables/v2/useSearch';
+import {useLocale} from '~/composables/useLocale';
 import {demoMode} from '~/lib/env';
 
 // Figma 108:42 (without the shared navbar): glows, hero 108:78, smart search 108:148, counter strip 108:235.
 const live = mockBusiness('ornek-teknik-garaj')!;
+const {t, localeTag} = useLocale();
+// Headings with <br>/<em> render their translation with v-html: the text comes only from the repo's own
+// dictionaries (never from users or the API), and Turkish keeps exactly today's markup.
+const decimal = (value: number) => value.toLocaleString(localeTag.value, {minimumFractionDigits: 1, maximumFractionDigits: 1});
 // Live: province and category counts from GET /api/coverage (bundled list until it answers); demo keeps the design copy.
 const demo = demoMode();
 const coverage = useCoverage();
@@ -27,13 +32,13 @@ const categoryCount = computed(() => (demo ? 20 : coverage.value.categoryCount))
         <div class="text">
           <p class="pill">
             <img src="/v2/home/eyebrow-dot.svg" alt="" width="20" height="20">
-            <span class="t-mono-sm">ÜYELİK GEREKMEZ · ŞİMDİLİK {{ cityCount }} İLDE</span>
+            <span class="t-mono-sm">{{ t('ÜYELİK GEREKMEZ · ŞİMDİLİK {count} İLDE', {count: cityCount}) }}</span>
           </p>
-          <h1 id="home-hero-title" class="t-hero">Aracına iyi<br>bakacak ustayı<br><em>ilk seferde</em> bul.</h1>
-          <p class="t-body-lg t-muted lead">Mekanikten oto kuaföre {{ categoryCount }} kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.</p>
+          <h1 id="home-hero-title" class="t-hero" v-html="t('Aracına iyi<br>bakacak ustayı<br><em>ilk seferde</em> bul.')"/>
+          <p class="t-body-lg t-muted lead">{{ t('Mekanikten oto kuaföre {count} kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.', {count: categoryCount}) }}</p>
           <ul class="trust">
             <li v-for="item in homeHeroTrust" :key="item" class="t-label-sm">
-              <span class="tick" aria-hidden="true"><Check :size="12" :stroke-width="2.5"/></span>{{ item }}
+              <span class="tick" aria-hidden="true"><Check :size="12" :stroke-width="2.5"/></span>{{ t(item) }}
             </li>
           </ul>
         </div>
@@ -42,18 +47,18 @@ const categoryCount = computed(() => (demo ? 20 : coverage.value.categoryCount))
           <div class="visual">
             <div class="block" aria-hidden="true"/>
             <div class="photo">
-              <img src="/v2/workshop.jpg" alt="Serviste lifte alınmış bir aracın altında çalışan usta" width="1200" height="675">
+              <img src="/v2/workshop.jpg" :alt="t('Serviste lifte alınmış bir aracın altında çalışan usta')" width="1200" height="675">
             </div>
             <NuxtLink to="/ara" class="badge">
-              <span class="t-mono-sm">ÜYELİKSİZ</span>
-              <span class="t-mono-sm">KEŞİF</span>
+              <span class="t-mono-sm">{{ t('ÜYELİKSİZ') }}</span>
+              <span class="t-mono-sm">{{ t('KEŞİF') }}</span>
               <ArrowRight :size="18" aria-hidden="true"/>
             </NuxtLink>
             <div class="reminder" aria-hidden="true">
               <img src="/v2/home/hero-ring.svg" alt="" width="42" height="42">
               <span class="reminder-text">
-                <span class="t-mono-sm">MUAYENE</span>
-                <span class="t-label-md">42 gün kaldı</span>
+                <span class="t-mono-sm">{{ t('MUAYENE') }}</span>
+                <span class="t-label-md">{{ t('{count} gün kaldı', {count: 42}) }}</span>
               </span>
             </div>
             <div class="live">
@@ -61,21 +66,21 @@ const categoryCount = computed(() => (demo ? 20 : coverage.value.categoryCount))
                 <img src="/v2/home/car-detail.jpg" alt="" width="48" height="48">
                 <span class="live-name">
                   <NuxtLink :to="`/servis/${live.id}`" class="t-label-md">{{ live.name }}</NuxtLink>
-                  <span class="t-body-sm t-muted">{{ live.district }} · {{ formatKm(live.distanceKm) }}</span>
+                  <span class="t-body-sm t-muted">{{ live.district }} · {{ live.distanceKm === null ? '' : `${decimal(live.distanceKm)} km` }}</span>
                 </span>
               </div>
               <div class="live-rating">
                 <Star :size="16" class="star" aria-hidden="true"/>
-                <span class="t-label-sm">{{ formatRating(live.rating) }}</span>
-                <span class="t-body-sm t-muted">({{ live.reviewCount }} yorum)</span>
-                <span class="open t-label-sm"><span class="dot" aria-hidden="true"/>Açık</span>
+                <span class="t-label-sm">{{ decimal(live.rating) }}</span>
+                <span class="t-body-sm t-muted">{{ t('({count} yorum)', {count: live.reviewCount}) }}</span>
+                <span class="open t-label-sm"><span class="dot" aria-hidden="true"/>{{ t('Açık') }}</span>
               </div>
               <div class="live-actions">
-                <a :href="`tel:${live.phone.replace(/\s/g, '')}`" class="act dark t-label-sm"><Phone :size="15" aria-hidden="true"/>Ara</a>
-                <NuxtLink :to="`/servis/${live.id}`" class="act soft t-label-sm"><Navigation :size="15" aria-hidden="true"/>Yol tarifi</NuxtLink>
+                <a :href="`tel:${live.phone.replace(/\s/g, '')}`" class="act dark t-label-sm"><Phone :size="15" aria-hidden="true"/>{{ t('Ara') }}</a>
+                <NuxtLink :to="`/servis/${live.id}`" class="act soft t-label-sm"><Navigation :size="15" aria-hidden="true"/>{{ t('Yol tarifi') }}</NuxtLink>
               </div>
             </div>
-            <p class="verified t-label-sm"><ShieldCheck :size="18" aria-hidden="true"/>Doğrulanmış işletme</p>
+            <p class="verified t-label-sm"><ShieldCheck :size="18" aria-hidden="true"/>{{ t('Doğrulanmış işletme') }}</p>
           </div>
         </div>
       </div>

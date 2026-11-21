@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
 import {ArrowRight, Check, RotateCcw, X} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeGuides, homeQuiz} from '~/data/mock/home';
 
 // Figma 113:436 "Mini test · interaktif": five quick questions, then a related guide is suggested.
+// Questions, options and guide texts are Turkish source text, translated at render.
+const {t, localeTag} = useLocale();
 const current = ref(0);
 const answers = ref<number[]>([]);
 const letters = ['A', 'B', 'C', 'D'];
@@ -37,14 +40,14 @@ const state = (i: number) => {
 </script>
 
 <template>
-  <div class="home-quiz" role="region" aria-label="Mini test">
+  <div class="home-quiz" role="region" :aria-label="t('Mini test')">
     <div class="top">
-      <span class="tag-quiz t-mono-sm">MİNİ TEST</span>
-      <span class="t-mono-sm step">{{ finished ? 'SONUÇ' : `${current + 1} / ${homeQuiz.length}` }}</span>
+      <span class="tag-quiz t-mono-sm">{{ t('MİNİ TEST') }}</span>
+      <span class="t-mono-sm step">{{ finished ? t('SONUÇ') : `${current + 1} / ${homeQuiz.length}` }}</span>
     </div>
 
     <template v-if="!finished">
-      <p class="t-h4 question" aria-live="polite">{{ question.question }}</p>
+      <p class="t-h4 question" aria-live="polite">{{ t(question.question) }}</p>
       <ul class="options">
         <li v-for="(opt, i) in question.options" :key="opt">
           <button type="button" class="option-btn" :class="state(i)" :disabled="picked !== undefined" @click="answer(i)">
@@ -53,31 +56,31 @@ const state = (i: number) => {
               <X v-else-if="state(i) === 'wrong'" :size="13" :stroke-width="2.5"/>
               <template v-else>{{ letters[i] }}</template>
             </span>
-            <span class="t-label-sm">{{ opt }}</span>
-            <span v-if="state(i) === 'right'" class="sr-only">(doğru cevap)</span>
-            <span v-else-if="state(i) === 'wrong'" class="sr-only">(senin cevabın, yanlış)</span>
+            <span class="t-label-sm">{{ t(opt) }}</span>
+            <span v-if="state(i) === 'right'" class="sr-only">{{ t('(doğru cevap)') }}</span>
+            <span v-else-if="state(i) === 'wrong'" class="sr-only">{{ t('(senin cevabın, yanlış)') }}</span>
           </button>
         </li>
       </ul>
     </template>
 
     <div v-else class="result" aria-live="polite">
-      <p class="t-h4 question">{{ score }} / {{ homeQuiz.length }} doğru</p>
-      <p class="t-body-sm muted">Sana uygun rehber:</p>
+      <p class="t-h4 question">{{ t('{score} / {total} doğru', {score, total: homeQuiz.length}) }}</p>
+      <p class="t-body-sm muted">{{ t('Sana uygun rehber:') }}</p>
       <NuxtLink :to="suggestion.to" class="suggest">
-        <span class="t-mono-sm topic">{{ suggestion.topic.toLocaleUpperCase('tr-TR') }}</span>
-        <span class="t-label-md">{{ suggestion.title }}</span>
-        <span class="go t-label-sm">Rehberi oku<ArrowRight :size="16" aria-hidden="true"/></span>
+        <span class="t-mono-sm topic">{{ t(suggestion.topic).toLocaleUpperCase(localeTag) }}</span>
+        <span class="t-label-md">{{ t(suggestion.title) }}</span>
+        <span class="go t-label-sm">{{ t('Rehberi oku') }}<ArrowRight :size="16" aria-hidden="true"/></span>
       </NuxtLink>
-      <button type="button" class="again t-label-sm" @click="restart"><RotateCcw :size="14" aria-hidden="true"/>Tekrar başla</button>
+      <button type="button" class="again t-label-sm" @click="restart"><RotateCcw :size="14" aria-hidden="true"/>{{ t('Tekrar başla') }}</button>
     </div>
 
     <div class="foot">
       <span class="dots" aria-hidden="true">
         <span v-for="(q, i) in homeQuiz" :key="q.question" class="dot" :class="{on: !finished && i === current, done: i < answers.length && (finished || i !== current)}"/>
       </span>
-      <button v-if="!finished && picked !== undefined" type="button" class="next t-label-sm" @click="next">{{ current < homeQuiz.length - 1 ? 'Sonraki' : 'Sonucu gör' }}<ArrowRight :size="14" aria-hidden="true"/></button>
-      <span v-else-if="!finished" class="t-body-sm muted">Sonunda sana uygun rehber</span>
+      <button v-if="!finished && picked !== undefined" type="button" class="next t-label-sm" @click="next">{{ current < homeQuiz.length - 1 ? t('Sonraki') : t('Sonucu gör') }}<ArrowRight :size="14" aria-hidden="true"/></button>
+      <span v-else-if="!finished" class="t-body-sm muted">{{ t('Sonunda sana uygun rehber') }}</span>
     </div>
   </div>
 </template>

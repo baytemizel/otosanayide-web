@@ -2,27 +2,29 @@
 import {ArrowRight} from '@lucide/vue';
 import HomeMiniQuiz from '~/components/v2/home/HomeMiniQuiz.vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeGuides, homeGuidesAllTo} from '~/data/mock/home';
 
-// Figma 113:386 "Rehber + mini test".
+// Figma 113:386 "Rehber + mini test". Guide texts are Turkish source text, translated at render.
+const {t, localeTag} = useLocale();
 </script>
 
 <template>
   <section id="rehber" class="home-guides v2-wrap" aria-labelledby="home-guides-title">
-    <HomeSectionHead eyebrow="REHBER" title="2 dakikada daha bilinçli sürücü" heading-id="home-guides-title">
-      <NuxtLink :to="homeGuidesAllTo" class="btn btn-outline">Tüm rehberler<ArrowRight aria-hidden="true"/></NuxtLink>
+    <HomeSectionHead :eyebrow="t('REHBER')" :title="t('2 dakikada daha bilinçli sürücü')" heading-id="home-guides-title">
+      <NuxtLink :to="homeGuidesAllTo" class="btn btn-outline">{{ t('Tüm rehberler') }}<ArrowRight aria-hidden="true"/></NuxtLink>
     </HomeSectionHead>
 
     <div class="row">
       <NuxtLink v-for="g in homeGuides" :key="g.id" :to="g.to" class="guide">
         <span class="cover" :class="g.tone">
           <span class="number" aria-hidden="true">{{ g.number }}</span>
-          <span class="read t-mono-sm">{{ g.readTime.toLocaleUpperCase('tr-TR') }}</span>
+          <span class="read t-mono-sm">{{ t(g.readTime).toLocaleUpperCase(localeTag) }}</span>
         </span>
         <span class="body">
-          <span class="t-mono-sm topic">{{ g.topic.toLocaleUpperCase('tr-TR') }}</span>
-          <span class="t-h4 title">{{ g.title }}</span>
-          <span class="more t-label-sm">Rehberi oku<ArrowRight :size="16" aria-hidden="true"/></span>
+          <span class="t-mono-sm topic">{{ t(g.topic).toLocaleUpperCase(localeTag) }}</span>
+          <span class="t-h4 title">{{ t(g.title) }}</span>
+          <span class="more t-label-sm">{{ t('Rehberi oku') }}<ArrowRight :size="16" aria-hidden="true"/></span>
         </span>
       </NuxtLink>
       <HomeMiniQuiz class="quiz"/>

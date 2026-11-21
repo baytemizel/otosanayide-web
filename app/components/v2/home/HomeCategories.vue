@@ -2,10 +2,13 @@
 import {ArrowRight, ArrowUpRight, Bike, Brush, LifeBuoy, Sparkles, Wrench, Zap} from '@lucide/vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
 import {homeCategories, homeFeaturedCategory, homeMoreCategories, type HomeCategoryIcon} from '~/data/mock/home';
+import {useLocale} from '~/composables/useLocale';
 import {useCoverage} from '~/composables/v2/useSearch';
 import {demoMode} from '~/lib/env';
 
 // Figma 109:30 "Kategoriler · bento". Cards lift and turn orange on hover (the Figma "Kaporta & Boya" card shows that state).
+// Category names and texts are Turkish source text, translated at render; the link keeps the Turkish name.
+const {t} = useLocale();
 const icons: Record<HomeCategoryIcon, unknown> = {wrench: Wrench, sparkles: Sparkles, brush: Brush, tyre: LifeBuoy, zap: Zap, bike: Bike};
 const categoryLink = (name: string) => ({path: '/ara', query: {kategori: name}});
 const [first, second, ...rest] = homeCategories;
@@ -17,8 +20,8 @@ const coverage = useCoverage();
 
 <template>
   <section class="home-categories v2-wrap" aria-labelledby="home-categories-title">
-    <HomeSectionHead eyebrow="KATEGORİLER" title="Aracın neye ihtiyaç duyuyor?" heading-id="home-categories-title">
-      <NuxtLink to="/ara" class="btn btn-outline">Tüm {{ demo ? 20 : coverage.categoryCount }} kategori<ArrowRight aria-hidden="true"/></NuxtLink>
+    <HomeSectionHead :eyebrow="t('KATEGORİLER')" :title="t('Aracın neye ihtiyaç duyuyor?')" heading-id="home-categories-title">
+      <NuxtLink to="/ara" class="btn btn-outline">{{ t('Tüm {count} kategori', {count: demo ? 20 : coverage.categoryCount}) }}<ArrowRight aria-hidden="true"/></NuxtLink>
     </HomeSectionHead>
 
     <div class="grid">
@@ -27,9 +30,9 @@ const coverage = useCoverage();
           <span class="featured-body">
             <span class="icon lime" aria-hidden="true"><Wrench :size="23"/></span>
             <span class="featured-text">
-              <span class="t-h3 name">{{ homeFeaturedCategory.name }}</span>
-              <span class="t-body-sm desc">{{ homeFeaturedCategory.text }}</span>
-              <span class="hot t-mono-sm"><span class="hot-dot" aria-hidden="true"/>EN ÇOK ARANAN</span>
+              <span class="t-h3 name">{{ t(homeFeaturedCategory.name) }}</span>
+              <span class="t-body-sm desc">{{ t(homeFeaturedCategory.text) }}</span>
+              <span class="hot t-mono-sm"><span class="hot-dot" aria-hidden="true"/>{{ t('EN ÇOK ARANAN') }}</span>
             </span>
           </span>
           <img class="featured-photo" :src="homeFeaturedCategory.photo" alt="" width="1200" height="800" loading="lazy">
@@ -40,8 +43,8 @@ const coverage = useCoverage();
             <span class="go" aria-hidden="true"><ArrowUpRight :size="16"/></span>
           </span>
           <span class="card-text">
-            <span class="t-h4">{{ cat.name }}</span>
-            <span class="t-body-sm desc">{{ cat.text }}</span>
+            <span class="t-h4">{{ t(cat.name) }}</span>
+            <span class="t-body-sm desc">{{ t(cat.text) }}</span>
           </span>
         </NuxtLink>
       </div>
@@ -52,8 +55,8 @@ const coverage = useCoverage();
             <span class="go" aria-hidden="true"><ArrowUpRight :size="16"/></span>
           </span>
           <span class="card-text">
-            <span class="t-h4">{{ cat.name }}</span>
-            <span class="t-body-sm desc">{{ cat.text }}</span>
+            <span class="t-h4">{{ t(cat.name) }}</span>
+            <span class="t-body-sm desc">{{ t(cat.text) }}</span>
           </span>
         </NuxtLink>
         <NuxtLink to="/ara" class="card more">
@@ -62,8 +65,8 @@ const coverage = useCoverage();
             <span class="go dark" aria-hidden="true"><ArrowRight :size="16"/></span>
           </span>
           <span class="card-text">
-            <span class="t-h4">{{ homeMoreCategories.title }}</span>
-            <span class="t-body-sm desc">{{ homeMoreCategories.text }}</span>
+            <span class="t-h4">{{ t(homeMoreCategories.title) }}</span>
+            <span class="t-body-sm desc">{{ t(homeMoreCategories.text) }}</span>
           </span>
         </NuxtLink>
       </div>

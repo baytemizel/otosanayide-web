@@ -11,6 +11,7 @@ import GarageVehicleHero from '~/components/v2/garage/GarageVehicleHero.vue';
 import GarageVehicleList from '~/components/v2/garage/GarageVehicleList.vue';
 import GarageVehicleModal from '~/components/v2/garage/GarageVehicleModal.vue';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
 import {useGarage} from '~/composables/v2/useGarage';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useSession} from '~/composables/useSession';
@@ -21,7 +22,8 @@ import {formatDay, formatKm, type GarageRecord, type RecordDraft, type ReminderD
 // ?arac=<id> selects a vehicle, ?hatirlatma=yeni opens the reminder modal.
 // Live: GET /api/me?v=2 data from the app store, writes through POST / PATCH / DELETE /api/me. Demo: mock data in memory.
 useMemberPage();
-useSeoMeta({title: 'Araçlarım'});
+const {t, localeTag} = useLocale();
+useSeoMeta({title: () => t('Araçlarım')});
 
 const route = useRoute();
 const router = useRouter();
@@ -59,7 +61,8 @@ async function run(task: () => Promise<void>, onError: (message: string) => void
   try {
     await task();
   } catch (error) {
-    onError(garage.errorMessage(error));
+    // Store and garage messages are Turkish source text; an API message without English stays as sent.
+    onError(t(garage.errorMessage(error)));
   } finally {
     busy.value = false;
   }
@@ -70,7 +73,7 @@ function toggleReminder(id: string, on: boolean) {
   toggleError.value = '';
   void run(async () => {
     await garage.toggleReminder(id, on);
-    if (live) status.value = on ? 'Hatırlatma yeniden açıldı.' : 'Hatırlatma kapatıldı; bildirim planlanmaz. Takvime eklediğin kopyayı ayrıca kaldırabilirsin.';
+    if (live) status.value = on ? t('Hatırlatma yeniden açıldı.') : t('Hatırlatma kapatıldı; bildirim planlanmaz. Takvime eklediğin kopyayı ayrıca kaldırabilirsin.');
   }, (message) => { toggleError.value = message; });
 }
 
@@ -82,10 +85,11 @@ function saveReminder(data: ReminderDraft) {
   modalError.value = '';
   void run(async () => {
     await garage.saveReminder(data);
+    const tag = localeTag.value;
     const when = live
-      ? (data.date ? formatDay(data.date) : `${formatKm(data.dueKm ?? 0)} hedefi`)
-      : formatLongDate(`${data.date}T09:00:00+03:00`);
-    status.value = `${data.topic} hatırlatması ${when} için kaydedildi.`;
+      ? (data.date ? formatDay(data.date, tag) : t('{km} hedefi', {km: formatKm(data.dueKm ?? 0, tag)}))
+      : formatLongDate(`${data.date}T09:00:00+03:00`, tag);
+    status.value = t('{topic} hatırlatması {when} için kaydedildi.', {topic: t(data.topic), when});
     await setQuery({hatirlatma: undefined, arac: data.vehicleId});
   }, (message) => { modalError.value = message; });
 }
@@ -100,7 +104,7 @@ function saveVehicle(data: VehicleDraft) {
   void run(async () => {
     const id = await garage.saveVehicle(data);
     vehicleModal.value = null;
-    if (live) app.notify(data.id ? 'Araç bilgileri güncellendi.' : 'Araç garajına eklendi.');
+    if (live) app.notify(data.id ? t('Araç bilgileri güncellendi.') : t('Araç garajına eklendi.'));
     if (!data.id && id) selectVehicle(id);
   }, (message) => { modalError.value = message; });
 }
@@ -129,7 +133,7 @@ function saveRecord(data: RecordDraft) {
   void run(async () => {
     await garage.saveRecord(data);
     closeRecord();
-    if (live) app.notify(data.id ? 'Kayıt güncellendi.' : 'Kayıt eklendi.');
+    if (live) app.notify(data.id ? t('Kayıt güncellendi.') : t('Kayıt eklendi.'));
   }, (message) => { modalError.value = message; });
 }
 function deleteRecord(id: string) {
@@ -137,34 +141,32 @@ function deleteRecord(id: string) {
   void run(async () => {
     await garage.deleteRecord(id);
     closeRecord();
-    app.notify('Kayıt silindi.');
+    app.notify(t('Kayıt silindi.'));
   }, (message) => { modalError.value = message; });
 }
-
-const liveNote = 'Push ve e-posta tercihlerin kaydedilir; gönderim hizmeti henüz açık değil.';
 </script>
 
 <template>
   <div class="garage-page">
-    <V2PageHeader eyebrow="GARAJIM" title="Araçlarım">
-      <button type="button" class="btn btn-dark" :disabled="garage.loading.value" @click="openVehicle('add')">Araç ekle<ArrowRight aria-hidden="true"/></button>
+    <V2PageHeader :eyebrow="t('GARAJIM')" :title="t('Araçlarım')">
+      <button type="button" class="btn btn-dark" :disabled="garage.loading.value" @click="openVehicle('add')">{{ t('Araç ekle') }}<ArrowRight aria-hidden="true"/></button>
     </V2PageHeader>
 
     <div v-if="garage.loading.value" class="state v2-wrap" role="status">
       <LoaderCircle :size="22" class="spin" aria-hidden="true"/>
-      <p class="t-body-md t-muted">Garajın yükleniyor…</p>
+      <p class="t-body-md t-muted">{{ t('Garajın yükleniyor…') }}</p>
     </div>
 
     <div v-else-if="!selected" class="v2-wrap empty-wrap">
       <section class="empty" aria-labelledby="empty-title">
         <span class="empty-icon" aria-hidden="true"><Car :size="28"/></span>
-        <h2 id="empty-title" class="t-h3">Garajın henüz boş</h2>
-        <p class="t-body-md t-muted">Aracını ekle; bakım geçmişini biriktir, muayene ve bakım tarihlerini unutma. {{ live ? 'Plaka zorunlu değil; şasi numarası istemiyoruz.' : 'Plaka veya şasi numarası istemiyoruz.' }}</p>
+        <h2 id="empty-title" class="t-h3">{{ t('Garajın henüz boş') }}</h2>
+        <p class="t-body-md t-muted">{{ t('Aracını ekle; bakım geçmişini biriktir, muayene ve bakım tarihlerini unutma.') }} {{ live ? t('Plaka zorunlu değil; şasi numarası istemiyoruz.') : t('Plaka veya şasi numarası istemiyoruz.') }}</p>
         <div class="empty-actions">
-          <button type="button" class="btn btn-primary" @click="openVehicle('add')">İlk aracını ekle<ArrowRight aria-hidden="true"/></button>
-          <button v-if="live" type="button" class="btn btn-outline" :disabled="garage.reloading.value" @click="garage.reload()">{{ garage.reloading.value ? 'Yenileniyor…' : 'Kayıtları yenile' }}</button>
+          <button type="button" class="btn btn-primary" @click="openVehicle('add')">{{ t('İlk aracını ekle') }}<ArrowRight aria-hidden="true"/></button>
+          <button v-if="live" type="button" class="btn btn-outline" :disabled="garage.reloading.value" @click="garage.reload()">{{ garage.reloading.value ? t('Yenileniyor…') : t('Kayıtları yenile') }}</button>
         </div>
-        <p v-if="garage.loadError.value" class="load-err t-body-sm" role="alert">{{ garage.loadError.value }}</p>
+        <p v-if="garage.loadError.value" class="load-err t-body-sm" role="alert">{{ t(garage.loadError.value) }}</p>
       </section>
     </div>
 
@@ -174,7 +176,7 @@ const liveNote = 'Push ve e-posta tercihlerin kaydedilir; gönderim hizmeti hen�
         <GarageVehicleHero :vehicle="selected" :live="live" @edit="openVehicle('edit')" @add-record="openRecord"/>
         <GarageStats :reminders="summary" :records="vehicleRecords" :year="garage.year" @add-reminder="openReminder"/>
         <GarageHistory :key="selected.id" :records="vehicleRecords" :live="live" :busy="busy" @edit="editRecord"/>
-        <GarageReminders :reminders="vehicleReminders" :status="status" :error="toggleError" :busy="busy" :note="live ? liveNote : undefined" @add="openReminder" @toggle="toggleReminder"/>
+        <GarageReminders :reminders="vehicleReminders" :status="status" :error="toggleError" :busy="busy" :note="live ? t('Push ve e-posta tercihlerin kaydedilir; gönderim hizmeti henüz açık değil.') : undefined" @add="openReminder" @toggle="toggleReminder"/>
       </div>
     </div>
 

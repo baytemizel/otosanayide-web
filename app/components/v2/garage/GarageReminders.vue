@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {Bell, Mail, Plus, Smartphone} from '@lucide/vue';
 import GarageRing from '~/components/v2/garage/GarageRing.vue';
+import {useLocale} from '~/composables/useLocale';
 import type {GarageReminderView} from '~/lib/v2/garage';
 
 // Reminder list for the selected vehicle (replaces the old /hatirlatmalar page). Not a separate Figma
@@ -8,13 +9,15 @@ import type {GarageReminderView} from '~/lib/v2/garage';
 // `busy` disables the switches while a change is being saved; `note` is the live channel notice.
 defineProps<{reminders: GarageReminderView[]; status?: string; error?: string; busy?: boolean; note?: string}>();
 const emit = defineEmits<{add: []; toggle: [id: string, on: boolean]}>();
+// Reminder texts arrive already translated (useGarage builds the views with `t`).
+const {t} = useLocale();
 </script>
 
 <template>
   <section class="reminders" aria-labelledby="reminders-title">
     <div class="head">
-      <h2 id="reminders-title" class="t-h4">Hatırlatmalar</h2>
-      <button type="button" class="btn btn-outline btn-sm" @click="emit('add')"><Plus aria-hidden="true"/>Hatırlatma ekle</button>
+      <h2 id="reminders-title" class="t-h4">{{ t('Hatırlatmalar') }}</h2>
+      <button type="button" class="btn btn-outline btn-sm" @click="emit('add')"><Plus aria-hidden="true"/>{{ t('Hatırlatma ekle') }}</button>
     </div>
     <p v-if="status" class="status t-body-sm" role="status">{{ status }}</p>
     <p v-if="error" class="error t-body-sm" role="alert">{{ error }}</p>
@@ -23,11 +26,11 @@ const emit = defineEmits<{add: []; toggle: [id: string, on: boolean]}>();
         <GarageRing :progress="r.progress" :tone="r.tone" :size="44"/>
         <div class="copy">
           <p class="title">{{ r.topic }}</p>
-          <p class="t-body-sm t-muted">{{ r.dateText }} · {{ r.notifyText || 'Hedef gün' }}</p>
+          <p class="t-body-sm t-muted">{{ r.dateText }} · {{ r.notifyText || t('Hedef gün') }}</p>
           <p class="channels">
-            <span class="tag tag-cream"><Bell aria-hidden="true"/>Uygulama</span>
-            <span v-if="r.push" class="tag tag-cream"><Smartphone aria-hidden="true"/>Push</span>
-            <span v-if="r.email" class="tag tag-cream"><Mail aria-hidden="true"/>E-posta</span>
+            <span class="tag tag-cream"><Bell aria-hidden="true"/>{{ t('Uygulama') }}</span>
+            <span v-if="r.push" class="tag tag-cream"><Smartphone aria-hidden="true"/>{{ t('Push') }}</span>
+            <span v-if="r.email" class="tag tag-cream"><Mail aria-hidden="true"/>{{ t('E-posta') }}</span>
           </p>
         </div>
         <p class="left">{{ r.active ? r.remaining : r.offText }}</p>
@@ -38,11 +41,11 @@ const emit = defineEmits<{add: []; toggle: [id: string, on: boolean]}>();
           :checked="r.active"
           :aria-checked="r.active"
           :disabled="busy"
-          :aria-label="`${r.topic} hatırlatması`"
+          :aria-label="t('{topic} hatırlatması', {topic: r.topic})"
           @change="emit('toggle', r.id, ($event.target as HTMLInputElement).checked)">
       </li>
     </ul>
-    <p v-else class="empty t-body-sm t-muted">Bu araç için hatırlatma yok. Bakım, muayene veya sigorta tarihini ekle; zamanı gelince haber verelim.</p>
+    <p v-else class="empty t-body-sm t-muted">{{ t('Bu araç için hatırlatma yok. Bakım, muayene veya sigorta tarihini ekle; zamanı gelince haber verelim.') }}</p>
     <p v-if="note && reminders.length" class="note t-body-sm t-muted">{{ note }}</p>
   </section>
 </template>

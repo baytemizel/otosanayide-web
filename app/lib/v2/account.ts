@@ -41,3 +41,9 @@ export function readUnreadCount(raw: unknown): number | null {
 
 /** Badge text: "3", "99+". */
 export const unreadBadge = (count: number) => (count > 99 ? '99+' : String(count));
+
+/** "12 Kasım 2026" / "12 November 2026": a moment as a long day in Türkiye time, in the page's language tag. */
+export const longDay = (ms: number, tag = 'tr-TR') => new Date(ms).toLocaleDateString(tag, {timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric'});
+
+/** An ISO day (YYYY-MM-DD, demo data) as a long day, read at noon Türkiye time so it never shifts a day. */
+export const isoDay = (day: string, tag = 'tr-TR') => longDay(Date.parse(`${day}T12:00:00+03:00`), tag);

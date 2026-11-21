@@ -1,6 +1,9 @@
 // Synthetic data for the Web v2 request screens (W14 teklif iste, W15 taleplerim, W16 randevu,
 // W17 bildirimler, W18 hesabım). Business names start with "Örnek"; people are "Deniz K." style.
 // Kept small and typed so each screen can later be wired to the API.
+// UI labels here (services, hints, chips, statuses, line items, notification texts) are Turkish source
+// texts: the screens show them through `t` and their English is in app/locales/v2-requests.json.
+// Business names, people, message bodies and offer notes written "by the business" stay Turkish.
 import {type MockBusiness} from './businesses';
 import {findBusiness} from './catalog';
 
@@ -103,7 +106,7 @@ export const requestStatusLabel: Record<RequestStatus, string> = {
 };
 
 export const offerTotal = (offer: MockOffer) => offer.lines.reduce((sum, line) => sum + line.amount, 0);
-export const formatTry = (value: number) => `₺${value.toLocaleString('tr-TR', {maximumFractionDigits: 0})}`;
+export const formatTry = (value: number, tag = 'tr-TR') => `₺${value.toLocaleString(tag, {maximumFractionDigits: 0})}`;
 
 export const mockRequests: MockRequest[] = [
   {

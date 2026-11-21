@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Account menu on the left, page head + content on the right (same layout as W17/W18).
 defineProps<{active: InstanceType<typeof V2AccountMenu>['$props']['active']; title: string; eyebrow?: string}>();
+const {t} = useLocale();
 </script>
 
 <template>
@@ -11,7 +13,7 @@ defineProps<{active: InstanceType<typeof V2AccountMenu>['$props']['active']; tit
     <div class="col">
       <header class="head">
         <div class="titles">
-          <p class="t-mono-md t-eyebrow">{{ eyebrow ?? 'Hesabım' }}</p>
+          <p class="t-mono-md t-eyebrow">{{ eyebrow ?? t('Hesabım') }}</p>
           <h1 class="t-h2">{{ title }}</h1>
         </div>
         <div v-if="$slots.actions" class="actions"><slot name="actions"/></div>

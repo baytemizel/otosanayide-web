@@ -1,5 +1,6 @@
 import {categories, type Business} from '@otosanayide/core';
 import type {MockBusiness} from '~/data/mock/businesses';
+import {turkish, type Translate} from '~/lib/i18n';
 import {openState, type OpeningHours} from '~/lib/opening-hours';
 import type {BusinessExtras} from '~/lib/search-response';
 
@@ -28,23 +29,30 @@ export function dativeTime(hhmm: string) {
   return `${hhmm.replace(':', '.')}’${suffix}`;
 }
 
-/** "Açık · 19.00’a kadar" / "Kapalı · 08.30’da açılır" style text from structured hours. */
-export function hoursState(hours: OpeningHours | undefined, now = new Date()): {known: boolean; open: boolean; text: string} {
-  if (!hours) return {known: false, open: false, text: 'Saat bilgisi yok'};
+/**
+ * "Açık · 19.00’a kadar" / "Kapalı · 08.30 açılır" style text from structured hours. `t` and the locale tag
+ * pick the language: Turkish reads the time with its dative suffix ("19.00’a"), English as "19:00".
+ */
+export function hoursState(hours: OpeningHours | undefined, now = new Date(), t: Translate = turkish, localeTag = 'tr-TR'): {known: boolean; open: boolean; text: string} {
+  if (!hours) return {known: false, open: false, text: t('Saat bilgisi yok')};
   const state = openState(hours, now);
-  if (state.open) return {known: true, open: true, text: `Açık · ${dativeTime(state.until === '24:00' ? '00:00' : state.until)} kadar`};
-  return {known: true, open: false, text: state.opensAt ? `Kapalı · ${state.opensAt.replace(':', '.')} açılır` : 'Bugün kapalı'};
+  const tr = localeTag.startsWith('tr');
+  if (state.open) {
+    const until = state.until === '24:00' ? '00:00' : state.until;
+    return {known: true, open: true, text: t('Açık · {time} kadar', {time: tr ? dativeTime(until) : until})};
+  }
+  return {known: true, open: false, text: state.opensAt ? t('Kapalı · {time} açılır', {time: tr ? state.opensAt.replace(':', '.') : state.opensAt}) : t('Bugün kapalı')};
 }
 
-export function toCardBusiness(business: Business, extras: BusinessExtras = {}, now = new Date()): CardBusiness {
-  const hours = hoursState(extras.openingHours, now);
+export function toCardBusiness(business: Business, extras: BusinessExtras = {}, now = new Date(), t: Translate = turkish, localeTag = 'tr-TR'): CardBusiness {
+  const hours = hoursState(extras.openingHours, now, t, localeTag);
   const coords = business.coordinateStatus === 'verified' && business.latitude !== undefined && business.longitude !== undefined
     ? {latitude: business.latitude, longitude: business.longitude}
     : undefined;
   return {
     id: business.id,
     name: business.name,
-    category: categoryName(business.categories[0] ?? ''),
+    category: t(categoryName(business.categories[0] ?? '')),
     tags: business.services,
     brands: business.brands,
     district: business.district,
@@ -67,6 +75,19 @@ export function toCardBusiness(business: Business, extras: BusinessExtras = {}, 
     source: business,
     extras,
   };
+}
+
+/**
+ * A card in the page language, for display only (filters and matching keep the Turkish record).
+ * Live cards rebuild their category and hours text from the API record; demo cards translate the
+ * Turkish labels the mock data carries (category, hours, chips, "Tüm markalar"). Business names stay.
+ */
+export function localiseCard<T extends CardBusiness>(card: T, t: Translate = turkish, localeTag = 'tr-TR', now = new Date()): T {
+  if (card.source) {
+    const hours = hoursState(card.extras?.openingHours, now, t, localeTag);
+    return {...card, category: t(categoryName(card.source.categories[0] ?? '')), hoursText: hours.known ? hours.text : card.source.hours ?? hours.text};
+  }
+  return {...card, category: t(card.category), hoursText: t(card.hoursText), tags: card.tags.map((tag) => t(tag)), brands: card.brands.map((brand) => t(brand))};
 }
 
 /** Places cards with coordinates on a 0–100 box for the drawn map (pins without coordinates are left out). */

@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import {computed, onMounted, ref, watch} from 'vue';
 import {ArrowRight, Car, Check, Gauge, Locate, MapPin, Search, Wrench} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeLocations, homeSearchTabs, homeVehicles, type HomeSearchTab} from '~/data/mock/home';
 import {demoMode} from '~/lib/env';
 import V2Select from '~/components/v2/V2Select.vue';
 
 // Figma 108:148 "Akıllı arama modülü": three tabs, remembered vehicle, one-click popular searches.
+// Tab texts and popular searches are Turkish source text, translated at render; the search sends the Turkish term.
+const {t, localeTag} = useLocale();
 const tab = ref<HomeSearchTab>('hizmet');
 const vehicle = ref(homeVehicles[0]);
 const location = ref(homeLocations[0]);
 const query = ref('');
-const current = computed(() => homeSearchTabs.find((t) => t.id === tab.value) ?? homeSearchTabs[0]);
+const current = computed(() => homeSearchTabs.find((item) => item.id === tab.value) ?? homeSearchTabs[0]);
 const icons = {hizmet: Wrench, belirti: Gauge, arac: Car} as const;
 
 // The selected vehicle is a per-viewer convenience, so browser storage is enough here.
@@ -35,59 +38,59 @@ function run(term: string) {
   return navigateTo(q || il ? {path: '/ara', query: {...place, ...(q ? {q} : {})}} : '/ara');
 }
 function pickPopular(term: string) {
-  query.value = term;
+  query.value = t(term);
   run(term);
 }
 </script>
 
 <template>
-  <form class="home-search" role="search" aria-label="Servis ara" @submit.prevent="run(query)">
+  <form class="home-search" role="search" :aria-label="t('Servis ara')" @submit.prevent="run(query)">
     <div class="top">
-      <div class="tabs" role="tablist" aria-label="Arama türü">
+      <div class="tabs" role="tablist" :aria-label="t('Arama türü')">
         <button
           v-for="item in homeSearchTabs" :key="item.id" type="button" role="tab" class="tab t-label-sm"
           :class="{on: tab === item.id}" :aria-selected="tab === item.id" @click="tab = item.id">
-          <component :is="icons[item.id]" :size="16" aria-hidden="true"/>{{ item.label }}
+          <component :is="icons[item.id]" :size="16" aria-hidden="true"/>{{ t(item.label) }}
         </button>
       </div>
-      <p class="free t-body-sm"><Check :size="16" aria-hidden="true"/>Üyelik gerekmez · arama ücretsiz</p>
+      <p class="free t-body-sm"><Check :size="16" aria-hidden="true"/>{{ t('Üyelik gerekmez · arama ücretsiz') }}</p>
     </div>
 
     <div class="fields">
       <label class="sfield" :class="{focus: tab === 'arac'}">
         <span class="circle" aria-hidden="true"><Car :size="20"/></span>
         <span class="field-text">
-          <span class="t-mono-sm t-muted">ARACIN</span>
-          <V2Select v-model="vehicle" :options="homeVehicles" variant="bare" anchor=".sfield" class="pick t-label-md" aria-label="Aracın"/>
+          <span class="t-mono-sm t-muted">{{ t('ARACIN') }}</span>
+          <V2Select v-model="vehicle" :options="homeVehicles" variant="bare" anchor=".sfield" class="pick t-label-md" :aria-label="t('Aracın')"/>
         </span>
       </label>
       <span class="sep" aria-hidden="true"/>
       <label class="sfield">
         <span class="circle" aria-hidden="true"><Search :size="20"/></span>
         <span class="field-text grow">
-          <span class="t-mono-sm t-muted">{{ current.fieldLabel.toLocaleUpperCase('tr-TR') }}</span>
-          <input v-model="query" type="search" class="query" :placeholder="current.placeholder" :aria-label="current.fieldLabel" enterkeyhint="search">
+          <span class="t-mono-sm t-muted">{{ t(current.fieldLabel).toLocaleUpperCase(localeTag) }}</span>
+          <input v-model="query" type="search" class="query" :placeholder="t(current.placeholder)" :aria-label="t(current.fieldLabel)" enterkeyhint="search">
         </span>
       </label>
       <span class="sep" aria-hidden="true"/>
       <label class="sfield">
         <span class="circle" aria-hidden="true"><MapPin :size="20"/></span>
         <span class="field-text">
-          <span class="t-mono-sm t-muted">NEREDE?</span>
-          <V2Select v-model="location" :options="homeLocations" variant="bare" anchor=".sfield" class="pick t-label-md" aria-label="Nerede?"/>
+          <span class="t-mono-sm t-muted">{{ t('NEREDE?') }}</span>
+          <V2Select v-model="location" :options="homeLocations" variant="bare" anchor=".sfield" class="pick t-label-md" :aria-label="t('Nerede?')"/>
         </span>
       </label>
-      <button type="submit" class="btn btn-primary btn-lg submit">Servis bul<ArrowRight aria-hidden="true"/></button>
+      <button type="submit" class="btn btn-primary btn-lg submit">{{ t('Servis bul') }}<ArrowRight aria-hidden="true"/></button>
     </div>
 
     <div class="popular">
-      <span class="t-mono-sm t-muted">POPÜLER</span>
+      <span class="t-mono-sm t-muted">{{ t('POPÜLER') }}</span>
       <ul class="chips">
         <li v-for="term in current.popular" :key="term">
-          <button type="button" class="chip chip-soft" @click="pickPopular(term)">{{ term }}</button>
+          <button type="button" class="chip chip-soft" @click="pickPopular(term)">{{ t(term) }}</button>
         </li>
       </ul>
-      <NuxtLink :to="{path: '/ara', query: {yakinimda: '1'}}" class="near t-label-sm"><Locate :size="16" aria-hidden="true"/>Yakınımdakileri göster</NuxtLink>
+      <NuxtLink :to="{path: '/ara', query: {yakinimda: '1'}}" class="near t-label-sm"><Locate :size="16" aria-hidden="true"/>{{ t('Yakınımdakileri göster') }}</NuxtLink>
     </div>
   </form>
 </template>

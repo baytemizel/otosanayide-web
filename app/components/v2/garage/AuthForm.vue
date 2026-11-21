@@ -3,6 +3,7 @@ import {computed, onMounted, reactive, ref, watch} from 'vue';
 import {ArrowRight, Check, KeyRound, Lock, Mail, MailCheck, Phone, User} from '@lucide/vue';
 import AuthField from '~/components/v2/garage/AuthField.vue';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
 import {useSession} from '~/composables/useSession';
 import {authErrorMessage, credentialErrors, EMAIL_PATTERN, MFA_CODE, nameError, normalizeName, PASSWORD_MIN, returnPath} from '~/lib/v2/auth';
 
@@ -18,6 +19,7 @@ const props = defineProps<{mode: 'signin' | 'signup'}>();
 const route = useRoute();
 const app = useApp();
 const session = useSession();
+const {t} = useLocale();
 const live = !session.demo;
 
 const method = ref<'email' | 'phone'>('email');
@@ -40,32 +42,34 @@ const donus = computed(() => returnPath(route.query.donus));
 const keepQuery = computed(() => (donus.value ? {donus: donus.value} : {}));
 
 const EMAIL = EMAIL_PATTERN;
+/** A translated sentence split around its {name} slots, so links and bold text can sit inside it. */
+const segments = (text: string) => text.split(/(\{\w+\})/);
 
 function validate() {
   if (live) {
-    const found = credentialErrors(form.email, form.password, signup.value);
-    Object.assign(errors, {name: signup.value ? nameError(form.name) : '', phone: '', ...found});
+    const found = credentialErrors(form.email, form.password, signup.value, t);
+    Object.assign(errors, {name: signup.value ? nameError(form.name, true, t) : '', phone: '', ...found});
     return !errors.name && !found.email && !found.password;
   }
-  errors.name = signup.value && !form.name.trim() ? 'Adını ve soyadını yaz.' : '';
+  errors.name = signup.value && !form.name.trim() ? t('Adını ve soyadını yaz.') : '';
   errors.email = '';
   errors.phone = '';
   if (method.value === 'email') {
-    if (!form.email.trim()) errors.email = 'E-posta adresini yaz.';
-    else if (!EMAIL.test(form.email.trim())) errors.email = 'Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).';
+    if (!form.email.trim()) errors.email = t('E-posta adresini yaz.');
+    else if (!EMAIL.test(form.email.trim())) errors.email = t('Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).');
   } else {
     const digits = form.phone.replace(/\D/g, '');
-    if (!digits) errors.phone = 'Telefon numaranı yaz.';
-    else if (digits.length < 10) errors.phone = 'Telefon numarası 10 haneli olmalı.';
+    if (!digits) errors.phone = t('Telefon numaranı yaz.');
+    else if (digits.length < 10) errors.phone = t('Telefon numarası 10 haneli olmalı.');
   }
-  errors.password = form.password ? '' : (signup.value ? 'Bir şifre belirle.' : 'Şifreni yaz.');
+  errors.password = form.password ? '' : (signup.value ? t('Bir şifre belirle.') : t('Şifreni yaz.'));
   return !errors.name && !errors.email && !errors.phone && !errors.password;
 }
 
 function leave() {
   if (leaving) return;
   leaving = true;
-  if (live && !session.emailVerified.value) app.notify('E-posta adresin henüz doğrulanmadı. Bağlantıyı Hesabım › Güvenlik bölümünden yeniden gönderebilirsin.');
+  if (live && !session.emailVerified.value) app.notify(t('E-posta adresin henüz doğrulanmadı. Bağlantıyı Hesabım › Güvenlik bölümünden yeniden gönderebilirsin.'));
   return navigateTo(donus.value ?? '/araclarim', {replace: live});
 }
 
@@ -96,7 +100,7 @@ async function submitLive() {
     form.password = '';
     await leave();
   } catch (error) {
-    formError.value = authErrorMessage(signup.value ? 'register' : 'login', error);
+    formError.value = authErrorMessage(signup.value ? 'register' : 'login', error, t);
   } finally {
     busy.value = false;
   }
@@ -105,7 +109,7 @@ async function submitLive() {
 async function verifyCode() {
   if (busy.value) return;
   const code = form.code.replace(/\s/g, '');
-  errors.code = MFA_CODE.test(code) ? '' : 'Kimlik doğrulama uygulamandaki 6 haneli kodu yaz.';
+  errors.code = MFA_CODE.test(code) ? '' : t('Kimlik doğrulama uygulamandaki 6 haneli kodu yaz.');
   if (errors.code) return;
   busy.value = true;
   formError.value = '';
@@ -115,7 +119,7 @@ async function verifyCode() {
     form.password = '';
     await leave();
   } catch (error) {
-    formError.value = authErrorMessage('mfa', error);
+    formError.value = authErrorMessage('mfa', error, t);
   } finally {
     busy.value = false;
   }
@@ -158,34 +162,34 @@ onMounted(() => {
 
 <template>
   <div class="auth-form">
-    <nav class="mode" aria-label="Hesap">
-      <NuxtLink :to="{path: '/giris', query: keepQuery}" class="mode-link" :class="{on: !signup}" :aria-current="!signup ? 'page' : undefined">Giriş yap</NuxtLink>
-      <NuxtLink :to="{path: '/kayit', query: keepQuery}" class="mode-link" :class="{on: signup}" :aria-current="signup ? 'page' : undefined">Kayıt ol</NuxtLink>
+    <nav class="mode" :aria-label="t('Hesap')">
+      <NuxtLink :to="{path: '/giris', query: keepQuery}" class="mode-link" :class="{on: !signup}" :aria-current="!signup ? 'page' : undefined">{{ t('Giriş yap') }}</NuxtLink>
+      <NuxtLink :to="{path: '/kayit', query: keepQuery}" class="mode-link" :class="{on: signup}" :aria-current="signup ? 'page' : undefined">{{ t('Kayıt ol') }}</NuxtLink>
     </nav>
 
     <div v-if="registered" class="state" role="status">
       <span class="badge" aria-hidden="true"><MailCheck :size="26"/></span>
-      <h1 class="t-h3">E-postanı kontrol et</h1>
-      <p class="t-body-md"><strong>{{ registered }}</strong> adresine bir e-posta gönderdik.</p>
-      <p class="t-body-sm t-muted">Hesap yeni oluşturulduysa e-postada doğrulama bağlantısı vardır. Adres zaten kayıtlıysa yalnız bilgilendirme gönderilir.</p>
-      <p class="t-body-sm t-muted">Doğrulamadan da giriş yapabilirsin. Yorum, fotoğraf ve iki adımlı doğrulama için doğrulanmış e-posta gerekir. E-posta gelmezse giriş yaptıktan sonra Hesabım › Güvenlik bölümünden yeniden gönder.</p>
-      <NuxtLink :to="{path: '/giris', query: keepQuery}" class="btn btn-primary btn-lg submit">Giriş yap<ArrowRight aria-hidden="true"/></NuxtLink>
+      <h1 class="t-h3">{{ t('E-postanı kontrol et') }}</h1>
+      <p class="t-body-md"><template v-for="(part, i) in segments(t('{email} adresine bir e-posta gönderdik.'))" :key="i"><strong v-if="part === '{email}'">{{ registered }}</strong><template v-else>{{ part }}</template></template></p>
+      <p class="t-body-sm t-muted">{{ t('Hesap yeni oluşturulduysa e-postada doğrulama bağlantısı vardır. Adres zaten kayıtlıysa yalnız bilgilendirme gönderilir.') }}</p>
+      <p class="t-body-sm t-muted">{{ t('Doğrulamadan da giriş yapabilirsin. Yorum, fotoğraf ve iki adımlı doğrulama için doğrulanmış e-posta gerekir. E-posta gelmezse giriş yaptıktan sonra Hesabım › Güvenlik bölümünden yeniden gönder.') }}</p>
+      <NuxtLink :to="{path: '/giris', query: keepQuery}" class="btn btn-primary btn-lg submit">{{ t('Giriş yap') }}<ArrowRight aria-hidden="true"/></NuxtLink>
     </div>
 
     <form v-else-if="challenge" class="fields" novalidate @submit.prevent="verifyCode">
-      <h1 class="t-h3">İki adımlı doğrulama</h1>
-      <p class="t-body-md t-muted">Kimlik doğrulama uygulamandaki 6 haneli kodu gir.</p>
-      <AuthField id="auth-code" v-model="form.code" label="Doğrulama kodu" :icon="KeyRound" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" :error="errors.code"/>
+      <h1 class="t-h3">{{ t('İki adımlı doğrulama') }}</h1>
+      <p class="t-body-md t-muted">{{ t('Kimlik doğrulama uygulamandaki 6 haneli kodu gir.') }}</p>
+      <AuthField id="auth-code" v-model="form.code" :label="t('Doğrulama kodu')" :icon="KeyRound" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" :error="errors.code"/>
       <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
-      <button type="submit" class="btn btn-primary btn-lg submit" :disabled="busy">{{ busy ? 'Doğrulanıyor…' : 'Doğrula' }}<ArrowRight aria-hidden="true"/></button>
-      <button type="button" class="back t-label-sm" @click="backToForm">Girişe dön</button>
+      <button type="submit" class="btn btn-primary btn-lg submit" :disabled="busy">{{ busy ? t('Doğrulanıyor…') : t('Doğrula') }}<ArrowRight aria-hidden="true"/></button>
+      <button type="button" class="back t-label-sm" @click="backToForm">{{ t('Girişe dön') }}</button>
     </form>
 
     <template v-else>
-      <h1 class="sr-only">{{ signup ? 'Kayıt ol' : 'Giriş yap' }}</h1>
+      <h1 class="sr-only">{{ signup ? t('Kayıt ol') : t('Giriş yap') }}</h1>
 
-      <div class="method" role="tablist" aria-label="Giriş yöntemi">
-        <button type="button" role="tab" class="method-tab t-label-md" :class="{on: method === 'email'}" :aria-selected="method === 'email'" @click="switchMethod('email')">E-posta</button>
+      <div class="method" role="tablist" :aria-label="t('Giriş yöntemi')">
+        <button type="button" role="tab" class="method-tab t-label-md" :class="{on: method === 'email'}" :aria-selected="method === 'email'" @click="switchMethod('email')">{{ t('E-posta') }}</button>
         <button
           type="button"
           role="tab"
@@ -193,62 +197,65 @@ onMounted(() => {
           :class="{on: method === 'phone', off: live}"
           :aria-selected="method === 'phone'"
           :aria-disabled="live ? 'true' : undefined"
-          :title="live ? 'Telefonla giriş henüz yok' : undefined"
-          @click="switchMethod('phone')">Telefon</button>
+          :title="live ? t('Telefonla giriş henüz yok') : undefined"
+          @click="switchMethod('phone')">{{ t('Telefon') }}</button>
       </div>
 
       <form class="fields" novalidate @submit.prevent="submit">
-        <AuthField v-if="signup" id="auth-name" v-model="form.name" label="Ad soyad" :icon="User" placeholder="Deniz Kaya" autocomplete="name" :error="errors.name"/>
-        <AuthField v-if="method === 'email'" id="auth-email" v-model="form.email" label="E-posta adresi" :icon="Mail" type="email" inputmode="email" placeholder="deniz@ornek.com" autocomplete="email" :error="errors.email"/>
-        <AuthField v-else id="auth-phone" v-model="form.phone" label="Telefon numarası" :icon="Phone" type="tel" inputmode="tel" placeholder="5XX XXX XX XX" autocomplete="tel-national" :error="errors.phone"/>
+        <AuthField v-if="signup" id="auth-name" v-model="form.name" :label="t('Ad soyad')" :icon="User" placeholder="Deniz Kaya" autocomplete="name" :error="errors.name"/>
+        <AuthField v-if="method === 'email'" id="auth-email" v-model="form.email" :label="t('E-posta adresi')" :icon="Mail" type="email" inputmode="email" :placeholder="t('deniz@ornek.com')" autocomplete="email" :error="errors.email"/>
+        <AuthField v-else id="auth-phone" v-model="form.phone" :label="t('Telefon numarası')" :icon="Phone" type="tel" inputmode="tel" placeholder="5XX XXX XX XX" autocomplete="tel-national" :error="errors.phone"/>
         <AuthField
           id="auth-password"
           v-model="form.password"
-          label="Şifre"
+          :label="t('Şifre')"
           :icon="Lock"
           type="password"
           placeholder="••••••••••"
           :autocomplete="signup ? 'new-password' : 'current-password'"
           :error="errors.password"
-          :hint="signup ? (live ? `En az ${PASSWORD_MIN} karakter.` : 'En az 8 karakter; harf ve rakam karışık olsun.') : undefined"/>
+          :hint="signup ? (live ? t('En az {min} karakter.', {min: PASSWORD_MIN}) : t('En az 8 karakter; harf ve rakam karışık olsun.')) : undefined"/>
 
         <div v-if="!signup" class="row">
           <label v-if="!live" class="remember t-body-sm">
             <input v-model="form.remember" type="checkbox" class="box">
             <span class="box-face" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>
-            Beni hatırla
+            {{ t('Beni hatırla') }}
           </label>
-          <button v-if="live" type="button" class="forgot t-label-sm" :disabled="busy" @click="forgot">Şifremi unuttum</button>
-          <NuxtLink v-else to="/giris/sifre-sifirla" class="forgot t-label-sm">Şifremi unuttum</NuxtLink>
+          <button v-if="live" type="button" class="forgot t-label-sm" :disabled="busy" @click="forgot">{{ t('Şifremi unuttum') }}</button>
+          <NuxtLink v-else to="/giris/sifre-sifirla" class="forgot t-label-sm">{{ t('Şifremi unuttum') }}</NuxtLink>
         </div>
         <label v-if="signup && live" class="remember t-body-sm marketing">
           <input v-model="form.marketing" type="checkbox" class="box">
           <span class="box-face" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>
-          <span>Ürün duyurularını e-postayla almak istiyorum. İsteğe bağlı; Hesabım’dan istediğin zaman kapatabilirsin.</span>
+          <span>{{ t('Ürün duyurularını e-postayla almak istiyorum. İsteğe bağlı; Hesabım’dan istediğin zaman kapatabilirsin.') }}</span>
         </label>
         <p v-if="signup" class="terms t-body-sm t-muted">
-          Kayıt olarak <NuxtLink to="/yasal/kullanim-kosullari">Kullanım koşullarını</NuxtLink> ve
-          <NuxtLink to="/yasal/gizlilik">Gizlilik bildirimini</NuxtLink> kabul edersin.
+          <template v-for="(part, i) in segments(t('Kayıt olarak {terms} ve {privacy} kabul edersin.'))" :key="i">
+            <NuxtLink v-if="part === '{terms}'" to="/yasal/kullanim-kosullari">{{ t('Kullanım koşullarını') }}</NuxtLink>
+            <NuxtLink v-else-if="part === '{privacy}'" to="/yasal/gizlilik">{{ t('Gizlilik bildirimini') }}</NuxtLink>
+            <template v-else>{{ part }}</template>
+          </template>
         </p>
 
         <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
 
-        <button type="submit" class="btn btn-primary btn-lg submit" :disabled="busy">{{ busy ? 'İşleniyor…' : signup ? 'Kayıt ol' : 'Giriş yap' }}<ArrowRight aria-hidden="true"/></button>
+        <button type="submit" class="btn btn-primary btn-lg submit" :disabled="busy">{{ busy ? t('İşleniyor…') : signup ? t('Kayıt ol') : t('Giriş yap') }}<ArrowRight aria-hidden="true"/></button>
       </form>
 
-      <div class="or" aria-hidden="true"><span/><p class="t-body-sm t-muted">veya</p><span/></div>
+      <div class="or" aria-hidden="true"><span/><p class="t-body-sm t-muted">{{ t('veya') }}</p><span/></div>
       <template v-if="live">
-        <button type="button" class="social t-label-md" disabled aria-disabled="true">Google ile devam et</button>
-        <button type="button" class="social t-label-md" disabled aria-disabled="true">Apple ile devam et</button>
-        <p class="t-body-sm t-muted social-note">Google, Apple ve telefonla giriş henüz yok; e-posta ile devam et.</p>
+        <button type="button" class="social t-label-md" disabled aria-disabled="true">{{ t('Google ile devam et') }}</button>
+        <button type="button" class="social t-label-md" disabled aria-disabled="true">{{ t('Apple ile devam et') }}</button>
+        <p class="t-body-sm t-muted social-note">{{ t('Google, Apple ve telefonla giriş henüz yok; e-posta ile devam et.') }}</p>
       </template>
       <template v-else>
-        <button type="button" class="social t-label-md" @click="finish">Google ile devam et</button>
-        <button type="button" class="social t-label-md" @click="finish">Apple ile devam et</button>
+        <button type="button" class="social t-label-md" @click="finish">{{ t('Google ile devam et') }}</button>
+        <button type="button" class="social t-label-md" @click="finish">{{ t('Apple ile devam et') }}</button>
       </template>
 
-      <p v-if="!signup" class="switch-line"><span class="t-body-sm t-muted">Hesabın yok mu?</span> <NuxtLink :to="{path: '/kayit', query: keepQuery}" class="t-label-sm">Ücretsiz kayıt ol</NuxtLink></p>
-      <p v-else class="switch-line"><span class="t-body-sm t-muted">Zaten hesabın var mı?</span> <NuxtLink :to="{path: '/giris', query: keepQuery}" class="t-label-sm">Giriş yap</NuxtLink></p>
+      <p v-if="!signup" class="switch-line"><span class="t-body-sm t-muted">{{ t('Hesabın yok mu?') }}</span> <NuxtLink :to="{path: '/kayit', query: keepQuery}" class="t-label-sm">{{ t('Ücretsiz kayıt ol') }}</NuxtLink></p>
+      <p v-else class="switch-line"><span class="t-body-sm t-muted">{{ t('Zaten hesabın var mı?') }}</span> <NuxtLink :to="{path: '/giris', query: keepQuery}" class="t-label-sm">{{ t('Giriş yap') }}</NuxtLink></p>
     </template>
   </div>
 </template>

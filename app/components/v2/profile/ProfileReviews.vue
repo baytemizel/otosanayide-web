@@ -6,6 +6,7 @@ import ProfileReviewItem from './ProfileReviewItem.vue';
 import ProfileStars from './ProfileStars.vue';
 import {formatRating, type MockBusiness} from '~/data/mock/businesses';
 import type {ProfileView, ReviewReportReason, ReviewSummaryView} from '~/lib/v2/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // "Yorumlar ve puanlar": rating summary, aspect bars, review list and the empty state of W05.
 // Demo: the mock list, two shown until expanded. Live (`live`): every loaded review (20 per page from
@@ -24,6 +25,7 @@ const props = withDefaults(defineProps<{
   signInHref?: string | null;
 }>(), {live: false, state: 'ready', error: '', hasMore: false, loadingMore: false, report: undefined, signInHref: null});
 const emit = defineEmits<{review: []; retry: []; more: []}>();
+const {t, localeTag} = useLocale();
 const expanded = ref(false);
 const visible = computed(() => (props.live || expanded.value ? props.profile.reviews : props.profile.reviews.slice(0, 2)));
 const count = computed(() => props.summary?.count ?? 0);
@@ -34,55 +36,55 @@ const loading = computed(() => props.live && props.state === 'loading' && !props
 <template>
   <section id="yorumlar" class="profile-reviews" aria-labelledby="yorumlar-baslik">
     <div class="head">
-      <h2 id="yorumlar-baslik" class="t-h3">Yorumlar ve puanlar</h2>
-      <V2Button v-if="hasReviews" variant="dark" arrow @click="emit('review')">Deneyimini paylaş</V2Button>
+      <h2 id="yorumlar-baslik" class="t-h3">{{ t('Yorumlar ve puanlar') }}</h2>
+      <V2Button v-if="hasReviews" variant="dark" arrow @click="emit('review')">{{ t('Deneyimini paylaş') }}</V2Button>
     </div>
 
-    <p v-if="loading" class="t-body-sm t-muted state" role="status">Yorumlar yükleniyor…</p>
+    <p v-if="loading" class="t-body-sm t-muted state" role="status">{{ t('Yorumlar yükleniyor…') }}</p>
 
     <div v-else-if="live && state === 'error'" class="empty" role="alert">
       <span class="empty-icon"><MessageSquare :size="26" aria-hidden="true"/></span>
-      <p class="t-h4">Yorumlar yüklenemedi</p>
-      <p class="t-body-sm t-muted">{{ error || 'Bağlantıyı kontrol edip tekrar dene.' }}</p>
-      <V2Button variant="outline" @click="emit('retry')">Tekrar dene</V2Button>
+      <p class="t-h4">{{ t('Yorumlar yüklenemedi') }}</p>
+      <p class="t-body-sm t-muted">{{ error ? t(error) : t('Bağlantıyı kontrol edip tekrar dene.') }}</p>
+      <V2Button variant="outline" @click="emit('retry')">{{ t('Tekrar dene') }}</V2Button>
     </div>
 
     <template v-else-if="hasReviews">
       <div class="summary">
         <div class="score">
-          <p class="big">{{ formatRating(summary?.average ?? 0) }}</p>
+          <p class="big">{{ formatRating(summary?.average ?? 0, localeTag) }}</p>
           <ProfileStars :value="summary?.average ?? 0" :size="18"/>
-          <p class="t-body-sm t-muted">{{ count }} yorum</p>
+          <p class="t-body-sm t-muted">{{ t('{count} yorum', {count}) }}</p>
         </div>
         <dl v-if="profile.dimensions.length" class="bars">
-          <div v-for="dim in profile.dimensions" :key="dim.label" class="bar-row" :title="dim.count !== undefined ? `${dim.count} değerlendirme` : undefined">
-            <dt class="t-body-sm">{{ dim.label }}</dt>
+          <div v-for="dim in profile.dimensions" :key="dim.label" class="bar-row" :title="dim.count !== undefined ? t('{count} değerlendirme', {count: dim.count}) : undefined">
+            <dt class="t-body-sm">{{ t(dim.label) }}</dt>
             <dd class="track" aria-hidden="true"><span :style="{width: `${((dim.score ?? 0) / 5) * 100}%`}"/></dd>
             <dd class="t-label-sm value">
-              <template v-if="dim.score !== null">{{ formatRating(dim.score) }}</template>
-              <template v-else><span aria-hidden="true">—</span><span class="sr-only">henüz puan yok</span></template>
+              <template v-if="dim.score !== null">{{ formatRating(dim.score, localeTag) }}</template>
+              <template v-else><span aria-hidden="true">—</span><span class="sr-only">{{ t('henüz puan yok') }}</span></template>
             </dd>
           </div>
         </dl>
-        <p v-else class="t-body-sm t-muted bars-note">Puanlar yalnız yayımlanmış değerlendirmelerden hesaplanır; reklam veya üyelik puanı etkilemez.</p>
+        <p v-else class="t-body-sm t-muted bars-note">{{ t('Puanlar yalnız yayımlanmış değerlendirmelerden hesaplanır; reklam veya üyelik puanı etkilemez.') }}</p>
       </div>
       <ProfileReviewItem v-for="review in visible" :key="review.id" :review="review" :live="live" :report="report" :sign-in-href="signInHref"/>
       <div v-if="live">
-        <V2Button v-if="hasMore" variant="outline" arrow :disabled="loadingMore" @click="emit('more')">{{ loadingMore ? 'Yükleniyor…' : 'Daha fazla yorum' }}</V2Button>
+        <V2Button v-if="hasMore" variant="outline" arrow :disabled="loadingMore" @click="emit('more')">{{ loadingMore ? t('Yükleniyor…') : t('Daha fazla yorum') }}</V2Button>
       </div>
       <div v-else-if="profile.reviews.length > 2 || count > profile.reviews.length">
         <V2Button variant="outline" :arrow="!expanded" :aria-expanded="expanded" @click="expanded = !expanded">
-          {{ expanded ? 'Daha az göster' : `Tüm ${count} yorumu gör` }}
+          {{ expanded ? t('Daha az göster') : t('Tüm {count} yorumu gör', {count}) }}
         </V2Button>
-        <p v-if="expanded && count > profile.reviews.length" class="t-body-sm t-muted more-note">Örnek ekranda {{ profile.reviews.length }} yorum gösteriliyor.</p>
+        <p v-if="expanded && count > profile.reviews.length" class="t-body-sm t-muted more-note">{{ t('Örnek ekranda {count} yorum gösteriliyor.', {count: profile.reviews.length}) }}</p>
       </div>
     </template>
 
     <div v-else class="empty">
       <span class="empty-icon"><MessageSquare :size="26" aria-hidden="true"/></span>
-      <p class="t-h4">Bu işletme için henüz yorum yok</p>
-      <p class="t-body-sm t-muted">“Henüz yorum yok” sıfır puan demek değildir.</p>
-      <V2Button variant="dark" arrow @click="emit('review')">İlk yorumu yaz</V2Button>
+      <p class="t-h4">{{ t('Bu işletme için henüz yorum yok') }}</p>
+      <p class="t-body-sm t-muted">{{ t('“Henüz yorum yok” sıfır puan demek değildir.') }}</p>
+      <V2Button variant="dark" arrow @click="emit('review')">{{ t('İlk yorumu yaz') }}</V2Button>
     </div>
   </section>
 </template>

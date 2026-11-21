@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {ArrowRight, Heart, MapPin, Phone, ShieldCheck, Star, Wrench} from '@lucide/vue';
-import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses';
+import {useLocale} from '~/composables/useLocale';
+import type {MockBusiness} from '~/data/mock/businesses';
 
 // V2/Kart/Servis (Figma 111:55): photo, name + save, verified + location, rating + open state,
 // tags, compare checkbox, call and details. States from W02: no photo, unclaimed, no reviews, unknown hours.
@@ -11,49 +12,54 @@ const hoursKnown = computed(() => props.business.hoursKnown !== false);
 const openKnown = computed(() => hoursKnown.value && props.business.openStateKnown !== false);
 const chips = computed(() => (props.tags ?? [props.business.category, props.business.brands.join(' · ')]).filter(Boolean));
 const emit = defineEmits<{'update:compared': [value: boolean]; 'update:saved': [value: boolean]; hover: [id: string | null]}>();
+// Chips and the hours line are Turkish source text in demo data (translated here) or API text that is already
+// localised (t() leaves it as it is). Numbers follow the current language (4,5 / 4.5).
+const {t, localeTag} = useLocale();
+const decimal = (value: number) => value.toLocaleString(localeTag.value, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+const km = (value: number | null) => (value === null ? '' : `${decimal(value)} km`);
 </script>
 
 <template>
   <article class="v2-service-card" :class="{highlighted}" @mouseenter="emit('hover', business.id)" @mouseleave="emit('hover', null)">
     <div class="photo">
       <img v-if="business.photo" :src="business.photo" alt="" width="1200" height="675" loading="lazy">
-      <span v-else class="placeholder" aria-hidden="true"><Wrench :size="22"/><span class="t-mono-sm">Fotoğraf yok</span></span>
-      <span v-if="business.sponsored" class="sponsor t-mono-sm">Sponsorlu</span>
+      <span v-else class="placeholder" aria-hidden="true"><Wrench :size="22"/><span class="t-mono-sm">{{ t('Fotoğraf yok') }}</span></span>
+      <span v-if="business.sponsored" class="sponsor t-mono-sm">{{ t('Sponsorlu') }}</span>
     </div>
     <div class="body">
       <div class="row between">
         <h3 class="t-h4"><NuxtLink :to="`/servis/${business.id}`">{{ business.name }}</NuxtLink></h3>
-        <button type="button" class="save" :class="{on: saved}" :aria-pressed="saved" :aria-label="saved ? 'Kaydedilenlerden çıkar' : 'Kaydet'" @click="emit('update:saved', !props.saved)">
+        <button type="button" class="save" :class="{on: saved}" :aria-pressed="saved" :aria-label="saved ? t('Kaydedilenlerden çıkar') : t('Kaydet')" @click="emit('update:saved', !props.saved)">
           <Heart :size="16" aria-hidden="true"/>
         </button>
       </div>
       <div class="row meta">
-        <span v-if="business.verified" class="verified"><ShieldCheck :size="14" aria-hidden="true"/>Doğrulanmış</span>
-        <span v-else-if="!business.claimed" class="tag tag-cream">Sahiplenilmedi</span>
-        <span class="place t-body-sm"><MapPin :size="14" aria-hidden="true"/>{{ business.district }}, {{ business.city }}<template v-if="business.distanceKm !== null"> · {{ formatKm(business.distanceKm) }}</template></span>
+        <span v-if="business.verified" class="verified"><ShieldCheck :size="14" aria-hidden="true"/>{{ t('Doğrulanmış') }}</span>
+        <span v-else-if="!business.claimed" class="tag tag-cream">{{ t('Sahiplenilmedi') }}</span>
+        <span class="place t-body-sm"><MapPin :size="14" aria-hidden="true"/>{{ business.district }}, {{ business.city }}<template v-if="business.distanceKm !== null"> · {{ km(business.distanceKm) }}</template></span>
       </div>
       <div class="row rating">
         <template v-if="business.reviewCount > 0">
           <Star :size="16" class="star" aria-hidden="true"/>
-          <span class="t-label-sm">{{ formatRating(business.rating) }}</span>
-          <span class="t-body-sm t-muted">({{ business.reviewCount }} yorum)</span>
+          <span class="t-label-sm">{{ decimal(business.rating) }}</span>
+          <span class="t-body-sm t-muted">{{ t('({count} yorum)', {count: business.reviewCount}) }}</span>
         </template>
-        <span v-else class="t-body-sm t-muted">Henüz yorum yok</span>
+        <span v-else class="t-body-sm t-muted">{{ t('Henüz yorum yok') }}</span>
         <span class="sep" aria-hidden="true"/>
         <span class="state" :class="{closed: openKnown && !business.open, unknown: !openKnown}" aria-hidden="true"/>
-        <span class="t-label-sm hours" :class="{muted: !hoursKnown}">{{ hoursKnown ? business.hoursText : 'Saat bilgisi yok' }}</span>
+        <span class="t-label-sm hours" :class="{muted: !hoursKnown}">{{ hoursKnown ? t(business.hoursText) : t('Saat bilgisi yok') }}</span>
       </div>
       <div class="row tags">
-        <span v-for="chip in chips" :key="chip" class="chip chip-soft">{{ chip }}</span>
+        <span v-for="chip in chips" :key="chip" class="chip chip-soft">{{ t(chip) }}</span>
       </div>
       <div class="row between actions">
         <label class="compare t-label-sm">
           <input type="checkbox" class="checkbox" :checked="compared" @change="emit('update:compared', ($event.target as HTMLInputElement).checked)">
-          Karşılaştır
+          {{ t('Karşılaştır') }}
         </label>
         <div class="row">
-          <a :href="`tel:${business.phone.replace(/\s/g, '')}`" class="call" :aria-label="`${business.name} ara`"><Phone :size="18" aria-hidden="true"/></a>
-          <NuxtLink :to="`/servis/${business.id}`" class="btn btn-outline">Detaylar<ArrowRight aria-hidden="true"/></NuxtLink>
+          <a :href="`tel:${business.phone.replace(/\s/g, '')}`" class="call" :aria-label="t('{name} ara', {name: business.name})"><Phone :size="18" aria-hidden="true"/></a>
+          <NuxtLink :to="`/servis/${business.id}`" class="btn btn-outline">{{ t('Detaylar') }}<ArrowRight aria-hidden="true"/></NuxtLink>
         </div>
       </div>
     </div>

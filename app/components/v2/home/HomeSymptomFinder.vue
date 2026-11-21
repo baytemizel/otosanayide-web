@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
 import {ArrowRight, Check, Info, Wrench} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeCategoryStats, homeSymptomArea, homeSymptomDefault, homeSymptoms} from '~/data/mock/home';
 
 // Figma 109:138 "Belirti Bulucu · interaktif": multi-select; the result panel updates on every selection.
+// Symptom, category, system and part names are Turkish source text, translated at render.
+const {t, locale, localeTag} = useLocale();
 const selected = ref<string[]>([...homeSymptomDefault]);
-const steps = ['Belirtiyi seç', 'Olası kategoriyi gör', 'Servisleri karşılaştır'];
+const steps = computed(() => [t('Belirtiyi seç'), t('Olası kategoriyi gör'), t('Servisleri karşılaştır')]);
 
 function toggle(id: string) {
   selected.value = selected.value.includes(id) ? selected.value.filter((x) => x !== id) : [...selected.value, id];
@@ -21,13 +24,16 @@ const result = computed(() => {
   const category = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]![0];
   const lead = picked.find((s) => s.category === category)!;
   const parts = [...new Set(picked.flatMap((s) => s.parts))].slice(0, 4);
-  const stats = homeCategoryStats[category] ?? {count: 5, nearest: '2,0 km', open: 3};
+  const stats = homeCategoryStats[category] ?? {count: 5, nearestKm: 2, open: 3};
   return {category, system: lead.system, parts, stats};
 });
 // Turkish possessive suffix after a number: 9’u, 5’i, 4’ü, 6’sı …
 const unitSuffix = ['', 'i', 'si', 'ü', 'ü', 'i', 'sı', 'si', 'i', 'u'];
 const tenSuffix = ['', 'u', 'si', 'u', 'ı', 'si', 'ı', 'i', 'i', 'ı'];
 const ofSuffix = (n: number) => (n % 10 ? unitSuffix[n % 10] : tenSuffix[Math.floor(n / 10) % 10]) || 'ı';
+// "9’u şu an açık" in Turkish; English has no suffix ("9 open now").
+const openCount = (n: number) => (locale.value === 'tr' ? `${n}’${ofSuffix(n)}` : String(n));
+const km = (value: number) => `${value.toLocaleString(localeTag.value, {minimumFractionDigits: 1, maximumFractionDigits: 1})} km`;
 const servicesLink = computed(() => ({path: '/ara', query: {belirti: selected.value.join(',')}}));
 </script>
 
@@ -38,9 +44,9 @@ const servicesLink = computed(() => ({path: '/ara', query: {belirti: selected.va
 
     <div class="v2-wrap inner">
       <div class="text">
-        <p class="pill t-mono-sm"><span class="pill-dot" aria-hidden="true"/>BELİRTİ BULUCU</p>
-        <h2 id="home-symptoms-title" class="t-h2">Belirtiyi seç,<br>doğru ustaya git.</h2>
-        <p class="t-body-md lead">Arızanın adını bilmen gerekmiyor. Fark ettiğin belirtiyi seç; hangi kategoriye bakman gerektiğini ve yakınındaki uygun servisleri gösterelim.</p>
+        <p class="pill t-mono-sm"><span class="pill-dot" aria-hidden="true"/>{{ t('BELİRTİ BULUCU') }}</p>
+        <h2 id="home-symptoms-title" class="t-h2" v-html="t('Belirtiyi seç,<br>doğru ustaya git.')"/>
+        <p class="t-body-md lead">{{ t('Arızanın adını bilmen gerekmiyor. Fark ettiğin belirtiyi seç; hangi kategoriye bakman gerektiğini ve yakınındaki uygun servisleri gösterelim.') }}</p>
         <ol class="steps">
           <li v-for="(step, i) in steps" :key="step">
             <span class="num" aria-hidden="true">{{ String(i + 1).padStart(2, '0') }}</span>
@@ -51,15 +57,15 @@ const servicesLink = computed(() => ({path: '/ara', query: {belirti: selected.va
 
       <div class="card">
         <div class="card-head">
-          <h3 class="t-h4">Ne fark ettin?</h3>
-          <p class="t-mono-sm count" aria-live="polite">{{ selected.length }} / {{ homeSymptoms.length }} SEÇİLDİ</p>
+          <h3 class="t-h4">{{ t('Ne fark ettin?') }}</h3>
+          <p class="t-mono-sm count" aria-live="polite">{{ t('{selected} / {total} SEÇİLDİ', {selected: selected.length, total: homeSymptoms.length}) }}</p>
         </div>
-        <ul class="chips" aria-label="Belirtiler">
+        <ul class="chips" :aria-label="t('Belirtiler')">
           <li v-for="s in homeSymptoms" :key="s.id">
             <button
               type="button" class="chip" :class="selected.includes(s.id) ? 'chip-dark-active' : 'chip-dark'"
               :aria-pressed="selected.includes(s.id)" @click="toggle(s.id)">
-              <Check v-if="selected.includes(s.id)" :size="14" :stroke-width="2.5" aria-hidden="true"/>{{ s.label }}
+              <Check v-if="selected.includes(s.id)" :size="14" :stroke-width="2.5" aria-hidden="true"/>{{ t(s.label) }}
             </button>
           </li>
         </ul>
@@ -68,31 +74,31 @@ const servicesLink = computed(() => ({path: '/ara', query: {belirti: selected.va
           <template v-if="result">
             <div class="panel-head">
               <div class="panel-title">
-                <p class="t-mono-sm t-muted">OLASI KATEGORİ</p>
-                <p class="t-h4">{{ result.category }} · {{ result.system }}</p>
+                <p class="t-mono-sm t-muted">{{ t('OLASI KATEGORİ') }}</p>
+                <p class="t-h4">{{ t(result.category) }} · {{ t(result.system) }}</p>
               </div>
               <span class="panel-icon" aria-hidden="true"><Wrench :size="22"/></span>
             </div>
             <ul class="parts">
-              <li v-for="p in result.parts" :key="p" class="chip chip-soft">{{ p }}</li>
+              <li v-for="p in result.parts" :key="p" class="chip chip-soft">{{ t(p) }}</li>
             </ul>
             <hr class="divider">
             <div class="panel-foot">
               <div class="panel-stats">
-                <p class="t-label-md">{{ homeSymptomArea }} çevresinde {{ result.stats.count }} uygun servis</p>
-                <p class="t-body-sm t-muted">En yakını {{ result.stats.nearest }} · {{ result.stats.open }}’{{ ofSuffix(result.stats.open) }} şu an açık</p>
+                <p class="t-label-md">{{ t('{area} çevresinde {count} uygun servis', {area: homeSymptomArea, count: result.stats.count}) }}</p>
+                <p class="t-body-sm t-muted">{{ t('En yakını {nearest} · {open} şu an açık', {nearest: km(result.stats.nearestKm), open: openCount(result.stats.open)}) }}</p>
               </div>
-              <NuxtLink :to="servicesLink" class="btn btn-primary">Servisleri gör<ArrowRight aria-hidden="true"/></NuxtLink>
+              <NuxtLink :to="servicesLink" class="btn btn-primary">{{ t('Servisleri gör') }}<ArrowRight aria-hidden="true"/></NuxtLink>
             </div>
           </template>
           <div v-else class="empty">
-            <p class="t-mono-sm t-muted">OLASI KATEGORİ</p>
-            <p class="t-h4">Bir ya da daha fazla belirti seç</p>
-            <p class="t-body-sm t-muted">Seçtiğin her belirtiyle olası kategori ve yakınındaki servisler burada güncellenir.</p>
+            <p class="t-mono-sm t-muted">{{ t('OLASI KATEGORİ') }}</p>
+            <p class="t-h4">{{ t('Bir ya da daha fazla belirti seç') }}</p>
+            <p class="t-body-sm t-muted">{{ t('Seçtiğin her belirtiyle olası kategori ve yakınındaki servisler burada güncellenir.') }}</p>
           </div>
         </div>
 
-        <p class="note t-body-sm"><Info :size="16" aria-hidden="true"/>Ön bilgilendirmedir; teşhis yerine geçmez.</p>
+        <p class="note t-body-sm"><Info :size="16" aria-hidden="true"/>{{ t('Ön bilgilendirmedir; teşhis yerine geçmez.') }}</p>
       </div>
     </div>
   </section>

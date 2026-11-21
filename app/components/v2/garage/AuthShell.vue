@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {Check} from '@lucide/vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
+import {useLocale} from '~/composables/useLocale';
 
 // W10 "Giriş kartı" (Figma 123:69): dark promo panel on the left, white form panel (slot) on the right.
 // Also used by the e-mail verification and password reset pages so all auth screens share one card.
+// The list keeps the Turkish source; each item is translated at render.
+const {t} = useLocale();
 const features = [
   'Birden fazla araç ve bakım geçmişi',
   'Push, e-posta ve takvim hatırlatmaları',
@@ -19,15 +22,15 @@ const features = [
         <img class="glow glow-orange" src="/v2/garage/auth-glow-orange.svg" alt="" width="620" height="620">
         <img class="glow glow-lime" src="/v2/garage/auth-glow-lime.svg" alt="" width="460" height="460">
         <div class="promo-top">
-          <NuxtLink to="/" aria-label="Otosanayide ana sayfa"><V2Logo dark/></NuxtLink>
-          <p class="t-h2 promo-title">Ücretsiz hesabınla<br>daha fazlası.</p>
+          <NuxtLink to="/" :aria-label="t('Otosanayide ana sayfa')"><V2Logo dark/></NuxtLink>
+          <p class="t-h2 promo-title"><template v-for="(line, i) in t('Ücretsiz hesabınla\ndaha fazlası.').split('\n')" :key="i"><br v-if="i">{{ line }}</template></p>
           <ul class="features">
             <li v-for="item in features" :key="item" class="t-body-md">
-              <span class="tick" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>{{ item }}
+              <span class="tick" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>{{ t(item) }}
             </li>
           </ul>
         </div>
-        <p class="t-body-sm promo-note">Keşif, arama ve yol tarifi için hesap gerekmez.</p>
+        <p class="t-body-sm promo-note">{{ t('Keşif, arama ve yol tarifi için hesap gerekmez.') }}</p>
       </aside>
       <div class="panel">
         <slot/>

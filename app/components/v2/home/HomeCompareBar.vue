@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {ArrowRight} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useSearchCards} from '~/composables/v2/useSearch';
 import {demoMode} from '~/lib/env';
@@ -8,6 +9,7 @@ import {demoMode} from '~/lib/env';
 // Figma 111:372 "Karşılaştırma çubuğu · yüzen": appears once a service is ticked; comparing needs two.
 // Live: the avatars come from the cards seen in live search results (ids are API ids, not mock ones).
 defineProps<{photos?: Record<string, string>}>();
+const {t} = useLocale();
 const compare = useMockCompare();
 const {cards} = useSearchCards();
 const items = computed(() => (demoMode()
@@ -18,7 +20,7 @@ const initials = (name: string) => name.replace(/^Örnek\s+/, '').split(/\s+/).s
 
 <template>
   <Transition name="home-compare">
-    <div v-if="compare.ids.value.length" class="home-compare" role="region" aria-label="Karşılaştırma">
+    <div v-if="compare.ids.value.length" class="home-compare" role="region" :aria-label="t('Karşılaştırma')">
       <span class="avatars" aria-hidden="true">
         <template v-for="item in items" :key="item.id">
           <img v-if="photos?.[item.id] ?? item.photo" :src="photos?.[item.id] ?? item.photo ?? ''" alt="" width="40" height="40">
@@ -26,13 +28,13 @@ const initials = (name: string) => name.replace(/^Örnek\s+/, '').split(/\s+/).s
         </template>
       </span>
       <span class="text">
-        <span class="t-label-md" aria-live="polite">{{ compare.ids.value.length }} servis seçildi</span>
-        <span class="t-body-sm">En fazla {{ compare.max }} servis karşılaştırabilirsin</span>
+        <span class="t-label-md" aria-live="polite">{{ t('{count} servis seçildi', {count: compare.ids.value.length}) }}</span>
+        <span class="t-body-sm">{{ t('En fazla {max} servis karşılaştırabilirsin', {max: compare.max}) }}</span>
       </span>
       <span class="actions">
-        <button type="button" class="btn btn-outline-dark" @click="compare.clear()">Temizle</button>
-        <NuxtLink v-if="compare.ids.value.length >= 2" :to="compare.href.value" class="btn btn-lime">Karşılaştır<ArrowRight aria-hidden="true"/></NuxtLink>
-        <button v-else type="button" class="btn btn-lime" disabled title="Karşılaştırmak için bir servis daha seç">Karşılaştır<ArrowRight aria-hidden="true"/></button>
+        <button type="button" class="btn btn-outline-dark" @click="compare.clear()">{{ t('Temizle') }}</button>
+        <NuxtLink v-if="compare.ids.value.length >= 2" :to="compare.href.value" class="btn btn-lime">{{ t('Karşılaştır') }}<ArrowRight aria-hidden="true"/></NuxtLink>
+        <button v-else type="button" class="btn btn-lime" disabled :title="t('Karşılaştırmak için bir servis daha seç')">{{ t('Karşılaştır') }}<ArrowRight aria-hidden="true"/></button>
       </span>
     </div>
   </Transition>

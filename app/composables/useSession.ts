@@ -1,8 +1,10 @@
 import {computed, ref, watch} from 'vue';
 import {mockMember} from '~/data/mock/session';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
 import {callApi} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
+import {turkish, type Translate} from '~/lib/i18n';
 import {browserSession} from '~/lib/session-instance';
 import type {LoginResult, RegisterDetails} from '~/lib/session';
 import {decodeProfile, type MemberProfile, type ProfileLocale} from '~/lib/v2/account';
@@ -10,11 +12,11 @@ import {nameLabel} from '~/lib/v2/auth';
 import {liveErrorMessage} from '~/lib/v2/requests';
 
 /** Initials and a short label from an e-mail address (used while the account has no display name). */
-export function memberLabel(email: string | null | undefined) {
+export function memberLabel(email: string | null | undefined, t: Translate = turkish) {
   const local = (email ?? '').split('@')[0] ?? '';
   const parts = local.split(/[._-]+/).filter(Boolean);
   const initials = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? parts[0]?.[1] ?? '')).toLocaleUpperCase('tr-TR') || '?';
-  const short = parts.length ? parts.map((p, i) => (i === 0 ? p[0].toLocaleUpperCase('tr-TR') + p.slice(1) : `${p[0].toLocaleUpperCase('tr-TR')}.`)).join(' ') : 'Hesabım';
+  const short = parts.length ? parts.map((p, i) => (i === 0 ? p[0].toLocaleUpperCase('tr-TR') + p.slice(1) : `${p[0].toLocaleUpperCase('tr-TR')}.`)).join(' ') : t('Hesabım');
   return {initials, short};
 }
 
@@ -36,6 +38,7 @@ function useStoredProfile() {
  */
 export function useSession() {
   const app = useApp();
+  const {t} = useLocale();
   const demo = demoMode();
   const stored = useStoredProfile();
   const signedIn = computed(() => app.member);
@@ -45,7 +48,7 @@ export function useSession() {
   /** Live profile of the current account, or null until it is read (or when it could not be). */
   const profile = computed<MemberProfile | null>(() => (!demo && stored.value && stored.value.uid === app.user?.uid ? stored.value : null));
   const displayName = computed(() => (demo ? mockMember.name : profile.value?.displayName ?? null));
-  const label = computed(() => (demo ? {initials: mockMember.initials, short: mockMember.shortName} : nameLabel(displayName.value) ?? memberLabel(email.value)));
+  const label = computed(() => (demo ? {initials: mockMember.initials, short: mockMember.shortName} : nameLabel(displayName.value) ?? memberLabel(email.value, t)));
 
   if (!demo && import.meta.client) {
     watch(() => app.user?.uid ?? null, (uid) => {
@@ -100,6 +103,7 @@ export function useSession() {
  */
 export function useMemberProfile() {
   const app = useApp();
+  const {t} = useLocale();
   const stored = useStoredProfile();
   const loading = ref(false);
   const busy = ref(false);
@@ -108,7 +112,7 @@ export function useMemberProfile() {
 
   async function token() {
     const user = app.user;
-    if (!user) throw Error('Oturumun sona erdi. Yeniden giriş yap.');
+    if (!user) throw Error(t('Oturumun sona erdi. Yeniden giriş yap.'));
     return {uid: user.uid, token: await user.getIdToken()};
   }
 
@@ -124,7 +128,7 @@ export function useMemberProfile() {
         profileFor = uid;
       }
     } catch (e) {
-      error.value = profileErrorMessage(e, 'Profil bilgileri yüklenemedi.');
+      error.value = profileErrorMessage(e, t('Profil bilgileri yüklenemedi.'), t);
     } finally {
       loading.value = false;
     }
@@ -139,10 +143,10 @@ export function useMemberProfile() {
       const {uid, token: bearer} = await token();
       const value = await callApi('/api/me/profile', {method: 'PATCH', token: bearer, body: changes}, decodeProfile);
       if (app.user?.uid === uid) stored.value = {uid, ...value};
-      saved.value = 'Profil bilgilerin kaydedildi.';
+      saved.value = t('Profil bilgilerin kaydedildi.');
       return true;
     } catch (e) {
-      error.value = profileErrorMessage(e, 'Profil bilgileri kaydedilemedi. Tekrar dene.');
+      error.value = profileErrorMessage(e, t('Profil bilgileri kaydedilemedi. Tekrar dene.'), t);
       return false;
     } finally {
       busy.value = false;
@@ -152,9 +156,10 @@ export function useMemberProfile() {
   return {loading, busy, error, saved, load, save};
 }
 
-function profileErrorMessage(error: unknown, fallback: string) {
+/** `fallback` comes translated; the API's own text is shown as sent (the API localises it). */
+function profileErrorMessage(error: unknown, fallback: string, t: Translate) {
   return liveErrorMessage(error, fallback, {
-    400: 'Bilgileri kontrol et: ad soyad 2–80 karakter olmalı ve harfle başlamalı.',
-    409: 'Hesap silme talebin işlenirken profil değiştirilemez.',
-  });
+    400: t('Bilgileri kontrol et: ad soyad 2–80 karakter olmalı ve harfle başlamalı.'),
+    409: t('Hesap silme talebin işlenirken profil değiştirilemez.'),
+  }, t);
 }

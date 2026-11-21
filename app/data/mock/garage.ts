@@ -1,6 +1,9 @@
 // Synthetic garage data for the Web v2 account screens (W11 Araçlarım, W12 Hatırlatma, W13 Kaydedilenler).
 // Plates are obviously fake ("ÖRN"), workshops start with "Örnek". Nothing here is real member data.
+// Labels (topics, notice days, fuel and gear values, record titles) are Turkish source text; the screens
+// translate them with `t` (K223). Formatters take the locale tag; the default keeps the Turkish output.
 import {useState} from '#imports';
+import {turkish, type Translate} from '~/lib/i18n';
 
 export interface MockVehicle {
   id: string;
@@ -116,12 +119,12 @@ export function daysUntil(iso: string, from: Date = mockToday) {
 }
 
 /** "14 gün", "3 ay", "Bugün", "2 gün geçti". */
-export function formatRemaining(iso: string) {
+export function formatRemaining(iso: string, t: Translate = turkish) {
   const days = daysUntil(iso);
-  if (days < 0) return `${-days} gün geçti`;
-  if (days === 0) return 'Bugün';
-  if (days <= 60) return `${days} gün`;
-  return `${Math.round(days / 30.4)} ay`;
+  if (days < 0) return t('{count} gün geçti', {count: -days});
+  if (days === 0) return t('Bugün');
+  if (days <= 60) return t('{count} gün', {count: days});
+  return t('{count} ay', {count: Math.round(days / 30.4)});
 }
 
 /** Share of the reminder window that has passed, 0..1 (the ring fills as the date gets closer). */
@@ -131,15 +134,18 @@ export function reminderProgress(reminder: MockReminder) {
   return Math.min(1, Math.max(0.04, 1 - left / reminder.windowDays));
 }
 
-const trDate = (iso: string, opts: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString('tr-TR', {timeZone: 'Europe/Istanbul', ...opts});
+const localDate = (iso: string, opts: Intl.DateTimeFormatOptions, tag: string) => new Date(iso).toLocaleDateString(tag, {timeZone: 'Europe/Istanbul', ...opts});
 
 /** "1 Aralık 2026" */
-export const formatLongDate = (iso: string) => trDate(iso, {day: 'numeric', month: 'long', year: 'numeric'});
-/** "1 Aralık 2026 · 09.00" */
-export const formatLongDateTime = (iso: string) => `${formatLongDate(iso)} · ${new Date(iso).toLocaleTimeString('tr-TR', {timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit'}).replace(':', '.')}`;
+export const formatLongDate = (iso: string, tag = 'tr-TR') => localDate(iso, {day: 'numeric', month: 'long', year: 'numeric'}, tag);
+/** "1 Aralık 2026 · 09.00" (Turkish writes the time with a dot; other languages keep their own separator). */
+export function formatLongDateTime(iso: string, tag = 'tr-TR') {
+  const time = new Date(iso).toLocaleTimeString(tag, {timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit'});
+  return `${formatLongDate(iso, tag)} · ${tag.startsWith('tr') ? time.replace(':', '.') : time}`;
+}
 /** "12 Eki 2026" */
-export const formatShortDate = (iso: string) => trDate(iso, {day: 'numeric', month: 'short', year: 'numeric'});
+export const formatShortDate = (iso: string, tag = 'tr-TR') => localDate(iso, {day: 'numeric', month: 'short', year: 'numeric'}, tag);
 /** "₺7.850" */
-export const formatTry = (value: number) => `₺${value.toLocaleString('tr-TR', {maximumFractionDigits: 0})}`;
-export const formatKmValue = (value: number) => `${value.toLocaleString('tr-TR')} km`;
+export const formatTry = (value: number, tag = 'tr-TR') => `₺${value.toLocaleString(tag, {maximumFractionDigits: 0})}`;
+export const formatKmValue = (value: number, tag = 'tr-TR') => `${value.toLocaleString(tag)} km`;
 export const vehicleTitle = (v: MockVehicle) => `${v.model} · ${v.year}`;

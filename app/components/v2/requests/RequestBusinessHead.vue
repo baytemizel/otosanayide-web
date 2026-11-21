@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {ShieldCheck, Wrench} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import type {MockBusiness} from '~/data/mock/businesses';
 
 // Business row on the W14/W16 summary cards: 56 px photo, name, "Doğrulanmış" tag.
 defineProps<{business: MockBusiness}>();
+const {t} = useLocale();
 </script>
 
 <template>
@@ -12,7 +14,7 @@ defineProps<{business: MockBusiness}>();
     <span v-else class="photo empty" aria-hidden="true"><Wrench :size="22"/></span>
     <div class="copy">
       <NuxtLink :to="`/servis/${business.id}`" class="t-label-md name">{{ business.name }}</NuxtLink>
-      <span v-if="business.verified" class="tag tag-lime verified"><ShieldCheck :size="14" aria-hidden="true"/>Doğrulanmış</span>
+      <span v-if="business.verified" class="tag tag-lime verified"><ShieldCheck :size="14" aria-hidden="true"/>{{ t('Doğrulanmış') }}</span>
       <span v-else class="t-body-sm t-muted">{{ business.district }}, {{ business.city }}</span>
     </div>
   </div>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, ref, type Component} from 'vue';
 import {Eye, EyeOff} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Labelled input with a leading Lucide icon (W10 "Alan · E-posta adresi" / "Alan · Şifre").
 // type="password" adds the show/hide eye button.
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   hint?: string;
 }>(), {type: 'text'});
 const model = defineModel<string>({default: ''});
+const {t} = useLocale();
 const reveal = ref(false);
 const inputType = computed(() => (props.type === 'password' && reveal.value ? 'text' : props.type));
 const describedBy = computed(() => [props.error && `${props.id}-err`, props.hint && `${props.id}-hint`].filter(Boolean).join(' ') || undefined);
@@ -35,7 +37,7 @@ const describedBy = computed(() => [props.error && `${props.id}-err`, props.hint
         :inputmode="inputmode"
         :aria-invalid="error ? 'true' : undefined"
         :aria-describedby="describedBy">
-      <button v-if="type === 'password'" type="button" class="eye" :aria-label="reveal ? 'Şifreyi gizle' : 'Şifreyi göster'" :aria-pressed="reveal" @click="reveal = !reveal">
+      <button v-if="type === 'password'" type="button" class="eye" :aria-label="reveal ? t('Şifreyi gizle') : t('Şifreyi göster')" :aria-pressed="reveal" @click="reveal = !reveal">
         <EyeOff v-if="reveal" :size="16" aria-hidden="true"/>
         <Eye v-else :size="16" aria-hidden="true"/>
       </button>

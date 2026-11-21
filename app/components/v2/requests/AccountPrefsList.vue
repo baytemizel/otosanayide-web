@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {ref} from 'vue';
+import {useLocale} from '~/composables/useLocale';
 import {usePreferences} from '~/composables/v2/useAccountData';
 import {mockAccountPreferences, type AccountPreference} from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
@@ -8,6 +9,7 @@ import {demoMode} from '~/lib/env';
 // Demo: mock state shared across pages for the session; nothing is saved anywhere.
 // Live: GET/PATCH /api/me/preferences (web-09); a switch is disabled while its change is sent.
 const demo = demoMode();
+const {t} = useLocale();
 const prefs = useState<AccountPreference[]>('v2-req-prefs', () => mockAccountPreferences.map((item) => ({...item})));
 const live = usePreferences();
 // Re-rendering the switch after each answer puts it back when a change was refused.
@@ -22,14 +24,14 @@ async function toggle(id: Parameters<typeof live.toggle>[0], on: boolean) {
   <ul v-if="demo" class="prefs">
     <li v-for="pref in prefs" :key="pref.id" class="pref">
       <label :for="`pref-${pref.id}`" class="copy">
-        <span class="title">{{ pref.title }}</span>
-        <span class="t-body-sm t-muted">{{ pref.text }}</span>
+        <span class="title">{{ t(pref.title) }}</span>
+        <span class="t-body-sm t-muted">{{ t(pref.text) }}</span>
       </label>
       <input :id="`pref-${pref.id}`" v-model="pref.on" type="checkbox" role="switch" class="switch" :aria-checked="pref.on">
     </li>
   </ul>
   <div v-else :aria-busy="live.loading.value || live.busy.value">
-    <p v-if="live.loading.value" class="t-body-sm t-muted" role="status">Tercihler yükleniyor…</p>
+    <p v-if="live.loading.value" class="t-body-sm t-muted" role="status">{{ t('Tercihler yükleniyor…') }}</p>
     <ul v-else-if="live.rows.value.length" class="prefs">
       <li v-for="pref in live.rows.value" :key="pref.id" class="pref">
         <label :for="`pref-${pref.id}`" class="copy">

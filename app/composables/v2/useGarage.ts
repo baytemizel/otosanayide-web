@@ -2,6 +2,8 @@ import {computed, ref} from 'vue';
 import {reminderCalendar} from '@otosanayide/core/calendar';
 import type {Maintenance, Reminder, Vehicle} from '@otosanayide/core';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
+import type {Translate} from '~/lib/i18n';
 import {demoMode} from '~/lib/env';
 import {
   daysUntil, formatLongDate, formatLongDateTime, formatRemaining, mockNotifyOptions, mockToday, reminderProgress, useMockGarage,
@@ -12,20 +14,20 @@ import {
   type GarageRecord, type GarageReminderView, type GarageVehicle, type RecordDraft, type ReminderDraft, type VehicleDraft,
 } from '~/lib/v2/garage';
 
-/** The W11/W12 mock reminder with the display values the components read (same output as before). */
-function mockReminderView(r: MockReminder): GarageReminderView {
+/** The W11/W12 mock reminder with the display values the components read (same Turkish output as before). */
+function mockReminderView(r: MockReminder, t: Translate, tag: string): GarageReminderView {
   const days = daysUntil(r.due);
   return {
     id: r.id,
     vehicleId: r.vehicleId,
-    topic: r.topic,
-    label: r.label ?? r.topic,
-    dateText: formatLongDate(r.due),
+    topic: t(r.topic),
+    label: t(r.label ?? r.topic),
+    dateText: formatLongDate(r.due, tag),
     // Figma: the service reminder shows its time (09.00), the others only the date.
-    whenText: r.topic === 'Periyodik bakım' ? formatLongDateTime(r.due) : formatLongDate(r.due),
-    notifyText: mockNotifyOptions.filter((o) => r.notify.includes(o.value)).map((o) => o.label).join(', '),
-    remaining: formatRemaining(r.due),
-    offText: 'Kapalı',
+    whenText: r.topic === 'Periyodik bakım' ? formatLongDateTime(r.due, tag) : formatLongDate(r.due, tag),
+    notifyText: mockNotifyOptions.filter((o) => r.notify.includes(o.value)).map((o) => t(o.label)).join(', '),
+    remaining: formatRemaining(r.due, t),
+    offText: t('Kapalı', {ctx: 'switch'}),
     progress: reminderProgress(r),
     tone: !r.active ? 'muted' : days <= 30 ? 'orange' : 'green',
     push: r.push,
@@ -36,31 +38,46 @@ function mockReminderView(r: MockReminder): GarageReminderView {
 }
 
 /**
+ * Demo record as shown: the synthetic title and the "workshop · km" parts are translated where English
+ * exists (workshop names have none and stay as written); the km figure takes the locale's number format.
+ */
+function mockRecordView(r: GarageRecord, t: Translate, tag: string): GarageRecord {
+  const detail = r.detail.split(' · ').map((part) => {
+    const km = /^([\d.]+) km$/.exec(part);
+    return km ? `${Number(km[1]!.replace(/\./g, '')).toLocaleString(tag)} km` : t(part);
+  }).join(' · ');
+  return {...r, title: t(r.title), detail};
+}
+
+/**
  * Data for /araclarim (W11) and the W12 reminder modal.
  * Live: vehicles, maintenance and reminders from the app store (GET /api/me?v=2); writes go through
  * app.save / app.update / app.remove (POST / PATCH / DELETE /api/me). Demo: the in-memory mock garage, unchanged.
  */
 export function useGarage() {
   const app = useApp();
+  const {t, localeTag} = useLocale();
   const live = !demoMode();
   const mock = useMockGarage();
   const today = live ? istanbulToday() : mockToday.toISOString().slice(0, 10);
   const year = live ? Number(today.slice(0, 4)) : mockToday.getFullYear();
 
   const vehicles = computed<GarageVehicle[]>(() => (live ? app.data.vehicles.filter((v) => !v.archived).map(liveVehicle) : mock.vehicles.value));
-  const records = computed<GarageRecord[]>(() => (live ? app.data.maintenance.map(liveRecord) : mock.records.value));
+  const records = computed<GarageRecord[]>(() => (live
+    ? app.data.maintenance.map((m) => liveRecord(m, t, localeTag.value))
+    : mock.records.value.map((r) => mockRecordView(r, t, localeTag.value))));
   const reminders = computed<GarageReminderView[]>(() => {
-    if (!live) return mock.reminders.value.map(mockReminderView);
-    return app.data.reminders.map((r) => liveReminder(r, app.data.vehicles.find((v) => v.id === r.vehicleId), today));
+    if (!live) return mock.reminders.value.map((r) => mockReminderView(r, t, localeTag.value));
+    return app.data.reminders.map((r) => liveReminder(r, app.data.vehicles.find((v) => v.id === r.vehicleId), today, t, localeTag.value));
   });
   /** Summary cards also count the vehicle's inspection date (live model field). */
   const summaryFor = (vehicle: GarageVehicle | undefined) => {
     const own = reminders.value.filter((r) => r.vehicleId === vehicle?.id);
-    const inspection = live && vehicle ? inspectionView(vehicle, today) : null;
+    const inspection = live && vehicle ? inspectionView(vehicle, today, t, localeTag.value) : null;
     return inspection ? [...own, inspection] : own;
   };
 
-  /** Live only: the first GET /api/me has not finished. */
+  /** Live only: the first GET /api/me has not finished. `loadError` is Turkish source text (or the API's message); the page translates it. */
   const loading = computed(() => live && !app.ready);
   const reloading = ref(false);
   const loadError = ref('');

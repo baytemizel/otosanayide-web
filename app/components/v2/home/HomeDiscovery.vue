@@ -6,6 +6,7 @@ import V2Select from '~/components/v2/V2Select.vue';
 import HomeCompareBar from '~/components/v2/home/HomeCompareBar.vue';
 import HomeMockMap from '~/components/v2/home/HomeMockMap.vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
 import {useLiveSearch} from '~/composables/v2/useSearch';
@@ -23,6 +24,8 @@ import {
 // forward, ticking services shows the floating compare bar (111:372).
 // Live: the first page of GET /api/search?v=2 for a default city (homeLiveCity). Only "Doğrulanmış" is a
 // search filter; the others are not in the API and stay passive. "En yakın" needs a point, so it is off.
+// View, filter and sort labels are Turkish source text, translated at render; ids stay as they are.
+const {t} = useLocale();
 const demo = demoMode();
 const compare = useMockCompare();
 const saved = useMockSaved();
@@ -40,7 +43,7 @@ const selectedId = ref<string | null>(demo ? 'ornek-teknik-garaj' : null);
 const liveFilters: HomeDiscoveryFilter[] = ['verified'];
 const filterOff = (id: HomeDiscoveryFilter) => !demo && !liveFilters.includes(id);
 const sortOff = (id: HomeDiscoverySort) => !demo && id === 'distance';
-const sortOptions = computed(() => homeDiscoverySorts.map((s) => ({value: s.id, label: s.label, disabled: sortOff(s.id), hint: sortOff(s.id) ? 'Konum gerekir' : undefined})));
+const sortOptions = computed(() => homeDiscoverySorts.map((s) => ({value: s.id, label: t(s.label), disabled: sortOff(s.id), hint: sortOff(s.id) ? t('Konum gerekir') : undefined})));
 const liveSort: Record<HomeDiscoverySort, SearchSort> = {recommended: 'onerilen', distance: 'yakin', rating: 'puan'};
 const live = useLiveSearch(() => (demo ? null : {
   filters: {...emptyFilters(homeLiveCity), verifiedOnly: filters.value.includes('verified'), sort: liveSort[sort.value]},
@@ -84,7 +87,7 @@ const listed = computed(() => {
   return top;
 });
 const withPhoto = <T extends MockBusiness>(b: T) => (demo ? {...b, photo: homeListPhotos[b.id] ?? b.photo} : b);
-const countText = computed(() => (demo ? `${results.value.length} sonuç` : live.loading.value ? 'Yükleniyor…' : live.error.value ? '' : resultCount(live.total.value, results.value.length)));
+const countText = computed(() => (demo ? t('{count} sonuç', {count: results.value.length}) : live.loading.value ? t('Yükleniyor…') : live.error.value ? '' : resultCount(live.total.value, results.value.length, t)));
 
 async function selectPin(id: string) {
   selectedId.value = id;
@@ -100,27 +103,27 @@ function setCompared(id: string, on: boolean) {
 
 <template>
   <section class="home-discovery v2-wrap" aria-labelledby="home-discovery-title">
-    <HomeSectionHead :eyebrow="demo ? 'YAKININDA' : 'KEŞFET'" :title="demo ? `${homeDiscoveryArea} çevresindeki servisler` : `${homeLiveCity} servisleri`" heading-id="home-discovery-title">
-      <div class="views" role="group" aria-label="Görünüm">
+    <HomeSectionHead :eyebrow="demo ? t('YAKININDA') : t('KEŞFET')" :title="demo ? t('{area} çevresindeki servisler', {area: homeDiscoveryArea}) : t('{city} servisleri', {city: homeLiveCity})" heading-id="home-discovery-title">
+      <div class="views" role="group" :aria-label="t('Görünüm')">
         <button
           v-for="v in views" :key="v.id" type="button" class="view t-label-sm" :class="{on: view === v.id}"
           :aria-pressed="view === v.id" @click="view = v.id">
-          <component :is="v.icon" :size="16" aria-hidden="true"/>{{ v.label }}
+          <component :is="v.icon" :size="16" aria-hidden="true"/>{{ t(v.label) }}
         </button>
       </div>
     </HomeSectionHead>
 
     <div class="filters">
-      <ul class="chips" aria-label="Filtreler">
+      <ul class="chips" :aria-label="t('Filtreler')">
         <li v-for="f in homeDiscoveryFilters" :key="f.id">
           <button type="button" class="chip" :class="[filters.includes(f.id) ? 'chip-active' : 'chip-default', {off: filterOff(f.id)}]" :aria-pressed="filters.includes(f.id)"
-                  :disabled="filterOff(f.id)" :title="filterOff(f.id) ? 'Bu filtre henüz aramada yok' : undefined" @click="toggleFilter(f.id)">{{ f.label }}</button>
+                  :disabled="filterOff(f.id)" :title="filterOff(f.id) ? t('Bu filtre henüz aramada yok') : undefined" @click="toggleFilter(f.id)">{{ t(f.label) }}</button>
         </li>
       </ul>
       <p class="count t-body-sm t-muted" aria-live="polite">{{ countText }}</p>
       <label class="sort t-label-sm">
         <SlidersVertical :size="16" aria-hidden="true"/>
-        <V2Select v-model="sort" :options="sortOptions" variant="bare" anchor=".sort" :match-width="false" aria-label="Sıralama"/>
+        <V2Select v-model="sort" :options="sortOptions" variant="bare" anchor=".sort" :match-width="false" :aria-label="t('Sıralama')"/>
       </label>
     </div>
 
@@ -131,13 +134,13 @@ function setCompared(id: string, on: boolean) {
             :business="withPhoto(b)" :compared="compare.has(b.id)" :saved="saved.has(b.id)" :highlighted="b.id === selectedId"
             @update:compared="setCompared(b.id, $event)" @update:saved="saved.toggle(b.id, $event)" @hover="hoverId = $event"/>
         </div>
-        <p v-if="!demo && live.loading.value" class="empty t-body-md t-muted" role="status">Servisler yükleniyor…</p>
+        <p v-if="!demo && live.loading.value" class="empty t-body-md t-muted" role="status">{{ t('Servisler yükleniyor…') }}</p>
         <div v-else-if="!demo && live.error.value" class="empty error t-body-md" role="alert">
-          <span>{{ live.error.value }}</span>
-          <button type="button" class="btn btn-outline" @click="live.retry()">Tekrar dene</button>
+          <span>{{ t(live.error.value) }}</span>
+          <button type="button" class="btn btn-outline" @click="live.retry()">{{ t('Tekrar dene') }}</button>
         </div>
-        <p v-else-if="!listed.length" class="empty t-body-md t-muted">Bu filtrelerle sonuç yok. Bir filtreyi kaldırmayı dene.</p>
-        <NuxtLink v-if="!demo && listed.length" :to="searchHref" class="all t-label-sm">Tüm sonuçları aramada aç</NuxtLink>
+        <p v-else-if="!listed.length" class="empty t-body-md t-muted">{{ t('Bu filtrelerle sonuç yok. Bir filtreyi kaldırmayı dene.') }}</p>
+        <NuxtLink v-if="!demo && listed.length" :to="searchHref" class="all t-label-sm">{{ t('Tüm sonuçları aramada aç') }}</NuxtLink>
       </div>
       <div v-if="view !== 'list'" class="map">
         <HomeMockMap :businesses="results" :selected-id="selectedId" :hover-id="hoverId" :photos="demo ? homeListPhotos : undefined" :live="!demo" :search-href="searchHref" @select="selectPin"/>

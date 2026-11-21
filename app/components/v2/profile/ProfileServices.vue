@@ -2,25 +2,28 @@
 import {Info} from '@lucide/vue';
 import V2Chip from '~/components/v2/V2Chip.vue';
 import type {ProfileView} from '~/lib/v2/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // "Hizmetler" section: service chips, declared brand expertise (owner profiles) and a source note.
 defineProps<{profile: ProfileView}>();
+// Catalogue service names and the source note are Turkish source texts; t() shows them in the page language.
+const {t} = useLocale();
 </script>
 
 <template>
   <section id="hizmetler" class="profile-services" aria-labelledby="hizmetler-baslik">
-    <h2 id="hizmetler-baslik" class="t-h3">Hizmetler</h2>
+    <h2 id="hizmetler-baslik" class="t-h3">{{ t('Hizmetler') }}</h2>
     <ul v-if="profile.services.length" class="chips">
-      <li v-for="service in profile.services" :key="service"><V2Chip>{{ service }}</V2Chip></li>
+      <li v-for="service in profile.services" :key="service"><V2Chip>{{ t(service) }}</V2Chip></li>
     </ul>
-    <p v-else class="t-body-sm t-muted">Hizmet bilgisi henüz eklenmedi.</p>
+    <p v-else class="t-body-sm t-muted">{{ t('Hizmet bilgisi henüz eklenmedi.') }}</p>
     <template v-if="profile.brands?.length">
-      <h3 class="sub">Beyan edilen marka uzmanlığı</h3>
+      <h3 class="sub">{{ t('Beyan edilen marka uzmanlığı') }}</h3>
       <ul class="chips">
-        <li v-for="brand in profile.brands" :key="brand"><V2Chip variant="soft">{{ brand }}</V2Chip></li>
+        <li v-for="brand in profile.brands" :key="brand"><V2Chip variant="soft">{{ t(brand) }}</V2Chip></li>
       </ul>
     </template>
-    <p class="note t-body-sm"><Info :size="16" aria-hidden="true"/>{{ profile.sourceNote }}</p>
+    <p class="note t-body-sm"><Info :size="16" aria-hidden="true"/>{{ t(profile.sourceNote) }}</p>
   </section>
 </template>
 

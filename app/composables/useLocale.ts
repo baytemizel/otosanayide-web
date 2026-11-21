@@ -1,10 +1,17 @@
 import {computed} from 'vue';
-import {localeTag as tagOf, parseLocale, translate, type Locale} from '@otosanayide/core/i18n';
+import {localeTag as tagOf, parseLocale, type Locale} from '@otosanayide/core/i18n';
 import {setApiLocale} from '~/lib/api';
+import {mergeLocaleFiles, translateText, type Translate} from '~/lib/i18n';
 
 const COOKIE = 'otosanayide-locale';
-/** English for strings this repo adds; one JSON file per screen group. */
-const extra: Record<string, string> = Object.assign({}, ...Object.values(import.meta.glob<Record<string, string>>('../locales/*.json', {eager: true, import: 'default'})));
+
+/** Languages offered in the header and footer pickers; each name is written in its own language. */
+export const localeOptions: readonly {value: Locale; label: string; short: string}[] = [
+  {value: 'tr', label: 'Türkçe', short: 'TR'},
+  {value: 'en', label: 'English', short: 'EN'},
+];
+/** English for strings this repo adds; one JSON file per screen group (rules in app/lib/i18n.ts). */
+const extra: Record<string, string> = mergeLocaleFiles(import.meta.glob<Record<string, string>>('../locales/*.json', {eager: true, import: 'default'}));
 
 export function useLocale() {
   const cookie = useCookie(COOKIE, {readonly: true});
@@ -19,12 +26,8 @@ export function useLocale() {
     void refreshNuxtData();
   }
 
-  /** Strings added by this repo live outside the shared core dictionary. */
-  function t(source: string, params?: Record<string, string | number>) {
-    const key = source.trim();
-    const own = locale.value === 'en' ? extra[key] : undefined;
-    return translate(locale.value, own ?? source, params);
-  }
+  /** Reactive: reads `locale`, so templates and computeds re-render when the language changes. */
+  const t: Translate = (source, params) => translateText(locale.value, source, params, extra);
 
   return {locale, setLocale, localeTag, t};
 }

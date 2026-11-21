@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {nextTick, ref} from 'vue';
 import {ArrowRight} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import type {ThreadMessage} from '~/lib/v2/requests';
 
 // "Mesajlar" card (W15). Demo: the page appends the message locally. Live: `send` posts it and
@@ -15,6 +16,7 @@ const props = withDefaults(defineProps<{
   hint?: string;
 }>(), {send: undefined, closed: false, loading: false, error: '', hasMore: false, hint: ''});
 const emit = defineEmits<{send: [text: string]; more: []}>();
+const {t} = useLocale();
 const draft = ref('');
 const busy = ref(false);
 const sendError = ref('');
@@ -29,7 +31,7 @@ async function send() {
     try {
       await props.send(text);
     } catch (e) {
-      sendError.value = e instanceof Error ? e.message : 'Mesaj gönderilemedi.';
+      sendError.value = e instanceof Error ? e.message : t('Mesaj gönderilemedi.');
       return;
     } finally {
       busy.value = false;
@@ -43,22 +45,22 @@ async function send() {
 
 <template>
   <section class="msgs" aria-labelledby="msgs-title">
-    <h2 id="msgs-title" class="t-h4">Mesajlar</h2>
+    <h2 id="msgs-title" class="t-h4">{{ t('Mesajlar') }}</h2>
     <ol ref="list" class="list" aria-live="polite" :aria-busy="loading">
       <li v-for="(message, index) in props.messages" :key="index" class="msg" :class="message.from">
         <p class="bubble t-body-sm">{{ message.text }}</p>
-        <p class="meta">{{ message.from === 'member' ? 'Sen' : 'İşletme' }} · {{ message.time }}</p>
+        <p class="meta">{{ message.from === 'member' ? t('Sen') : t('İşletme') }} · {{ message.time }}</p>
       </li>
-      <li v-if="loading" class="empty t-body-sm t-muted" role="status">Mesajlar yükleniyor…</li>
-      <li v-else-if="!props.messages.length && !error" class="empty t-body-sm t-muted">{{ closed ? 'Bu talepte mesaj yok.' : 'Henüz mesaj yok. İşletmeye soru sorabilirsin.' }}</li>
+      <li v-if="loading" class="empty t-body-sm t-muted" role="status">{{ t('Mesajlar yükleniyor…') }}</li>
+      <li v-else-if="!props.messages.length && !error" class="empty t-body-sm t-muted">{{ closed ? t('Bu talepte mesaj yok.') : t('Henüz mesaj yok. İşletmeye soru sorabilirsin.') }}</li>
     </ol>
-    <button v-if="hasMore" type="button" class="more t-body-sm" :disabled="loading" @click="emit('more')">Daha fazla mesaj</button>
+    <button v-if="hasMore" type="button" class="more t-body-sm" :disabled="loading" @click="emit('more')">{{ t('Daha fazla mesaj') }}</button>
     <p v-if="error" class="err t-body-sm" role="alert">{{ error }}</p>
-    <p v-if="closed" class="t-body-sm t-muted">Kapanmış talepte mesaj gönderilemez.</p>
+    <p v-if="closed" class="t-body-sm t-muted">{{ t('Kapanmış talepte mesaj gönderilemez.') }}</p>
     <form v-else class="compose" @submit.prevent="send">
-      <label for="msg-input" class="sr-only">Mesaj</label>
-      <input id="msg-input" v-model="draft" class="compose-input" placeholder="Mesaj yaz…" autocomplete="off" :maxlength="props.send ? 1000 : 500" :disabled="busy">
-      <button type="submit" class="send" aria-label="Mesajı gönder" :disabled="!draft.trim() || busy"><ArrowRight :size="16" aria-hidden="true"/></button>
+      <label for="msg-input" class="sr-only">{{ t('Mesaj') }}</label>
+      <input id="msg-input" v-model="draft" class="compose-input" :placeholder="t('Mesaj yaz…')" autocomplete="off" :maxlength="props.send ? 1000 : 500" :disabled="busy">
+      <button type="submit" class="send" :aria-label="t('Mesajı gönder')" :disabled="!draft.trim() || busy"><ArrowRight :size="16" aria-hidden="true"/></button>
     </form>
     <p v-if="sendError" class="err t-body-sm" role="alert">{{ sendError }}</p>
     <p v-if="hint" class="t-body-sm t-muted hint">{{ hint }}</p>

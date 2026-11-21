@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref} from 'vue';
 import {ArrowRight, Bell, Car, Check, Wrench} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeGarageBullets, homeGarageReminders, homeGarageTip, homeGarageVehicle} from '~/data/mock/home';
 
 // Figma 112:321 "Garajım · hatırlatmalar": reminder switches toggle; rings fill by the time left.
+// Texts are Turkish source text, translated at render; the plate and the vehicle name stay as they are.
+const {t} = useLocale();
 const reminders = ref(homeGarageReminders.map((r) => ({...r})));
 const filled = ref(true);
 const root = ref<HTMLElement | null>(null);
@@ -34,29 +37,29 @@ onBeforeUnmount(() => observer?.disconnect());
       <img class="ring-deco b" src="/v2/home/garage-ring-b.svg" alt="" width="760" height="760" aria-hidden="true">
 
       <div class="text">
-        <p class="pill t-mono-sm"><Car :size="16" aria-hidden="true"/>GARAJIM</p>
-        <h2 id="home-garage-title" class="t-h2">Aracını ekle,<br>gerisi bizde.</h2>
-        <p class="t-body-md lead">Muayene, sigorta ve bakım tarihlerini biz takip edelim; zamanı gelince aracına uygun servisleri önerelim.</p>
+        <p class="pill t-mono-sm"><Car :size="16" aria-hidden="true"/>{{ t('GARAJIM') }}</p>
+        <h2 id="home-garage-title" class="t-h2" v-html="t('Aracını ekle,<br>gerisi bizde.')"/>
+        <p class="t-body-md lead">{{ t('Muayene, sigorta ve bakım tarihlerini biz takip edelim; zamanı gelince aracına uygun servisleri önerelim.') }}</p>
         <ul class="bullets">
-          <li v-for="b in homeGarageBullets" :key="b" class="t-label-md"><span class="tick" aria-hidden="true"><Check :size="13" :stroke-width="2.5"/></span>{{ b }}</li>
+          <li v-for="b in homeGarageBullets" :key="b" class="t-label-md"><span class="tick" aria-hidden="true"><Check :size="13" :stroke-width="2.5"/></span>{{ t(b) }}</li>
         </ul>
         <div class="cta">
-          <NuxtLink to="/araclarim" class="btn btn-dark">Aracını ekle<ArrowRight aria-hidden="true"/></NuxtLink>
-          <NuxtLink to="/hatirlatmalar" class="btn btn-outline">Nasıl çalışır?</NuxtLink>
+          <NuxtLink to="/araclarim" class="btn btn-dark">{{ t('Aracını ekle') }}<ArrowRight aria-hidden="true"/></NuxtLink>
+          <NuxtLink to="/hatirlatmalar" class="btn btn-outline">{{ t('Nasıl çalışır?') }}</NuxtLink>
         </div>
       </div>
 
       <div class="vehicle">
         <div class="vehicle-head">
-          <span class="plate" aria-label="Plaka 34 ABC 123"><span class="plate-tr" aria-hidden="true">TR</span><span class="plate-no" aria-hidden="true">{{ homeGarageVehicle.plate }}</span></span>
+          <span class="plate" :aria-label="t('Plaka {plate}', {plate: homeGarageVehicle.plate})"><span class="plate-tr" aria-hidden="true">TR</span><span class="plate-no" aria-hidden="true">{{ homeGarageVehicle.plate }}</span></span>
           <span class="bell" aria-hidden="true"><Bell :size="19"/></span>
         </div>
         <div class="vehicle-name">
           <h3 class="t-h4">{{ homeGarageVehicle.name }}</h3>
-          <p class="t-body-sm t-muted">{{ homeGarageVehicle.detail }}</p>
+          <p class="t-body-sm t-muted">{{ t(homeGarageVehicle.detail) }}</p>
         </div>
         <hr class="divider">
-        <ul class="reminders" aria-label="Hatırlatmalar (örnek)">
+        <ul class="reminders" :aria-label="t('Hatırlatmalar (örnek)')">
           <li v-for="r in reminders" :key="r.id" class="reminder" :class="{off: !r.on}">
             <svg class="ring" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
               <circle cx="22" cy="22" :r="R" fill="none" stroke="var(--cream-200)" stroke-width="5"/>
@@ -65,17 +68,17 @@ onBeforeUnmount(() => observer?.disconnect());
                 :stroke-dasharray="C" :stroke-dashoffset="dash(r.remaining, r.on)" transform="rotate(-90 22 22)" class="ring-fill"/>
             </svg>
             <span class="reminder-text">
-              <span class="t-label-md title">{{ r.title }}</span>
-              <span class="t-body-sm t-muted">{{ r.on ? r.detail : 'Hatırlatma kapalı' }}</span>
+              <span class="t-label-md title">{{ t(r.title) }}</span>
+              <span class="t-body-sm t-muted">{{ r.on ? t(r.detail) : t('Hatırlatma kapalı') }}</span>
             </span>
-            <input v-model="r.on" type="checkbox" role="switch" class="switch" :aria-label="`${r.title} hatırlatması`">
+            <input v-model="r.on" type="checkbox" role="switch" class="switch" :aria-label="t('{title} hatırlatması', {title: t(r.title)})">
           </li>
         </ul>
         <NuxtLink :to="{path: '/ara', query: {q: homeGarageTip.title}}" class="tip">
           <span class="tip-icon" aria-hidden="true"><Wrench :size="17"/></span>
           <span class="tip-text">
-            <span class="t-label-sm">{{ homeGarageTip.title }}</span>
-            <span class="t-body-sm t-muted">{{ homeGarageTip.text }}</span>
+            <span class="t-label-sm">{{ t(homeGarageTip.title) }}</span>
+            <span class="t-body-sm t-muted">{{ t(homeGarageTip.text) }}</span>
           </span>
           <span class="tip-go" aria-hidden="true"><ArrowRight :size="15"/></span>
         </NuxtLink>

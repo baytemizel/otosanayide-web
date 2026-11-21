@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import {Check} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // "Adımlar" (W14): done steps are dark with a lime tick, the current one is orange, later ones cream.
 // Interaction note 07: steps get ticked as the wizard progresses. Done steps can be revisited.
 const props = defineProps<{steps: string[]; current: number; done: number}>();
 const emit = defineEmits<{go: [step: number]}>();
+const {t} = useLocale();
 
 const state = (index: number) => (index + 1 <= props.done ? 'done' : index + 1 === props.current ? 'current' : 'todo');
 </script>
 
 <template>
-  <ol class="stepper" aria-label="Adımlar">
+  <ol class="stepper" :aria-label="t('Adımlar')">
     <template v-for="(label, index) in steps" :key="label">
       <li v-if="index > 0" class="bar" :class="{dark: index + 1 <= Math.max(current, done)}" aria-hidden="true"/>
       <li class="step" :class="state(index)">
@@ -18,7 +20,7 @@ const state = (index: number) => (index + 1 <= props.done ? 'done' : index + 1 =
           v-if="state(index) === 'done' && index + 1 !== current"
           type="button"
           class="step-btn"
-          :aria-label="`${index + 1}. adım: ${label} (tamamlandı, düzenle)`"
+          :aria-label="t('{n}. adım: {label} (tamamlandı, düzenle)', {n: index + 1, label})"
           @click="emit('go', index + 1)"
         >
           <span class="dot"><Check :size="14" :stroke-width="3" aria-hidden="true"/></span>
@@ -29,7 +31,7 @@ const state = (index: number) => (index + 1 <= props.done ? 'done' : index + 1 =
             <Check v-if="state(index) === 'done'" :size="14" :stroke-width="3" aria-hidden="true"/>
             <template v-else>{{ index + 1 }}</template>
           </span>
-          <span class="t-label-sm">{{ label }}<span v-if="state(index) === 'done'" class="sr-only"> (tamamlandı)</span></span>
+          <span class="t-label-sm">{{ label }}<span v-if="state(index) === 'done'" class="sr-only"> {{ t('(tamamlandı)') }}</span></span>
         </span>
       </li>
     </template>

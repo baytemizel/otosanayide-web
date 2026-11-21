@@ -3,6 +3,7 @@ import {computed, onBeforeUnmount, reactive, ref} from 'vue';
 import {ArrowRight, Check, KeyRound, Lock, Mail} from '@lucide/vue';
 import AuthField from '~/components/v2/garage/AuthField.vue';
 import AuthShell from '~/components/v2/garage/AuthShell.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useLinkToken} from '~/composables/v2/useLinkToken';
 import {demoMode} from '~/lib/env';
 import {authErrorMessage, EMAIL_PATTERN, PASSWORD_MIN, RESET_CODE, RESET_CODE_RESEND_SECONDS} from '~/lib/v2/auth';
@@ -16,7 +17,8 @@ import {browserSession} from '~/lib/session-instance';
 //   then the same /password/reset. The password rule is the API's (at least 10 characters).
 // A link without a token now starts the code flow instead of a dead end.
 // Demo: a valid new password shows the success state; nothing is sent.
-useSeoMeta({title: 'Şifreni yenile'});
+const {t} = useLocale();
+useSeoMeta({title: () => t('Şifreni yenile')});
 const live = !demoMode();
 const min = live ? PASSWORD_MIN : 8;
 const form = reactive({password: '', repeat: '', email: '', code: ''});
@@ -55,7 +57,7 @@ function startCooldown() {
 async function sendCode(again = false) {
   if (busy.value || (again && resendIn.value)) return;
   const email = form.email.trim();
-  errors.email = !email ? 'E-posta adresini yaz.' : EMAIL_PATTERN.test(email) ? '' : 'Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).';
+  errors.email = !email ? t('E-posta adresini yaz.') : EMAIL_PATTERN.test(email) ? '' : t('Geçerli bir e-posta adresi yaz (ör. deniz@ornek.com).');
   if (errors.email) return;
   busy.value = true;
   formError.value = '';
@@ -67,10 +69,10 @@ async function sendCode(again = false) {
     step.value = 'code';
     form.code = '';
     errors.code = '';
-    if (again) notice.value = 'Yeni kod gönderildi. Önceki kod artık geçersiz.';
+    if (again) notice.value = t('Yeni kod gönderildi. Önceki kod artık geçersiz.');
     startCooldown();
   } catch (error) {
-    formError.value = authErrorMessage('forgot', error);
+    formError.value = authErrorMessage('forgot', error, t);
   } finally {
     busy.value = false;
   }
@@ -79,7 +81,7 @@ async function sendCode(again = false) {
 async function verifyCode() {
   if (busy.value) return;
   const code = form.code.replace(/\s/g, '');
-  errors.code = RESET_CODE.test(code) ? '' : 'E-postadaki 6 haneli kodu yaz.';
+  errors.code = RESET_CODE.test(code) ? '' : t('E-postadaki 6 haneli kodu yaz.');
   if (errors.code) return;
   busy.value = true;
   formError.value = '';
@@ -89,7 +91,7 @@ async function verifyCode() {
     form.code = '';
     step.value = 'password';
   } catch (error) {
-    formError.value = authErrorMessage('code', error);
+    formError.value = authErrorMessage('code', error, t);
   } finally {
     busy.value = false;
   }
@@ -105,8 +107,8 @@ function otherAddress() {
 /* ------------------------------------------------------------ new password (all modes) */
 async function submit() {
   if (busy.value) return;
-  errors.password = !form.password ? 'Yeni şifreni yaz.' : form.password.length < min ? `Şifre en az ${min} karakter olmalı.` : '';
-  errors.repeat = !form.repeat ? 'Şifreni tekrar yaz.' : form.repeat !== form.password ? 'Şifreler aynı değil.' : '';
+  errors.password = !form.password ? t('Yeni şifreni yaz.') : form.password.length < min ? t('Şifre en az {min} karakter olmalı.', {min}) : '';
+  errors.repeat = !form.repeat ? t('Şifreni tekrar yaz.') : form.repeat !== form.password ? t('Şifreler aynı değil.') : '';
   if (errors.password || errors.repeat) return;
   if (!link) {
     done.value = true;
@@ -129,7 +131,7 @@ async function submit() {
     form.repeat = '';
     done.value = true;
   } catch (error) {
-    formError.value = authErrorMessage(byCode ? 'resetCode' : 'reset', error);
+    formError.value = authErrorMessage(byCode ? 'resetCode' : 'reset', error, t);
   } finally {
     busy.value = false;
   }
@@ -140,59 +142,59 @@ async function submit() {
   <AuthShell>
     <div v-if="done" class="state" role="status">
       <span class="badge" aria-hidden="true"><Check :size="26" :stroke-width="2.5"/></span>
-      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
-      <h1 class="t-h3">Şifren güncellendi</h1>
-      <p class="t-body-md t-muted">{{ live ? 'Yeni şifrenle giriş yapabilirsin.' : 'Güvenlik için diğer cihazlardaki oturumların kapatıldı. Yeni şifrenle giriş yapabilirsin.' }}</p>
-      <NuxtLink to="/giris" class="btn btn-primary btn-lg wide">Giriş yap<ArrowRight aria-hidden="true"/></NuxtLink>
+      <p class="t-mono-md t-eyebrow">{{ t('Şifre yenileme') }}</p>
+      <h1 class="t-h3">{{ t('Şifren güncellendi') }}</h1>
+      <p class="t-body-md t-muted">{{ live ? t('Yeni şifrenle giriş yapabilirsin.') : t('Güvenlik için diğer cihazlardaki oturumların kapatıldı. Yeni şifrenle giriş yapabilirsin.') }}</p>
+      <NuxtLink to="/giris" class="btn btn-primary btn-lg wide">{{ t('Giriş yap') }}<ArrowRight aria-hidden="true"/></NuxtLink>
     </div>
 
     <div v-else-if="mode === 'pending'" class="state" aria-busy="true">
-      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
-      <h1 class="t-h3">Şifreni yenile</h1>
+      <p class="t-mono-md t-eyebrow">{{ t('Şifre yenileme') }}</p>
+      <h1 class="t-h3">{{ t('Şifreni yenile') }}</h1>
     </div>
 
     <form v-else-if="mode === 'code' && step === 'email'" class="state" novalidate @submit.prevent="sendCode()">
-      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
-      <h1 class="t-h3">Şifreni mi unuttun?</h1>
-      <p class="t-body-md t-muted">Hesabının e-posta adresini yaz; şifreni yenilemen için 6 haneli bir doğrulama kodu gönderelim.</p>
+      <p class="t-mono-md t-eyebrow">{{ t('Şifre yenileme') }}</p>
+      <h1 class="t-h3">{{ t('Şifreni mi unuttun?') }}</h1>
+      <p class="t-body-md t-muted">{{ t('Hesabının e-posta adresini yaz; şifreni yenilemen için 6 haneli bir doğrulama kodu gönderelim.') }}</p>
       <div class="fields">
-        <AuthField id="reset-email" v-model="form.email" label="E-posta adresi" :icon="Mail" type="email" inputmode="email" placeholder="deniz@ornek.com" autocomplete="email" :error="errors.email"/>
+        <AuthField id="reset-email" v-model="form.email" :label="t('E-posta adresi')" :icon="Mail" type="email" inputmode="email" :placeholder="t('deniz@ornek.com')" autocomplete="email" :error="errors.email"/>
       </div>
       <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
-      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? 'Gönderiliyor…' : 'Kod gönder' }}<ArrowRight aria-hidden="true"/></button>
-      <NuxtLink to="/giris" class="back t-label-sm">Girişe dön</NuxtLink>
+      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? t('Gönderiliyor…') : t('Kod gönder') }}<ArrowRight aria-hidden="true"/></button>
+      <NuxtLink to="/giris" class="back t-label-sm">{{ t('Girişe dön') }}</NuxtLink>
     </form>
 
     <form v-else-if="mode === 'code' && step === 'code'" class="state" novalidate @submit.prevent="verifyCode">
-      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
-      <h1 class="t-h3">Kodu gir</h1>
-      <p class="t-body-md t-muted">
-        Bu adresle bir hesap varsa <strong v-if="maskedEmail">{{ maskedEmail }}</strong><template v-else>e-posta adresine</template>
-        6 haneli bir kod gönderdik. Kod 10 dakika geçerlidir.
+      <p class="t-mono-md t-eyebrow">{{ t('Şifre yenileme') }}</p>
+      <h1 class="t-h3">{{ t('Kodu gir') }}</h1>
+      <p v-if="maskedEmail" class="t-body-md t-muted">
+        <template v-for="(part, i) in t('Bu adresle bir hesap varsa {email} 6 haneli bir kod gönderdik. Kod 10 dakika geçerlidir.').split(/(\{email\})/)" :key="i"><strong v-if="part === '{email}'">{{ maskedEmail }}</strong><template v-else>{{ part }}</template></template>
       </p>
+      <p v-else class="t-body-md t-muted">{{ t('Bu adresle bir hesap varsa e-posta adresine 6 haneli bir kod gönderdik. Kod 10 dakika geçerlidir.') }}</p>
       <div class="fields">
-        <AuthField id="reset-code" v-model="form.code" label="Doğrulama kodu" :icon="KeyRound" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" :error="errors.code"/>
+        <AuthField id="reset-code" v-model="form.code" :label="t('Doğrulama kodu')" :icon="KeyRound" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" :error="errors.code"/>
       </div>
       <p v-if="notice" class="form-ok t-body-sm" role="status">{{ notice }}</p>
       <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
-      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? 'Doğrulanıyor…' : 'Kodu doğrula' }}<ArrowRight aria-hidden="true"/></button>
+      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? t('Doğrulanıyor…') : t('Kodu doğrula') }}<ArrowRight aria-hidden="true"/></button>
       <div class="links">
-        <button type="button" class="back t-label-sm" :disabled="busy || resendIn > 0" @click="sendCode(true)">{{ resendIn ? `Kodu tekrar gönder (${resendIn} sn)` : 'Kodu tekrar gönder' }}</button>
-        <button type="button" class="back t-label-sm" :disabled="busy" @click="otherAddress">Farklı adres yaz</button>
+        <button type="button" class="back t-label-sm" :disabled="busy || resendIn > 0" @click="sendCode(true)">{{ resendIn ? t('Kodu tekrar gönder ({seconds} sn)', {seconds: resendIn}) : t('Kodu tekrar gönder') }}</button>
+        <button type="button" class="back t-label-sm" :disabled="busy" @click="otherAddress">{{ t('Farklı adres yaz') }}</button>
       </div>
     </form>
 
     <form v-else-if="showPasswordForm" class="state" novalidate @submit.prevent="submit">
-      <p class="t-mono-md t-eyebrow">Şifre yenileme</p>
-      <h1 class="t-h3">Şifreni yenile</h1>
-      <p class="t-body-md t-muted">Hesabın için yeni bir şifre belirle.</p>
+      <p class="t-mono-md t-eyebrow">{{ t('Şifre yenileme') }}</p>
+      <h1 class="t-h3">{{ t('Şifreni yenile') }}</h1>
+      <p class="t-body-md t-muted">{{ t('Hesabın için yeni bir şifre belirle.') }}</p>
       <div class="fields">
-        <AuthField id="reset-password" v-model="form.password" label="Yeni şifre" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.password" :hint="live ? `En az ${min} karakter.` : 'En az 8 karakter; harf ve rakam karışık olsun.'"/>
-        <AuthField id="reset-repeat" v-model="form.repeat" label="Yeni şifre (tekrar)" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.repeat"/>
+        <AuthField id="reset-password" v-model="form.password" :label="t('Yeni şifre')" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.password" :hint="live ? t('En az {min} karakter.', {min}) : t('En az 8 karakter; harf ve rakam karışık olsun.')"/>
+        <AuthField id="reset-repeat" v-model="form.repeat" :label="t('Yeni şifre (tekrar)')" :icon="Lock" type="password" placeholder="••••••••••" autocomplete="new-password" :error="errors.repeat"/>
       </div>
       <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
-      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? 'Güncelleniyor…' : 'Şifreyi güncelle' }}<ArrowRight aria-hidden="true"/></button>
-      <NuxtLink to="/giris" class="back t-label-sm">Girişe dön</NuxtLink>
+      <button type="submit" class="btn btn-primary btn-lg wide" :disabled="busy">{{ busy ? t('Güncelleniyor…') : t('Şifreyi güncelle') }}<ArrowRight aria-hidden="true"/></button>
+      <NuxtLink to="/giris" class="back t-label-sm">{{ t('Girişe dön') }}</NuxtLink>
     </form>
   </AuthShell>
 </template>

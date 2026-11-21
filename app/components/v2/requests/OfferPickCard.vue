@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {Star, Wrench} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {formatRating} from '~/data/mock/businesses';
 import {requestBusiness} from '~/data/mock/requests';
 import {formatMoney, type OfferCardView, type OfferStatus} from '~/lib/v2/requests';
@@ -10,9 +11,10 @@ import {formatMoney, type OfferCardView, type OfferStatus} from '~/lib/v2/reques
 // `business` is passed in live mode (name only); demo looks the mock business up.
 const props = defineProps<{offer: OfferCardView; status: OfferStatus; selected: boolean; cheapest?: boolean; business?: {name: string; photo?: string | null; rating?: number; district?: string}}>();
 const emit = defineEmits<{select: []}>();
+const {t, localeTag} = useLocale();
 const business = computed(() => props.business ?? requestBusiness(props.offer.businessId));
 const total = computed(() => props.offer.lines.reduce((sum, line) => sum + line.amount, 0));
-const statusText = computed(() => ({pending: `Geçerlilik: ${props.offer.validUntil}`, accepted: 'Kabul edildi', rejected: 'Reddedildi'})[props.status]);
+const statusText = computed(() => ({pending: t('Geçerlilik: {date}', {date: props.offer.validUntil}), accepted: t('Kabul edildi'), rejected: t('Reddedildi')})[props.status]);
 </script>
 
 <template>
@@ -26,12 +28,12 @@ const statusText = computed(() => ({pending: `Geçerlilik: ${props.offer.validUn
       </span>
     </span>
     <span class="price">
-      <span class="t-mono-sm t-muted">TOPLAM (TAHMİNİ)</span>
-      <strong>{{ formatMoney(total) }}</strong>
+      <span class="t-mono-sm t-muted">{{ t('TOPLAM (TAHMİNİ)') }}</span>
+      <strong>{{ formatMoney(total, localeTag) }}</strong>
     </span>
     <span class="foot">
       <span class="t-body-sm" :class="status === 'pending' ? 't-muted' : 'state'">{{ statusText }}</span>
-      <span v-if="cheapest && status !== 'rejected'" class="tag tag-lime tag-mono">EN UYGUN</span>
+      <span v-if="cheapest && status !== 'rejected'" class="tag tag-lime tag-mono">{{ t('EN UYGUN') }}</span>
     </span>
   </button>
 </template>

@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import {useLocale} from '~/composables/useLocale';
+
 // "Sekmeler": in-page section links with the orange active underline.
 defineProps<{active: string}>();
 const emit = defineEmits<{select: [id: string]}>();
+const {t} = useLocale();
+// Labels are Turkish source texts, translated at render (English in app/locales/v2-discovery.json).
 const tabs = [
   {id: 'genel', label: 'Genel bakış'},
   {id: 'hizmetler', label: 'Hizmetler'},
@@ -12,10 +16,10 @@ const tabs = [
 </script>
 
 <template>
-  <nav class="profile-tabs" aria-label="Profil bölümleri">
+  <nav class="profile-tabs" :aria-label="t('Profil bölümleri')">
     <ul>
       <li v-for="tab in tabs" :key="tab.id">
-        <a :href="`#${tab.id}`" class="t-label-md" :class="{on: active === tab.id}" :aria-current="active === tab.id ? 'true' : undefined" @click.prevent="emit('select', tab.id)">{{ tab.label }}</a>
+        <a :href="`#${tab.id}`" class="t-label-md" :class="{on: active === tab.id}" :aria-current="active === tab.id ? 'true' : undefined" @click.prevent="emit('select', tab.id)">{{ t(tab.label) }}</a>
       </li>
     </ul>
   </nav>

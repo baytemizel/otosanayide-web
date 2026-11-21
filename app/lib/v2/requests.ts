@@ -8,48 +8,56 @@ import {requestItem, type RequestItem} from '@otosanayide/core/request-client';
 import {ApiError, errorStatus} from '~/lib/api-read';
 import {offerExtras, type ExportRequest, type RequestMessage} from '~/lib/member-api';
 import type {Notice} from '~/lib/notifications-helpers';
+import {turkish, type Translate} from '~/lib/i18n';
 import {istanbulClock} from '~/lib/opening-hours';
 
 const TZ = 'Europe/Istanbul';
 const DAY = 86_400_000;
+/** Default BCP 47 tag; components pass `localeTag.value` from useLocale(). */
+const TR = 'tr-TR';
+/** Turkish writes times with a dot ("09.00"), English with a colon ("09:00"). */
+const timeSeparator = (tag: string) => (tag.toLowerCase().startsWith('tr') ? '.' : ':');
 
 /* ------------------------------------------------------------------ formatting */
 
 /** "₺2.880" / "₺2.880,50": whole lira stay as before, kuruş only when present. */
-export const formatMoney = (value: number) => `₺${value.toLocaleString('tr-TR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
+export const formatMoney = (value: number, tag = TR) => `₺${value.toLocaleString(tag, {minimumFractionDigits: 0, maximumFractionDigits: 2})}`;
 
-export const longDate = (ms: number) => new Date(ms).toLocaleDateString('tr-TR', {timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric'});
-const clock = (ms: number) => new Date(ms).toLocaleTimeString('tr-TR', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).replace(':', '.');
-export const dateTimeText = (ms: number) => `${new Date(ms).toLocaleDateString('tr-TR', {timeZone: TZ, day: 'numeric', month: 'long', weekday: 'long'})} · ${clock(ms)}`;
+export const longDate = (ms: number, tag = TR) => new Date(ms).toLocaleDateString(tag, {timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric'});
+const clock = (ms: number, tag = TR) => new Date(ms).toLocaleTimeString(tag, {timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).replace(':', timeSeparator(tag));
+export const dateTimeText = (ms: number, tag = TR) => `${new Date(ms).toLocaleDateString(tag, {timeZone: TZ, day: 'numeric', month: 'long', weekday: 'long'})} · ${clock(ms, tag)}`;
 
 /** Short relative time for lists: "12 dk", "3 sa", "Dün", "4 gün", then "12 Kas". */
-export function relativeTime(ms: number, now: number) {
+export function relativeTime(ms: number, now: number, t: Translate = turkish, tag = TR) {
   const diff = Math.max(0, now - ms);
-  if (diff < 60 * 60_000) return `${Math.max(1, Math.floor(diff / 60_000))} dk`;
+  if (diff < 60 * 60_000) return t('{n} dk', {n: Math.max(1, Math.floor(diff / 60_000))});
   const today = istanbulClock(new Date(now)).date;
   const day = istanbulClock(new Date(ms)).date;
-  if (day === today) return `${Math.floor(diff / 3_600_000)} sa`;
+  if (day === today) return t('{n} sa', {n: Math.floor(diff / 3_600_000)});
   const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / DAY);
-  if (days === 1) return 'Dün';
-  if (days < 7) return `${days} gün`;
-  return new Date(ms).toLocaleDateString('tr-TR', {timeZone: TZ, day: 'numeric', month: 'short'});
+  if (days === 1) return t('Dün');
+  if (days < 7) return t('{count} gün', {count: days});
+  return new Date(ms).toLocaleDateString(tag, {timeZone: TZ, day: 'numeric', month: 'short'});
 }
 
 /* ------------------------------------------------------------------ errors */
 
-/** A readable Turkish message for a failed live call; the API's own 4xx text is kept when it has one. */
-export function liveErrorMessage(error: unknown, fallback = 'İşlem tamamlanamadı. Tekrar dene.', overrides: Partial<Record<number, string>> = {}) {
+/**
+ * A readable message for a failed live call; the API's own 4xx text is kept when it has one (the API
+ * localises it). `fallback` and `overrides` are shown as given, so callers pass them translated.
+ */
+export function liveErrorMessage(error: unknown, fallback?: string, overrides: Partial<Record<number, string>> = {}, t: Translate = turkish) {
   const status = errorStatus(error);
   if (overrides[status]) return overrides[status]!;
-  if (status === 401) return 'Oturumun sona erdi. Yeniden giriş yap.';
-  if (status === 403) return 'Bu işlem için e-posta adresini doğrulaman gerekiyor.';
-  if (status === 404) return 'Bu işlem henüz kullanılamıyor.';
-  if (status === 429) return 'Çok fazla istek gönderildi. Biraz sonra tekrar dene.';
+  if (status === 401) return t('Oturumun sona erdi. Yeniden giriş yap.');
+  if (status === 403) return t('Bu işlem için e-posta adresini doğrulaman gerekiyor.');
+  if (status === 404) return t('Bu işlem henüz kullanılamıyor.');
+  if (status === 429) return t('Çok fazla istek gönderildi. Biraz sonra tekrar dene.');
   if (error instanceof ApiError) return error.message;
-  if (error instanceof z.ZodError) return 'Alanları kontrol et.';
+  if (error instanceof z.ZodError) return t('Alanları kontrol et.');
   // Internal codes ("request_page", "api_config:missing") and Zod dumps are not shown.
   if (error instanceof Error && error.message.includes(' ') && !error.message.startsWith('[')) return error.message;
-  return fallback;
+  return fallback ?? t('İşlem tamamlanamadı. Tekrar dene.');
 }
 
 /* ------------------------------------------------------------------ W14 wizard */
@@ -58,13 +66,13 @@ export interface GarageVehicle {id: string; brand: string; model: string; year: 
 export interface VehicleOption {id: string; label: string; detail: string; text: string}
 
 /** A garage vehicle as a wizard option; `text` is what the request carries (2–120 characters). */
-export function vehicleOption(v: GarageVehicle): VehicleOption {
-  const detail = [v.fuel, typeof v.mileage === 'number' ? `${v.mileage.toLocaleString('tr-TR')} km` : ''].filter(Boolean).join(' · ');
+export function vehicleOption(v: GarageVehicle, tag = TR): VehicleOption {
+  const detail = [v.fuel, typeof v.mileage === 'number' ? `${v.mileage.toLocaleString(tag)} km` : ''].filter(Boolean).join(' · ');
   return {id: v.id, label: `${v.brand} ${v.model} · ${v.year}`, detail, text: `${v.brand} ${v.model} ${v.year}`.slice(0, 120)};
 }
 
-export function vehicleOptions(vehicles: readonly GarageVehicle[]) {
-  return vehicles.filter(v => !v.archived).map(vehicleOption);
+export function vehicleOptions(vehicles: readonly GarageVehicle[], tag = TR) {
+  return vehicles.filter(v => !v.archived).map(v => vehicleOption(v, tag));
 }
 
 /** Free-typed "Başka bir araç" text. */
@@ -109,11 +117,11 @@ export function requestBody(draft: RequestDraft, requestKey: string) {
 }
 
 /** Why a draft cannot be sent yet, in the order the wizard asks. */
-export function requestDraftProblem(draft: Pick<RequestDraft, 'service' | 'vehicle' | 'message'>) {
-  if (draft.service.trim().length < 2) return 'Bir hizmet seç.';
-  if (draft.vehicle.trim().length < 2) return 'Bir araç seç ya da marka ve modeli yaz.';
-  if (draft.message.trim().length < 10) return 'Açıklama en az 10 karakter olmalı.';
-  if (draft.message.trim().length > 2000) return 'Açıklama en çok 2000 karakter olabilir.';
+export function requestDraftProblem(draft: Pick<RequestDraft, 'service' | 'vehicle' | 'message'>, t: Translate = turkish) {
+  if (draft.service.trim().length < 2) return t('Bir hizmet seç.');
+  if (draft.vehicle.trim().length < 2) return t('Bir araç seç ya da marka ve modeli yaz.');
+  if (draft.message.trim().length < 10) return t('Açıklama en az 10 karakter olmalı.');
+  if (draft.message.trim().length > 2000) return t('Açıklama en çok 2000 karakter olabilir.');
   return '';
 }
 
@@ -215,6 +223,7 @@ export interface OfferCardView {
   expired?: boolean;
 }
 
+/** Turkish source texts (also the translation keys); requestView translates them with its `t`. */
 const lineLabels = {labour: 'İşçilik', parts: 'Parça', tax: 'KDV', other: 'Diğer'} as const;
 export const requestStatusText: Record<LiveStatus, string> = {
   requested: 'Yanıt bekleniyor', offered: 'Karar bekleniyor', confirmed: 'Kesinleşti', declined: 'İşletme reddetti', cancelled: 'İptal edildi', completed: 'Tamamlandı',
@@ -270,55 +279,61 @@ export interface RequestView {
   vehicleId: string | null;
 }
 
-/** A member's live request as the W15 screen shows it (one business, at most one offer). */
-export function requestView(item: LiveRequest, now: number): RequestView {
+/**
+ * A member's live request as the W15 screen shows it (one business, at most one offer). `t` and `tag`
+ * localise the labels, notes and dates; texts written by the member or the business stay as sent.
+ */
+export function requestView(item: LiveRequest, now: number, t: Translate = turkish, tag = TR): RequestView {
   const offer = item.offer;
   const quote = item.kind === 'quotes';
   const meta = item.meta;
   let lines: OfferLine[] = [];
   if (offer && quote) {
     lines = item.extras?.lines
-      ? item.extras.lines.map(line => ({item: lineLabels[line.kind] ?? 'Diğer', description: line.label, amount: line.amountMinor / 100}))
-      : offer.price !== undefined ? [{item: 'Ön teklif', description: item.service, amount: offer.price}] : [];
+      ? item.extras.lines.map(line => ({item: t(lineLabels[line.kind] ?? 'Diğer'), description: line.label, amount: line.amountMinor / 100}))
+      : offer.price !== undefined ? [{item: t('Ön teklif'), description: item.service, amount: offer.price}] : [];
   }
   const expired = !!offer && item.status === 'offered' && offer.expiresAtMs <= now;
   const notes = [
-    item.extras?.excluded ? `Dahil olmayan: ${item.extras.excluded}` : '',
-    offer && quote && item.extras?.mayChangeAfterInspection !== false ? 'Ön inceleme sonrası değişebilir.' : '',
-    expired ? 'Bu önerinin süresi doldu; işletmeden yeni yanıt bekle.' : '',
+    item.extras?.excluded ? t('Dahil olmayan: {text}', {text: item.extras.excluded}) : '',
+    offer && quote && item.extras?.mayChangeAfterInspection !== false ? t('Ön inceleme sonrası değişebilir.') : '',
+    expired ? t('Bu önerinin süresi doldu; işletmeden yeni yanıt bekle.') : '',
   ].filter(Boolean);
   const offerView: OfferCardView | null = offer ? {
-    id: item.id, code: meta.reference ?? item.id, businessId: item.businessId, validUntil: longDate(offer.expiresAtMs), lines, note: offer.text, notes,
-    kind: quote ? 'quote' : 'appointment', ...(offer.startsAt ? {startsAtText: dateTimeText(Date.parse(offer.startsAt))} : {}), expired,
+    id: item.id, code: meta.reference ?? item.id, businessId: item.businessId, validUntil: longDate(offer.expiresAtMs, tag), lines, note: offer.text, notes,
+    kind: quote ? 'quote' : 'appointment', ...(offer.startsAt ? {startsAtText: dateTimeText(Date.parse(offer.startsAt), tag)} : {}), expired,
   } : null;
   const offerStatus: OfferStatus | null = !offer ? null : item.status === 'offered' ? 'pending' : ['confirmed', 'completed'].includes(item.status) ? 'accepted' : 'rejected';
-  const preferredText = item.preferredStartsAt ? `${dateTimeText(Date.parse(item.preferredStartsAt))} · onay değildir`
-    : item.preferredDate ? `${longDate(Date.parse(`${item.preferredDate}T12:00:00+03:00`))} · onay değildir` : '';
+  const preferredText = item.preferredStartsAt ? t('{date} · onay değildir', {date: dateTimeText(Date.parse(item.preferredStartsAt), tag)})
+    : item.preferredDate ? t('{date} · onay değildir', {date: longDate(Date.parse(`${item.preferredDate}T12:00:00+03:00`), tag)}) : '';
   const amount = lines.length ? lines.reduce((sum, line) => sum + line.amount, 0) : null;
   const code = meta.resolutionCode ?? '';
-  const statusLabel = item.status === 'offered' && !quote ? 'Saat önerildi'
-    : item.status === 'cancelled' && BUSINESS_CANCEL_CODES.includes(code) ? 'İşletme iptal etti'
-      : requestStatusText[item.status];
+  const statusLabel = item.status === 'offered' && !quote ? t('Saat önerildi')
+    : item.status === 'cancelled' && BUSINESS_CANCEL_CODES.includes(code) ? t('İşletme iptal etti')
+      : t(requestStatusText[item.status]);
   const waiting = item.status === 'requested';
+  // The stand-in sentences decodeRequestPage puts on expired / no_show items are ours, so they are translated.
+  const resolution = item.resolution === V1_STATUS.expired.resolution ? t('Yanıt süresi doldu.')
+    : item.resolution === V1_STATUS.no_show.resolution ? t('Müşteri randevuya gelmedi.') : item.resolution ?? '';
   return {
-    id: item.id, kind: item.kind, kindText: quote ? 'Teklif talebi' : 'Randevu talebi', service: item.service, vehicle: item.vehicle, message: item.message,
+    id: item.id, kind: item.kind, kindText: quote ? t('Teklif talebi') : t('Randevu talebi'), service: item.service, vehicle: item.vehicle, message: item.message,
     businessId: item.businessId, businessName: item.businessName, status: item.status, statusLabel, tone: statusTone[item.status],
-    offer: offerView, offerStatus, preferredText, resolution: item.resolution ?? '', version: item.version,
+    offer: offerView, offerStatus, preferredText, resolution, version: item.version,
     canAccept: item.status === 'offered' && !expired, canCancel: OPEN.includes(item.status), messagesOpen: OPEN.includes(item.status), amount,
     code: meta.reference ?? `#${item.id}`,
-    createdText: meta.createdAtMs === null ? '' : now - meta.createdAtMs < 7 * DAY ? `${longDate(meta.createdAtMs)} · ${relativeTime(meta.createdAtMs, now)}` : longDate(meta.createdAtMs),
-    createdShort: meta.createdAtMs === null ? '' : relativeTime(meta.createdAtMs, now),
-    respondByText: waiting && meta.respondByMs !== null ? dateTimeText(meta.respondByMs) : '',
+    createdText: meta.createdAtMs === null ? '' : now - meta.createdAtMs < 7 * DAY ? `${longDate(meta.createdAtMs, tag)} · ${relativeTime(meta.createdAtMs, now, t, tag)}` : longDate(meta.createdAtMs, tag),
+    createdShort: meta.createdAtMs === null ? '' : relativeTime(meta.createdAtMs, now, t, tag),
+    respondByText: waiting && meta.respondByMs !== null ? dateTimeText(meta.respondByMs, tag) : '',
     respondByPassed: waiting && meta.respondByMs !== null && meta.respondByMs <= now,
-    seenText: meta.seenByBusinessAtMs === null ? (meta.createdAtMs === null ? null : '') : relativeTime(meta.seenByBusinessAtMs, now),
-    resolutionLabel: code ? resolutionLabels[code] ?? '' : '',
-    contactText: meta.contactPreference ? contactLabels[meta.contactPreference] : '',
-    windowText: meta.preferredWindow ? windowLabels[meta.preferredWindow] : '',
+    seenText: meta.seenByBusinessAtMs === null ? (meta.createdAtMs === null ? null : '') : relativeTime(meta.seenByBusinessAtMs, now, t, tag),
+    resolutionLabel: code && resolutionLabels[code] ? t(resolutionLabels[code]) : '',
+    contactText: meta.contactPreference ? t(contactLabels[meta.contactPreference]) : '',
+    windowText: meta.preferredWindow ? t(windowLabels[meta.preferredWindow]) : '',
     vehicleId: meta.vehicleId,
   };
 }
 
-/* Customer cancel (v2-01 reason codes). */
+/* Customer cancel (v2-01 reason codes). Labels are Turkish source texts; the page shows them through `t`. */
 export type CancelReason = 'found_other' | 'price' | 'timing' | 'other';
 export const cancelReasons: {id: CancelReason; label: string}[] = [
   {id: 'found_other', label: 'Başka bir işletmeyle anlaştım'},
@@ -328,26 +343,26 @@ export const cancelReasons: {id: CancelReason; label: string}[] = [
 ];
 
 /** Why the cancel form cannot be sent yet ('' when it can). `other` needs a text; a text is 10–1000 characters. */
-export function cancelProblem(reason: CancelReason | '', text: string) {
+export function cancelProblem(reason: CancelReason | '', text: string, t: Translate = turkish) {
   const length = text.trim().length;
-  if (!reason) return 'Bir neden seç.';
-  if (reason === 'other' && length < 10) return 'Nedeni en az 10 karakterle yaz.';
-  if (length > 0 && length < 10) return 'Açıklama en az 10 karakter olmalı ya da boş kalmalı.';
-  if (length > 1000) return 'Açıklama en çok 1000 karakter olabilir.';
+  if (!reason) return t('Bir neden seç.');
+  if (reason === 'other' && length < 10) return t('Nedeni en az 10 karakterle yaz.');
+  if (length > 0 && length < 10) return t('Açıklama en az 10 karakter olmalı ya da boş kalmalı.');
+  if (length > 1000) return t('Açıklama en çok 1000 karakter olabilir.');
   return '';
 }
 
 /** Body of PATCH /api/requests for a customer cancel. Without a text the API stores the code's default sentence. */
-export function cancelBody(view: Pick<RequestView, 'id' | 'version'>, reason: CancelReason, text = '') {
-  const problem = cancelProblem(reason, text);
+export function cancelBody(view: Pick<RequestView, 'id' | 'version'>, reason: CancelReason, text = '', t: Translate = turkish) {
+  const problem = cancelProblem(reason, text, t);
   if (problem) throw Error(problem);
   const trimmed = text.trim();
   return {id: view.id, version: view.version, action: 'cancel' as const, reasonCode: reason, ...(trimmed ? {text: trimmed} : {})};
 }
 
 export interface ThreadMessage {from: 'business' | 'member'; text: string; time: string}
-export function threadMessage(message: RequestMessage): ThreadMessage {
-  return {from: message.author === 'customer' ? 'member' : 'business', text: message.text, time: `${new Date(message.createdAtMs).toLocaleDateString('tr-TR', {timeZone: TZ, day: 'numeric', month: 'short'})} ${clock(message.createdAtMs)}`};
+export function threadMessage(message: RequestMessage, tag = TR): ThreadMessage {
+  return {from: message.author === 'customer' ? 'member' : 'business', text: message.text, time: `${new Date(message.createdAtMs).toLocaleDateString(tag, {timeZone: TZ, day: 'numeric', month: 'short'})} ${clock(message.createdAtMs, tag)}`};
 }
 
 /* ------------------------------------------------------------------ W16 appointment */
@@ -382,31 +397,33 @@ export function decodeAvailability(raw: unknown): LiveAvailability {
 
 export const istanbulToday = (now = new Date()) => istanbulClock(now).date;
 export const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
-const utcLabel = (date: string, options: Intl.DateTimeFormatOptions) => new Date(`${date}T00:00:00Z`).toLocaleDateString('tr-TR', {timeZone: 'UTC', ...options});
+const utcLabel = (date: string, options: Intl.DateTimeFormatOptions, tag = TR) => new Date(`${date}T00:00:00Z`).toLocaleDateString(tag, {timeZone: 'UTC', ...options});
+/** "ÇAR" / "WED": short weekday for the week strips (also used by the demo calendar). */
+export const weekdayShort = (date: string, tag = TR) => utcLabel(date, {weekday: 'short'}, tag).replace('.', '').toLocaleUpperCase(tag);
 
 /**
  * Week strip for the live calendar: `count` days from `from`. `slots` lists every time (full ones
  * too, drawn as taken), `free` counts the bookable ones; a day without any slot is shown closed.
  */
-export function calendarDays(from: string, days: readonly AvailabilityDay[], count = 7): CalendarDay[] {
+export function calendarDays(from: string, days: readonly AvailabilityDay[], count = 7, tag = TR): CalendarDay[] {
   return Array.from({length: count}, (_, i) => {
     const date = addDays(from, i);
     const all = [...(days.find(d => d.date === date)?.slots ?? [])].sort((a, b) => a.time.localeCompare(b.time));
     const slots = [...new Set(all.map(s => s.time))];
     const taken = slots.filter(time => !all.some(s => s.time === time && s.state === 'free'));
     return {
-      date, short: utcLabel(date, {weekday: 'short'}).replace('.', '').toLocaleUpperCase('tr-TR'), num: String(Number(date.slice(8, 10))),
+      date, short: weekdayShort(date, tag), num: String(Number(date.slice(8, 10))),
       closed: !slots.length, free: slots.length - taken.length, slots, taken,
     };
   });
 }
 
-/** "09:00" → "09.00" (the v2 screens write times with a dot). */
-export const slotLabel = (slot: string) => slot.replace(':', '.');
-export const dayLongText = (date: string) => `${utcLabel(date, {weekday: 'long'})} ${utcLabel(date, {day: 'numeric', month: 'long'})}`;
-export const monthTitle = (date: string) => {
-  const text = utcLabel(date, {month: 'long', year: 'numeric'});
-  return text.charAt(0).toLocaleUpperCase('tr-TR') + text.slice(1);
+/** "09:00" → "09.00" (Turkish v2 screens write times with a dot); English keeps "09:00". Accepts both forms. */
+export const slotLabel = (slot: string, tag = TR) => slot.replace(/[:.]/, timeSeparator(tag));
+export const dayLongText = (date: string, tag = TR) => `${utcLabel(date, {weekday: 'long'}, tag)} ${utcLabel(date, {day: 'numeric', month: 'long'}, tag)}`;
+export const monthTitle = (date: string, tag = TR) => {
+  const text = utcLabel(date, {month: 'long', year: 'numeric'}, tag);
+  return text.charAt(0).toLocaleUpperCase(tag) + text.slice(1);
 };
 
 /* ------------------------------------------------------------------ W17 notifications */
@@ -433,20 +450,22 @@ export interface NotificationView {id: string; kind: 'talep' | 'yorum' | 'garaj'
 const noticeTitles: Record<string, string> = {requested: 'Talebin iletildi', offered: 'Yanıt geldi', confirmed: 'Talep kesinleşti', declined: 'İşletme reddetti', cancelled: 'Talep iptal edildi', completed: 'Talep tamamlandı', expired: 'Yanıt süresi doldu', no_show: 'Randevuya gidilmedi'};
 const phaseText: Record<string, string> = {advance: 'Hatırlatma tarihin yaklaşıyor', mileage: 'Kilometre hedefine ulaşıldı'};
 
-export function notificationView(notice: Notice, now: number): NotificationView {
-  const time = relativeTime(notice.createdAtMs, now);
+/** `t`/`tag` localise the fixed titles, texts and dates; the reminder's own title and vehicle label stay as stored. */
+export function notificationView(notice: Notice, now: number, t: Translate = turkish, tag = TR): NotificationView {
+  const time = relativeTime(notice.createdAtMs, now, t, tag);
   if (notice.kind === 'reminder') {
-    const due = [notice.dueDate ? longDate(Date.parse(`${notice.dueDate}T12:00:00+03:00`)) : '', notice.dueKm != null ? `${notice.dueKm.toLocaleString('tr-TR')} km` : ''].filter(Boolean).join(' · ');
+    const due = [notice.dueDate ? longDate(Date.parse(`${notice.dueDate}T12:00:00+03:00`), tag) : '', notice.dueKm != null ? `${notice.dueKm.toLocaleString(tag)} km` : ''].filter(Boolean).join(' · ');
+    const phase = phaseText[notice.phase ?? ''];
     return {
-      id: notice.id, kind: 'garaj', icon: 'bell', tone: 'sky', title: notice.title || 'Araç hatırlatması',
-      text: [notice.vehicleLabel, phaseText[notice.phase ?? ''] ?? 'Hatırlatma tarihi geldi veya geçti', due].filter(Boolean).join(' · '),
+      id: notice.id, kind: 'garaj', icon: 'bell', tone: 'sky', title: notice.title || t('Araç hatırlatması'),
+      text: [notice.vehicleLabel, phase ? t(phase) : t('Hatırlatma tarihi geldi veya geçti'), due].filter(Boolean).join(' · '),
       time, unread: !notice.read, to: '/hatirlatmalar',
     };
   }
   const status = notice.status ?? '';
   return {
     id: notice.id, kind: 'talep', icon: status === 'confirmed' ? 'calendar' : 'file', tone: status === 'offered' ? 'orange' : status === 'confirmed' ? 'lime' : 'cream',
-    title: noticeTitles[status] ?? 'Talep güncellemesi', text: 'Olay anındaki durum. Güncel bilgi için talebi aç.',
+    title: noticeTitles[status] ? t(noticeTitles[status]) : t('Talep güncellemesi'), text: t('Olay anındaki durum. Güncel bilgi için talebi aç.'),
     time, unread: !notice.read, to: notice.requestId ? `/taleplerim?talep=${encodeURIComponent(notice.requestId)}` : '/taleplerim',
   };
 }
@@ -458,19 +477,19 @@ export const noticeKindParam = (filter: string) => (filter === 'talep' ? 'reques
 
 export const exportLabels: Record<ExportRequest['status'], string> = {submitted: 'Talep alındı', in_progress: 'Hazırlanıyor', delivered: 'Teslim edildi', rejected: 'Reddedildi', cancelled: 'İptal edildi'};
 
-export function exportSummary(items: readonly ExportRequest[]) {
+export function exportSummary(items: readonly ExportRequest[], t: Translate = turkish, tag = TR) {
   const latest = [...items].sort((a, b) => b.createdAtMs - a.createdAtMs)[0] ?? null;
   const open = items.some(i => i.status === 'submitted' || i.status === 'in_progress');
-  return {latest, open, label: latest ? `${exportLabels[latest.status]} · ${longDate(latest.updatedAtMs)}` : '', tone: (latest && ['delivered'].includes(latest.status) ? 'lime' : latest && open ? 'orange' : 'cream') as Tone};
+  return {latest, open, label: latest ? `${t(exportLabels[latest.status])} · ${longDate(latest.updatedAtMs, tag)}` : '', tone: (latest && ['delivered'].includes(latest.status) ? 'lime' : latest && open ? 'orange' : 'cream') as Tone};
 }
 
-export function exportErrorMessage(error: unknown) {
-  return liveErrorMessage(error, 'Talep gönderilemedi. Tekrar dene.', {
-    428: 'Güvenlik için son 10 dakika içinde yeniden giriş yapman gerekiyor. Çıkış yapıp tekrar giriş yap.',
-    409: 'Açık bir veri kopyası talebin var.',
-    429: 'Günde bir veri kopyası talebi verebilirsin.',
-    403: 'Veri kopyası istemek için önce e-posta adresini doğrula.',
-  });
+export function exportErrorMessage(error: unknown, t: Translate = turkish) {
+  return liveErrorMessage(error, t('Talep gönderilemedi. Tekrar dene.'), {
+    428: t('Güvenlik için son 10 dakika içinde yeniden giriş yapman gerekiyor. Çıkış yapıp tekrar giriş yap.'),
+    409: t('Açık bir veri kopyası talebin var.'),
+    429: t('Günde bir veri kopyası talebi verebilirsin.'),
+    403: t('Veri kopyası istemek için önce e-posta adresini doğrula.'),
+  }, t);
 }
 
 /* ------------------------------------------------------------------ /yorumlarim */
@@ -482,12 +501,18 @@ export const ownReviewStatus = {
 
 export interface OwnReviewRow {id: string; businessId: string; business: string; available: boolean; rating: number | null; text: string; date: string; status: string; label: string; tone: Tone; reason: string; version: number; canEdit: boolean; canWithdraw: boolean}
 
-export function ownReviewRow(item: {businessId: string; businessName: string; businessAvailable?: boolean; updatedAtMs?: number; review: {id: string; text: string; rating: number | null; status: string; reason: string; version: number; canEdit: boolean; canWithdraw: boolean}}): OwnReviewRow {
+export interface OwnReviewInput {businessId: string; businessName: string; businessAvailable?: boolean; updatedAtMs?: number; review: {id: string; text: string; rating: number | null; status: string; reason: string; version: number; canEdit: boolean; canWithdraw: boolean}}
+
+/** Turkish row (keeps `.map(ownReviewRow)` working); `ownReviewRowIn(t, tag)` gives a localised mapper. */
+export const ownReviewRow = (item: OwnReviewInput) => buildOwnReviewRow(item, turkish, TR);
+export const ownReviewRowIn = (t: Translate, tag = TR) => (item: OwnReviewInput) => buildOwnReviewRow(item, t, tag);
+
+function buildOwnReviewRow(item: OwnReviewInput, t: Translate, tag: string): OwnReviewRow {
   const status = ownReviewStatus[item.review.status as keyof typeof ownReviewStatus] ?? {label: 'Belirtilmedi', tone: 'cream' as const};
   return {
-    id: item.review.id, businessId: item.businessId, business: item.businessName || 'İşletme', available: item.businessAvailable !== false,
-    rating: item.review.rating, text: item.review.text, date: item.updatedAtMs ? longDate(item.updatedAtMs) : '', status: item.review.status,
-    label: status.label, tone: status.tone, reason: item.review.reason, version: item.review.version, canEdit: item.review.canEdit, canWithdraw: item.review.canWithdraw,
+    id: item.review.id, businessId: item.businessId, business: item.businessName || t('İşletme'), available: item.businessAvailable !== false,
+    rating: item.review.rating, text: item.review.text, date: item.updatedAtMs ? longDate(item.updatedAtMs, tag) : '', status: item.review.status,
+    label: t(status.label), tone: status.tone, reason: item.review.reason, version: item.review.version, canEdit: item.review.canEdit, canWithdraw: item.review.canWithdraw,
   };
 }
 
@@ -515,10 +540,16 @@ const claimNotes: Record<string, string> = {
   rejected: 'Başvuru onaylanmadı.',
 };
 
-export function claimRow(claim: LiveClaim) {
+/** Turkish row (keeps `.map(claimRow)` working); `claimRowIn(t)` gives a localised mapper. */
+export const claimRow = (claim: LiveClaim) => buildClaimRow(claim, turkish);
+export const claimRowIn = (t: Translate) => (claim: LiveClaim) => buildClaimRow(claim, t);
+
+function buildClaimRow(claim: LiveClaim, t: Translate) {
+  const label = claimStatusLabels[claim.status];
+  const note = claimNotes[claim.status];
   return {
-    id: claim.id, businessId: claim.businessId, business: claim.name || 'İşletme', place: [claim.city].filter(Boolean).join(''),
-    label: claimStatusLabels[claim.status] ?? 'Belirtilmedi', tone: (claim.status === 'approved' ? 'lime' : claim.status === 'rejected' ? 'cream' : 'orange') as Tone,
-    note: claim.reviewReason || claimNotes[claim.status] || '', reply: claim.reply, canReply: claim.status === 'needs_information',
+    id: claim.id, businessId: claim.businessId, business: claim.name || t('İşletme'), place: [claim.city].filter(Boolean).join(''),
+    label: label ? t(label) : t('Belirtilmedi'), tone: (claim.status === 'approved' ? 'lime' : claim.status === 'rejected' ? 'cream' : 'orange') as Tone,
+    note: claim.reviewReason || (note ? t(note) : ''), reply: claim.reply, canReply: claim.status === 'needs_information',
   };
 }

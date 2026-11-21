@@ -3,6 +3,7 @@ import {computed, reactive, ref, watch} from 'vue';
 import {ArrowRight, Bell, Calendar, Lock, Mail, Smartphone} from '@lucide/vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
 import V2Select from '~/components/v2/V2Select.vue';
+import {useLocale} from '~/composables/useLocale';
 import {mockReminderTopics, mockNotifyOptions, vehicleTitle, type MockVehicle} from '~/data/mock/garage';
 import {mockMember} from '~/data/mock/session';
 import {MAX_NOTICE_DAYS, addDays, liveReminderTopics, maskEmail, parseWhole, type ReminderDraft} from '~/lib/v2/garage';
@@ -27,6 +28,7 @@ const props = withDefaults(defineProps<{
   calendar?: (draft: ReminderDraft) => string;
 }>(), {live: false, today: '', email: '', emailVerified: false, busy: false, error: '', calendar: undefined});
 const emit = defineEmits<{close: []; save: [reminder: ReminderDraft]}>();
+const {t} = useLocale();
 
 const defaultDate = () => (props.live && props.today ? addDays(props.today, 30) : '2026-12-01');
 const form = reactive({vehicleId: '', topic: mockReminderTopics[0]!, date: '2026-12-01', km: '', notify: [0, 1, 7] as number[], push: true, email: true});
@@ -34,8 +36,12 @@ const dateError = ref('');
 const kmError = ref('');
 const icsMessage = ref('');
 const notifyMessage = ref('');
-/** Live topics add "Yağ değişimi" (API topic oil); demo keeps its own list. */
-const topics = computed(() => (props.live ? liveReminderTopics.map((t) => t.label) : mockReminderTopics));
+/**
+ * Live topics add "Yağ değişimi" (API topic oil); demo keeps its own list. The Turkish topic is the
+ * value (saved as the reminder title, mapped to the API topic); only the label is translated.
+ */
+const topics = computed(() => (props.live ? liveReminderTopics.map((o) => o.label) : mockReminderTopics).map((value) => ({value, label: t(value)})));
+const notifyChoices = computed(() => mockNotifyOptions.map((o) => ({value: o.value, label: t(o.label)})));
 
 watch(() => props.open, (open) => {
   if (!open) return;
@@ -54,8 +60,8 @@ watch(() => props.open, (open) => {
 
 const maskedEmail = computed(() => maskEmail(props.live ? props.email : mockMember.email));
 const emailSub = computed(() => {
-  if (!props.live) return `Doğrulanmış adres: ${maskedEmail.value}`;
-  return props.emailVerified ? `Doğrulanmış adres: ${maskedEmail.value}` : 'Adresin doğrulanınca gönderilir';
+  if (!props.live) return t('Doğrulanmış adres: {email}', {email: maskedEmail.value});
+  return props.emailVerified ? t('Doğrulanmış adres: {email}', {email: maskedEmail.value}) : t('Adresin doğrulanınca gönderilir');
 });
 
 function toggleNotify(value: number) {
@@ -63,9 +69,9 @@ function toggleNotify(value: number) {
   if (props.live) {
     notifyMessage.value = '';
     if (form.notify.includes(value)) {
-      if (form.notify.length === 1) { notifyMessage.value = 'En az bir gün seçili kalmalı.'; return; }
+      if (form.notify.length === 1) { notifyMessage.value = t('En az bir gün seçili kalmalı.'); return; }
     } else if (form.notify.length >= MAX_NOTICE_DAYS) {
-      notifyMessage.value = `En çok ${MAX_NOTICE_DAYS} gün seçilebilir. Önce birini kaldır.`;
+      notifyMessage.value = t('En çok {count} gün seçilebilir. Önce birini kaldır.', {count: MAX_NOTICE_DAYS});
       return;
     }
   }
@@ -74,9 +80,9 @@ function toggleNotify(value: number) {
 
 function draft(): ReminderDraft | null {
   const km = form.km.trim() ? parseWhole(form.km) : null;
-  kmError.value = form.km.trim() && (km === null || km > 2_000_000) ? 'Kilometreyi sayı olarak yaz.' : '';
-  dateError.value = form.date || (props.live && km !== null) ? '' : props.live ? 'Hedef tarih ya da kilometre gir.' : 'Hedef tarihi seç.';
-  if (!dateError.value && props.live && form.date && props.today && form.date < props.today) dateError.value = 'Geçmiş bir tarih seçilemez.';
+  kmError.value = form.km.trim() && (km === null || km > 2_000_000) ? t('Kilometreyi sayı olarak yaz.') : '';
+  dateError.value = form.date || (props.live && km !== null) ? '' : props.live ? t('Hedef tarih ya da kilometre gir.') : t('Hedef tarihi seç.');
+  if (!dateError.value && props.live && form.date && props.today && form.date < props.today) dateError.value = t('Geçmiş bir tarih seçilemez.');
   if (dateError.value || kmError.value) return null;
   return {vehicleId: form.vehicleId, topic: form.topic, date: form.date, dueKm: km, notify: form.notify.length ? form.notify : [0], push: form.push, email: form.email};
 }
@@ -93,24 +99,25 @@ function download(content: string, name: string) {
 function downloadIcs() {
   if (props.live) {
     icsMessage.value = '';
-    if (!form.date) { dateError.value = 'Takvime eklemek için hedef tarih gerekli.'; return; }
+    if (!form.date) { dateError.value = t('Takvime eklemek için hedef tarih gerekli.'); return; }
     const value = draft();
     if (!value || !props.calendar) return;
     try {
       download(props.calendar(value), 'otosanayide-bakim.ics');
-      icsMessage.value = 'Takvim dosyası hazırlandı. Takvim uygulamanda açıp eklemeyi onayla; değişiklikler otomatik eşitlenmez.';
+      icsMessage.value = t('Takvim dosyası hazırlandı. Takvim uygulamanda açıp eklemeyi onayla; değişiklikler otomatik eşitlenmez.');
     } catch (error) {
-      icsMessage.value = error instanceof Error ? error.message : 'Takvim dosyası hazırlanamadı.';
+      // useGarage and packages/core/calendar throw Turkish source text.
+      icsMessage.value = error instanceof Error ? t(error.message) : t('Takvim dosyası hazırlanamadı.');
     }
     return;
   }
-  if (!form.date) { dateError.value = 'Hedef tarihi seç.'; return; }
+  if (!form.date) { dateError.value = t('Hedef tarihi seç.'); return; }
   const vehicle = props.vehicles.find((v) => v.id === form.vehicleId);
   const day = form.date.replace(/-/g, '');
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Otosanayide//Hatirlatma (ornek)//TR', 'BEGIN:VEVENT',
     `UID:ornek-${Date.now()}@otosanayide`, `DTSTART;TZID=Europe/Istanbul:${day}T090000`, `DTEND;TZID=Europe/Istanbul:${day}T093000`,
-    `SUMMARY:${form.topic}${vehicle ? ` · ${vehicleTitle(vehicle)}` : ''}`, 'END:VEVENT', 'END:VCALENDAR',
+    `SUMMARY:${t(form.topic)}${vehicle ? ` · ${vehicleTitle(vehicle)}` : ''}`, 'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n');
   const url = URL.createObjectURL(new Blob([ics], {type: 'text/calendar'}));
   const a = document.createElement('a');
@@ -128,21 +135,21 @@ function save() {
 </script>
 
 <template>
-  <V2Modal :open="open" title="Hatırlatma oluştur" :width="640" @close="emit('close')">
+  <V2Modal :open="open" :title="t('Hatırlatma oluştur')" :width="640" @close="emit('close')">
     <form id="reminder-form" class="body" novalidate @submit.prevent="save">
       <div class="two">
         <div class="field">
-          <label class="field-label" for="rem-vehicle">Araç</label>
-          <V2Select id="rem-vehicle" v-model="form.vehicleId" :options="vehicles.map((v) => ({value: v.id, label: vehicleTitle(v)}))" placeholder="Araç seç"/>
+          <label class="field-label" for="rem-vehicle">{{ t('Araç') }}</label>
+          <V2Select id="rem-vehicle" v-model="form.vehicleId" :options="vehicles.map((v) => ({value: v.id, label: vehicleTitle(v)}))" :placeholder="t('Araç seç')"/>
         </div>
         <div class="field">
-          <label class="field-label" for="rem-topic">Konu</label>
-          <V2Select id="rem-topic" v-model="form.topic" :options="topics" placeholder="Konu seç"/>
+          <label class="field-label" for="rem-topic">{{ t('Konu') }}</label>
+          <V2Select id="rem-topic" v-model="form.topic" :options="topics" :placeholder="t('Konu seç')"/>
         </div>
       </div>
 
       <div class="field">
-        <label class="field-label" for="rem-date">Hedef tarih</label>
+        <label class="field-label" for="rem-date">{{ t('Hedef tarih') }}</label>
         <div class="date-wrap" :class="{invalid: !!dateError}">
           <Calendar :size="18" class="cal" aria-hidden="true"/>
           <input id="rem-date" v-model="form.date" class="input" type="date" :min="live && today ? today : '2026-01-01'" :aria-invalid="dateError ? 'true' : undefined" :aria-describedby="dateError ? 'rem-date-err' : undefined">
@@ -151,54 +158,54 @@ function save() {
       </div>
 
       <div v-if="live" class="field">
-        <label class="field-label" for="rem-km">Hedef kilometre (isteğe bağlı)</label>
-        <input id="rem-km" v-model="form.km" class="input" inputmode="numeric" placeholder="Örn. 95000" :aria-invalid="kmError ? 'true' : undefined" :aria-describedby="kmError ? 'rem-km-err' : 'rem-km-hint'">
+        <label class="field-label" for="rem-km">{{ t('Hedef kilometre (isteğe bağlı)') }}</label>
+        <input id="rem-km" v-model="form.km" class="input" inputmode="numeric" :placeholder="t('Örn. 95000')" :aria-invalid="kmError ? 'true' : undefined" :aria-describedby="kmError ? 'rem-km-err' : 'rem-km-hint'">
         <p v-if="kmError" id="rem-km-err" class="err" role="alert">{{ kmError }}</p>
-        <p v-else id="rem-km-hint" class="note">Son kaydettiğin kilometreye göre değerlendirilir; araç kilometresi otomatik takip edilmez.</p>
+        <p v-else id="rem-km-hint" class="note">{{ t('Son kaydettiğin kilometreye göre değerlendirilir; araç kilometresi otomatik takip edilmez.') }}</p>
       </div>
 
       <fieldset class="group">
-        <legend class="field-label">Ne zaman haber verelim?</legend>
+        <legend class="field-label">{{ t('Ne zaman haber verelim?') }}</legend>
         <div class="chips">
-          <button v-for="o in mockNotifyOptions" :key="o.value" type="button" class="chip" :class="form.notify.includes(o.value) ? 'chip-active' : 'chip-default'" :aria-pressed="form.notify.includes(o.value)" @click="toggleNotify(o.value)">{{ o.label }}</button>
+          <button v-for="o in notifyChoices" :key="o.value" type="button" class="chip" :class="form.notify.includes(o.value) ? 'chip-active' : 'chip-default'" :aria-pressed="form.notify.includes(o.value)" @click="toggleNotify(o.value)">{{ o.label }}</button>
         </div>
         <p v-if="notifyMessage" class="err" role="alert">{{ notifyMessage }}</p>
-        <p class="note">Gönderim saati: Türkiye saati 09.00{{ live ? ` · En çok ${MAX_NOTICE_DAYS} gün seçilebilir.` : '' }}</p>
+        <p class="note">{{ t('Gönderim saati: Türkiye saati 09.00') }}{{ live ? ` · ${t('En çok {count} gün seçilebilir.', {count: MAX_NOTICE_DAYS})}` : '' }}</p>
       </fieldset>
 
       <fieldset class="group">
-        <legend class="field-label">Kanallar</legend>
+        <legend class="field-label">{{ t('Kanallar') }}</legend>
         <ul class="channels">
           <li class="channel">
             <span class="ch-icon" aria-hidden="true"><Bell :size="18"/></span>
-            <span class="ch-copy"><span class="t-label-md">Uygulama içi</span><span class="sub">Her zaman açık</span></span>
-            <span class="fixed t-label-sm"><Lock :size="13" aria-hidden="true"/>Sabit</span>
+            <span class="ch-copy"><span class="t-label-md">{{ t('Uygulama içi') }}</span><span class="sub">{{ t('Her zaman açık') }}</span></span>
+            <span class="fixed t-label-sm"><Lock :size="13" aria-hidden="true"/>{{ t('Sabit') }}</span>
           </li>
           <li class="channel">
             <span class="ch-icon" aria-hidden="true"><Smartphone :size="18"/></span>
-            <label class="ch-copy" for="rem-push"><span class="t-label-md">Push bildirimi</span><span class="sub">Cihaz izni gerekir</span></label>
+            <label class="ch-copy" for="rem-push"><span class="t-label-md">{{ t('Push bildirimi') }}</span><span class="sub">{{ t('Cihaz izni gerekir') }}</span></label>
             <input id="rem-push" v-model="form.push" type="checkbox" role="switch" class="switch" :aria-checked="form.push">
           </li>
           <li class="channel">
             <span class="ch-icon" aria-hidden="true"><Mail :size="18"/></span>
-            <label class="ch-copy" for="rem-email"><span class="t-label-md">E-posta</span><span class="sub">{{ emailSub }}</span></label>
+            <label class="ch-copy" for="rem-email"><span class="t-label-md">{{ t('E-posta') }}</span><span class="sub">{{ emailSub }}</span></label>
             <input id="rem-email" v-model="form.email" type="checkbox" role="switch" class="switch" :aria-checked="form.email">
           </li>
         </ul>
-        <p v-if="live" class="note">Push ve e-posta tercihin hatırlatmayla kaydedilir. Gönderim hizmeti henüz açık değil; şu anda bildirim gönderilmez.</p>
+        <p v-if="live" class="note">{{ t('Push ve e-posta tercihin hatırlatmayla kaydedilir. Gönderim hizmeti henüz açık değil; şu anda bildirim gönderilmez.') }}</p>
       </fieldset>
 
       <div class="ics">
         <span class="ch-icon lime" aria-hidden="true"><Calendar :size="18"/></span>
-        <span class="ch-copy"><span class="t-label-md">Takvime ekle (.ics)</span><span class="sub">Google, Outlook veya Apple Takvim</span></span>
-        <button type="button" class="btn btn-outline" @click="downloadIcs">.ics indir</button>
+        <span class="ch-copy"><span class="t-label-md">{{ t('Takvime ekle (.ics)') }}</span><span class="sub">{{ t('Google, Outlook veya Apple Takvim') }}</span></span>
+        <button type="button" class="btn btn-outline" @click="downloadIcs">{{ t('.ics indir') }}</button>
       </div>
       <p v-if="icsMessage" class="note" role="status">{{ icsMessage }}</p>
       <p v-if="error" class="err form-err" role="alert">{{ error }}</p>
     </form>
     <template #footer>
-      <button type="button" class="btn btn-outline" @click="emit('close')">Vazgeç</button>
-      <button type="submit" form="reminder-form" class="btn btn-primary" :disabled="busy">{{ busy ? 'Kaydediliyor…' : 'Kaydet' }}<ArrowRight aria-hidden="true"/></button>
+      <button type="button" class="btn btn-outline" @click="emit('close')">{{ t('Vazgeç') }}</button>
+      <button type="submit" form="reminder-form" class="btn btn-primary" :disabled="busy">{{ busy ? t('Kaydediliyor…') : t('Kaydet') }}<ArrowRight aria-hidden="true"/></button>
     </template>
   </V2Modal>
 </template>

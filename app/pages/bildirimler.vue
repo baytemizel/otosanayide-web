@@ -7,6 +7,7 @@ import V2Modal from '~/components/v2/V2Modal.vue';
 import AccountPrefsList from '~/components/v2/requests/AccountPrefsList.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import NotificationRow from '~/components/v2/requests/NotificationRow.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useNotices} from '~/composables/v2/useAccountData';
 import {mockNotifications, notificationFilters, type MockNotification} from '~/data/mock/requests';
@@ -20,8 +21,9 @@ import {notificationView} from '~/lib/v2/requests';
 // The unread count is the API's `unreadCount` (?v=2, whole inbox, any filter); ?v=2 also sends expired/no_show.
 useMemberPage();
 const demo = demoMode();
+const {t, localeTag} = useLocale();
 
-useSeoMeta({title: 'Bildirimler', robots: 'noindex, nofollow'});
+useSeoMeta({title: () => t('Bildirimler'), robots: 'noindex, nofollow'});
 
 const mockItems = useState<MockNotification[]>('v2-req-notifications', () => mockNotifications.map((item) => ({...item})));
 const filter = ref<(typeof notificationFilters)[number]['id']>('tumu');
@@ -29,10 +31,11 @@ const prefsOpen = ref(false);
 const live = useNotices(() => filter.value);
 const now = ref(Date.now());
 
-const items = computed(() => (demo ? mockItems.value : live.items.value.map((notice) => notificationView(notice, now.value))));
+const items = computed(() => (demo ? mockItems.value : live.items.value.map((notice) => notificationView(notice, now.value, t, localeTag.value))));
 const visible = computed(() => (demo ? items.value.filter((item) => filter.value === 'tumu' || item.kind === filter.value) : items.value));
 const unreadCount = computed(() => (demo ? items.value.filter((item) => item.unread).length : live.unreadCount.value ?? items.value.filter((item) => item.unread).length));
-const chipLabel = (id: string, label: string) => (id === 'tumu' && (demo || filter.value === 'tumu') ? `${label} · ${items.value.length}${!demo && live.next.value ? '+' : ''}` : label);
+// Filter labels are Turkish source text (data/mock/requests) translated here.
+const chipLabel = (id: string, label: string) => (id === 'tumu' && (demo || filter.value === 'tumu') ? `${t(label)} · ${items.value.length}${!demo && live.next.value ? '+' : ''}` : t(label));
 const passive = (id: string) => !demo && id === 'yorum';
 
 function markRead(id: string) {
@@ -59,16 +62,16 @@ function markAll() {
     <div class="col">
       <header class="head">
         <div class="titles">
-          <p class="t-mono-md t-eyebrow">HESABIM</p>
-          <h1 class="t-h2">Bildirimler<span v-if="!demo && unreadCount" class="tag tag-orange unread-tag">{{ unreadBadge(unreadCount) }} okunmamış</span></h1>
+          <p class="t-mono-md t-eyebrow">{{ t('HESABIM') }}</p>
+          <h1 class="t-h2">{{ t('Bildirimler') }}<span v-if="!demo && unreadCount" class="tag tag-orange unread-tag">{{ t('{count} okunmamış', {count: unreadBadge(unreadCount)}) }}</span></h1>
         </div>
         <div class="head-actions">
-          <V2Button variant="outline" :disabled="demo ? !unreadCount : live.markingAll.value || live.loading.value || live.unreadCount.value === 0" @click="markAll">{{ live.markingAll.value ? 'İşleniyor…' : 'Tümünü okundu yap' }}</V2Button>
-          <button type="button" class="prefs-btn" aria-haspopup="dialog" @click="prefsOpen = true"><SlidersVertical :size="16" aria-hidden="true"/>Tercihler</button>
+          <V2Button variant="outline" :disabled="demo ? !unreadCount : live.markingAll.value || live.loading.value || live.unreadCount.value === 0" @click="markAll">{{ live.markingAll.value ? t('İşleniyor…') : t('Tümünü okundu yap') }}</V2Button>
+          <button type="button" class="prefs-btn" aria-haspopup="dialog" @click="prefsOpen = true"><SlidersVertical :size="16" aria-hidden="true"/>{{ t('Tercihler') }}</button>
         </div>
       </header>
 
-      <div class="chips" role="group" aria-label="Bildirim türü">
+      <div class="chips" role="group" :aria-label="t('Bildirim türü')">
         <V2Chip
           v-for="item in notificationFilters"
           :key="item.id"
@@ -77,36 +80,36 @@ function markAll() {
           :pressed="filter === item.id"
           :disabled="passive(item.id)"
           :class="{passive: passive(item.id)}"
-          :title="passive(item.id) ? 'Yorum bildirimleri henüz yok' : undefined"
+          :title="passive(item.id) ? t('Yorum bildirimleri henüz yok') : undefined"
           @click="!passive(item.id) && (filter = item.id)"
         >{{ chipLabel(item.id, item.label) }}</V2Chip>
       </div>
-      <p v-if="!demo" class="t-body-sm t-muted">Uygulama içi talep güncellemeleri ve araç hatırlatmaları. E-posta veya push gönderildiği anlamına gelmez.</p>
+      <p v-if="!demo" class="t-body-sm t-muted">{{ t('Uygulama içi talep güncellemeleri ve araç hatırlatmaları. E-posta veya push gönderildiği anlamına gelmez.') }}</p>
 
-      <p class="sr-only" aria-live="polite">{{ unreadCount ? `${unreadCount} okunmamış bildirim` : 'Okunmamış bildirim yok' }}</p>
+      <p class="sr-only" aria-live="polite">{{ unreadCount ? t('{count} okunmamış bildirim', {count: unreadCount}) : t('Okunmamış bildirim yok') }}</p>
 
-      <p v-if="!demo && live.loading.value && !visible.length" class="t-body-md t-muted" role="status">Bildirimler yükleniyor…</p>
+      <p v-if="!demo && live.loading.value && !visible.length" class="t-body-md t-muted" role="status">{{ t('Bildirimler yükleniyor…') }}</p>
       <div v-else-if="!demo && live.error.value" class="empty surface" role="alert">
-        <p class="t-label-md">Bildirimler yüklenemedi.</p>
+        <p class="t-label-md">{{ t('Bildirimler yüklenemedi.') }}</p>
         <p class="t-body-sm t-muted">{{ live.error.value }}</p>
-        <V2Button variant="outline" size="sm" @click="live.load()">Tekrar dene</V2Button>
+        <V2Button variant="outline" size="sm" @click="live.load()">{{ t('Tekrar dene') }}</V2Button>
       </div>
       <ul v-else-if="visible.length" class="list surface">
         <NotificationRow v-for="item in visible" :key="item.id" :item="item" @read="markRead(item.id)"/>
       </ul>
       <div v-else class="empty surface">
         <BellOff :size="24" aria-hidden="true"/>
-        <p class="t-label-md">Bu türde bildirim yok.</p>
-        <p class="t-body-sm t-muted">Yeni bir gelişme olduğunda burada görünür.</p>
+        <p class="t-label-md">{{ t('Bu türde bildirim yok.') }}</p>
+        <p class="t-body-sm t-muted">{{ t('Yeni bir gelişme olduğunda burada görünür.') }}</p>
       </div>
-      <V2Button v-if="!demo && live.next.value && !live.error.value" variant="outline" size="sm" class="more" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">Daha eski bildirimler</V2Button>
+      <V2Button v-if="!demo && live.next.value && !live.error.value" variant="outline" size="sm" class="more" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">{{ t('Daha eski bildirimler') }}</V2Button>
     </div>
 
-    <V2Modal :open="prefsOpen" title="Bildirim tercihleri" subtitle="Hangi bildirimleri almak istediğini seç." :width="560" @close="prefsOpen = false">
+    <V2Modal :open="prefsOpen" :title="t('Bildirim tercihleri')" :subtitle="t('Hangi bildirimleri almak istediğini seç.')" :width="560" @close="prefsOpen = false">
       <AccountPrefsList/>
       <template #footer>
-        <V2Button variant="outline" to="/hesabim#gizlilik">Tüm gizlilik ayarları</V2Button>
-        <V2Button variant="dark" @click="prefsOpen = false">Tamam</V2Button>
+        <V2Button variant="outline" to="/hesabim#gizlilik">{{ t('Tüm gizlilik ayarları') }}</V2Button>
+        <V2Button variant="dark" @click="prefsOpen = false">{{ t('Tamam') }}</V2Button>
       </template>
     </V2Modal>
   </div>

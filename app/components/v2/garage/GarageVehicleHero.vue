@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {ArrowRight} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {formatKmValue, vehicleTitle} from '~/data/mock/garage';
 import {formatDay, type GarageVehicle} from '~/lib/v2/garage';
 
 // W11 "Araç özeti" (Figma 123:311): orange gradient band with TR plate, model and actions.
 // Live: plate and transmission come from API v2 (both optional); the meta line also shows the
 // inspection date, which only the live account model has.
+// Fuel and gear are Turkish source labels (API fuel value / transmission label), translated here.
 const props = withDefaults(defineProps<{vehicle: GarageVehicle; live?: boolean}>(), {live: false});
+const {t, localeTag} = useLocale();
 const liveMeta = computed(() => [
-  props.vehicle.fuel,
-  props.vehicle.transmission,
-  formatKmValue(props.vehicle.km),
-  props.vehicle.inspectionDueDate ? `Muayene ${formatDay(props.vehicle.inspectionDueDate)}` : '',
+  t(props.vehicle.fuel),
+  t(props.vehicle.transmission),
+  formatKmValue(props.vehicle.km, localeTag.value),
+  props.vehicle.inspectionDueDate ? t('Muayene {date}', {date: formatDay(props.vehicle.inspectionDueDate, localeTag.value)}) : '',
 ].filter(Boolean).join(' · '));
 const emit = defineEmits<{edit: []; 'add-record': []}>();
 </script>
@@ -20,15 +23,15 @@ const emit = defineEmits<{edit: []; 'add-record': []}>();
 <template>
   <section class="hero" aria-labelledby="vehicle-title">
     <div class="copy">
-      <p v-if="vehicle.plate" class="plate" :aria-label="`Plaka ${vehicle.plate}`"><span class="tr" aria-hidden="true">TR</span><span class="num" aria-hidden="true">{{ vehicle.plate }}</span></p>
-      <p v-else class="plate empty"><span class="tr" aria-hidden="true">TR</span><span class="num">Plaka yok</span></p>
+      <p v-if="vehicle.plate" class="plate" :aria-label="t('Plaka {plate}', {plate: vehicle.plate})"><span class="tr" aria-hidden="true">TR</span><span class="num" aria-hidden="true">{{ vehicle.plate }}</span></p>
+      <p v-else class="plate empty"><span class="tr" aria-hidden="true">TR</span><span class="num">{{ t('Plaka yok') }}</span></p>
       <h2 id="vehicle-title" class="t-h3">{{ vehicleTitle(vehicle) }}</h2>
       <p v-if="live" class="t-body-md meta">{{ liveMeta }}</p>
-      <p v-else class="t-body-md meta">{{ vehicle.fuel }} · {{ vehicle.transmission }} · {{ formatKmValue(vehicle.km) }} · VIN ve plaka zorunlu değil</p>
+      <p v-else class="t-body-md meta">{{ t(vehicle.fuel) }} · {{ t(vehicle.transmission) }} · {{ formatKmValue(vehicle.km, localeTag) }} · {{ t('VIN ve plaka zorunlu değil') }}</p>
     </div>
     <div class="actions">
-      <button type="button" class="btn btn-outline" @click="emit('edit')">Düzenle</button>
-      <button type="button" class="btn btn-dark" @click="emit('add-record')">Kayıt ekle<ArrowRight aria-hidden="true"/></button>
+      <button type="button" class="btn btn-outline" @click="emit('edit')">{{ t('Düzenle') }}</button>
+      <button type="button" class="btn btn-dark" @click="emit('add-record')">{{ t('Kayıt ekle') }}<ArrowRight aria-hidden="true"/></button>
     </div>
   </section>
 </template>

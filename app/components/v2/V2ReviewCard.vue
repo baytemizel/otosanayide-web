@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {MapPin, Star} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // V2/Kart/Yorum (Figma 113:225).
 export interface MockReview {
@@ -16,6 +17,9 @@ export interface MockReview {
   avatarColor?: string;
 }
 defineProps<{review: MockReview}>();
+// The tag is UI text (Turkish source from mock data, or the default) and is translated here; review text,
+// business, author and meta are content and stay as given.
+const {t} = useLocale();
 </script>
 
 <template>
@@ -24,7 +28,7 @@ defineProps<{review: MockReview}>();
       <span class="stars" :aria-label="`${review.rating} / 5`">
         <Star v-for="n in 5" :key="n" :size="18" :class="{off: n > review.rating}" aria-hidden="true"/>
       </span>
-      <span v-if="review.label || review.withPhoto" class="tag tag-cream tag-mono">{{ review.label ?? 'Fotoğraflı yorum' }}</span>
+      <span v-if="review.label || review.withPhoto" class="tag tag-cream tag-mono">{{ t(review.label ?? 'Fotoğraflı yorum') }}</span>
     </div>
     <p class="t-body-lg text">{{ review.text }}</p>
     <p class="place t-label-sm"><MapPin :size="15" aria-hidden="true"/>{{ review.business }}</p>

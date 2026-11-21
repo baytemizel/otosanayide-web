@@ -40,5 +40,7 @@ export function mockBusiness(id: string): MockBusiness | undefined {
   return mockBusinesses.find((business) => business.id === id);
 }
 
-export const formatRating = (value: number) => value.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
-export const formatKm = (value: number | null) => value === null ? '' : `${value.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})} km`;
+/** "4,5" in Turkish, "4.5" in English: pass the page's locale tag (useLocale().localeTag). */
+export const formatRating = (value: number, localeTag = 'tr-TR') => value.toLocaleString(localeTag, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+/** "1,2 km" in Turkish, "1.2 km" in English; '' without a distance. */
+export const formatKm = (value: number | null, localeTag = 'tr-TR') => value === null ? '' : `${value.toLocaleString(localeTag, {minimumFractionDigits: 1, maximumFractionDigits: 1})} km`;

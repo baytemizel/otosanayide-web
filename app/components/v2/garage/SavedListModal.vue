@@ -2,6 +2,7 @@
 import {reactive, ref, watch} from 'vue';
 import {ArrowRight} from '@lucide/vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
+import {useLocale} from '~/composables/useLocale';
 import {listNameError} from '~/lib/v2/saved';
 
 // "Yeni liste" (W13 header action) and "Listeyi yeniden adlandır". No Figma frame: V2Modal + shared
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   error?: string;
 }>(), {renaming: null, maxLength: 40, busy: false, error: ''});
 const emit = defineEmits<{close: []; save: [data: {name: string; businessIds: string[]}]}>();
+const {t} = useLocale();
 const form = reactive({name: '', ids: [] as string[]});
 const nameError = ref('');
 
@@ -28,7 +30,7 @@ watch(() => props.open, (open) => {
 
 function save() {
   if (props.busy) return;
-  nameError.value = listNameError(form.name, props.maxLength);
+  nameError.value = listNameError(form.name, props.maxLength, t);
   if (!nameError.value) emit('save', {name: form.name.trim(), businessIds: [...form.ids]});
 }
 </script>
@@ -36,25 +38,25 @@ function save() {
 <template>
   <V2Modal
     :open="open"
-    :title="renaming !== null ? 'Listeyi yeniden adlandır' : 'Yeni liste'"
-    :subtitle="renaming !== null ? undefined : 'Kaydettiğin servisleri konuya göre grupla.'"
+    :title="renaming !== null ? t('Listeyi yeniden adlandır') : t('Yeni liste')"
+    :subtitle="renaming !== null ? undefined : t('Kaydettiğin servisleri konuya göre grupla.')"
     :width="560"
     @close="emit('close')">
     <form id="saved-list-form" class="body" novalidate @submit.prevent="save">
       <div class="field">
-        <label class="field-label" for="list-name">Liste adı</label>
-        <input id="list-name" v-model="form.name" class="input" placeholder="Örn. Yaz bakımı" :maxlength="maxLength" :aria-invalid="nameError ? 'true' : undefined" :aria-describedby="nameError ? 'list-name-err' : undefined">
+        <label class="field-label" for="list-name">{{ t('Liste adı') }}</label>
+        <input id="list-name" v-model="form.name" class="input" :placeholder="t('Örn. Yaz bakımı')" :maxlength="maxLength" :aria-invalid="nameError ? 'true' : undefined" :aria-describedby="nameError ? 'list-name-err' : undefined">
         <p v-if="nameError" id="list-name-err" class="err" role="alert">{{ nameError }}</p>
       </div>
       <fieldset v-if="renaming === null && businesses.length" class="pick">
-        <legend class="field-label">Listeye ekle</legend>
+        <legend class="field-label">{{ t('Listeye ekle') }}</legend>
         <label v-for="b in businesses" :key="b.id" class="option"><input v-model="form.ids" type="checkbox" class="checkbox" :value="b.id">{{ b.name }}</label>
       </fieldset>
-      <p v-if="error" class="err form-err" role="alert">{{ error }}</p>
+      <p v-if="error" class="err form-err" role="alert">{{ t(error) }}</p>
     </form>
     <template #footer>
-      <button type="button" class="btn btn-outline" @click="emit('close')">Vazgeç</button>
-      <button type="submit" form="saved-list-form" class="btn btn-primary" :disabled="busy">{{ busy ? 'Kaydediliyor…' : renaming !== null ? 'Kaydet' : 'Oluştur' }}<ArrowRight aria-hidden="true"/></button>
+      <button type="button" class="btn btn-outline" @click="emit('close')">{{ t('Vazgeç') }}</button>
+      <button type="submit" form="saved-list-form" class="btn btn-primary" :disabled="busy">{{ busy ? t('Kaydediliyor…') : renaming !== null ? t('Kaydet') : t('Oluştur') }}<ArrowRight aria-hidden="true"/></button>
     </template>
   </V2Modal>
 </template>

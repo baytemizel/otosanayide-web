@@ -5,9 +5,12 @@ import V2Navbar from '~/components/v2/V2Navbar.vue';
 import SystemOfflineState from '~/components/v2/system/SystemOfflineState.vue';
 import {useApp} from '~/composables/useApp';
 import {useAppHead} from '~/composables/useAppHead';
+import {useLocale} from '~/composables/useLocale';
 
 // Web v2 shell. Live mode reads the REST API; demo mode (NUXT_PUBLIC_APP_MODE=demo) shows app/data/mock.
 useAppHead();
+// Toast: callers pass translated text; a Turkish source key is still translated here as a safety net.
+const {t} = useLocale();
 const route = useRoute();
 const app = useApp();
 
@@ -29,7 +32,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="v2-app">
-    <a href="#icerik" class="skip">İçeriğe geç</a>
+    <a href="#icerik" class="skip">{{ t('İçeriğe geç') }}</a>
     <V2Navbar v-if="route.meta.navbar !== false"/>
     <main id="icerik" class="v2-main">
       <SystemOfflineState v-if="offline" @retry="sync" @browse="offline = false"/>
@@ -37,8 +40,8 @@ onBeforeUnmount(() => {
     </main>
     <V2Footer v-if="route.meta.footer !== false"/>
     <div v-if="app.notice" class="toast" role="status">
-      <span>{{ app.notice }}</span>
-      <button type="button" aria-label="Bildirimi kapat" @click="app.notify('')">×</button>
+      <span>{{ t(app.notice) }}</span>
+      <button type="button" :aria-label="t('Bildirimi kapat')" @click="app.notify('')">×</button>
     </div>
   </div>
 </template>

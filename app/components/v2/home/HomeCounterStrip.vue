@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import {useLocale} from '~/composables/useLocale';
 import {useCoverage} from '~/composables/v2/useSearch';
 import {homeCounters} from '~/data/mock/home';
 import {demoMode} from '~/lib/env';
 
 // Figma 108:235 "Güven şeridi · sayaç": the numbers count up from zero once the strip is visible.
 // Live: the province and category counts come from GET /api/coverage (bundled list until it answers).
+// Labels are Turkish source text (matched below, translated at render); "%100" becomes "100%" in English.
+const {t} = useLocale();
+const amount = (prefix: string | undefined, value: number) => (prefix === '%' ? t('%{value}', {value}) : `${prefix ?? ''}${value}`);
 const demo = demoMode();
 const coverage = useCoverage();
 const counters = computed(() => (demo ? homeCounters : homeCounters.map((c) => (
@@ -25,10 +29,10 @@ function countUp() {
   const duration = 1200;
   counting = true;
   const step = (now: number) => {
-    const t = Math.min(1, (now - start) / duration);
-    const eased = 1 - Math.pow(1 - t, 3);
+    const progress = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
     shown.value = counters.value.map((c) => Math.round(c.value * eased));
-    if (t < 1) frame = requestAnimationFrame(step);
+    if (progress < 1) frame = requestAnimationFrame(step);
     else counting = false;
   };
   frame = requestAnimationFrame(step);
@@ -56,9 +60,9 @@ onBeforeUnmount(() => {
 <template>
   <ul ref="root" class="home-counters">
     <li v-for="(item, i) in counters" :key="item.label" class="item">
-      <span class="sr-only">{{ item.prefix ?? '' }}{{ item.value }} {{ item.label }}</span>
-      <span class="t-stat num" :class="{accent: item.accent}" aria-hidden="true">{{ item.prefix ?? '' }}{{ shown[i] }}</span>
-      <span class="label" aria-hidden="true">{{ item.label }}</span>
+      <span class="sr-only">{{ amount(item.prefix, item.value) }} {{ t(item.label) }}</span>
+      <span class="t-stat num" :class="{accent: item.accent}" aria-hidden="true">{{ amount(item.prefix, shown[i] ?? 0) }}</span>
+      <span class="label" aria-hidden="true">{{ t(item.label) }}</span>
     </li>
   </ul>
 </template>

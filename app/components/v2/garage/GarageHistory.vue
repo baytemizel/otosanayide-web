@@ -2,6 +2,7 @@
 import {computed, ref} from 'vue';
 import {File, Pencil} from '@lucide/vue';
 import GarageRecordIcon from '~/components/v2/garage/GarageRecordIcon.vue';
+import {useLocale} from '~/composables/useLocale';
 import {formatShortDate, type MockRecord} from '~/data/mock/garage';
 import {formatTry} from '~/lib/v2/garage';
 
@@ -11,6 +12,8 @@ import {formatTry} from '~/lib/v2/garage';
 // edit and delete of a single record are new in API v2-02).
 const props = withDefaults(defineProps<{records: MockRecord[]; live?: boolean; busy?: boolean}>(), {live: false, busy: false});
 const emit = defineEmits<{edit: [id: string]}>();
+const {t, localeTag} = useLocale();
+// Labels are Turkish source text, translated at render.
 const filters = [
   {id: 'all', label: 'Tümü'},
   {id: 'bakim', label: 'Bakım'},
@@ -26,9 +29,9 @@ const rows = computed(() => props.records
 <template>
   <section class="history" aria-labelledby="history-title">
     <div class="head">
-      <h2 id="history-title" class="t-h4">Bakım ve gider geçmişi</h2>
-      <div v-if="!live || records.length" class="chips" role="group" aria-label="Kayıtları süz">
-        <button v-for="f in filters" :key="f.id" type="button" class="chip" :class="filter === f.id ? 'chip-active' : 'chip-default'" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }}</button>
+      <h2 id="history-title" class="t-h4">{{ t('Bakım ve gider geçmişi') }}</h2>
+      <div v-if="!live || records.length" class="chips" role="group" :aria-label="t('Kayıtları süz')">
+        <button v-for="f in filters" :key="f.id" type="button" class="chip" :class="filter === f.id ? 'chip-active' : 'chip-default'" :aria-pressed="filter === f.id" @click="filter = f.id">{{ t(f.label) }}</button>
       </div>
     </div>
     <ul v-if="rows.length" class="rows">
@@ -38,16 +41,16 @@ const rows = computed(() => props.records
           <p class="title">{{ r.title }}</p>
           <p class="t-body-sm t-muted">{{ r.detail }}</p>
         </div>
-        <span v-if="r.document" class="doc t-label-sm"><File :size="14" aria-hidden="true"/>{{ r.document }}</span>
+        <span v-if="r.document" class="doc t-label-sm"><File :size="14" aria-hidden="true"/>{{ t(r.document) }}</span>
         <div class="amount">
-          <p class="price">{{ formatTry(r.amount) }}</p>
-          <p class="t-body-sm t-muted"><time :datetime="r.date">{{ formatShortDate(r.date) }}</time></p>
+          <p class="price">{{ formatTry(r.amount, localeTag) }}</p>
+          <p class="t-body-sm t-muted"><time :datetime="r.date">{{ formatShortDate(r.date, localeTag) }}</time></p>
         </div>
-        <button v-if="live" type="button" class="btn btn-ghost btn-sm edit" :disabled="busy" :aria-label="`${r.title} kaydını düzenle`" @click="emit('edit', r.id)"><Pencil aria-hidden="true"/></button>
+        <button v-if="live" type="button" class="btn btn-ghost btn-sm edit" :disabled="busy" :aria-label="t('{title} kaydını düzenle', {title: r.title})" @click="emit('edit', r.id)"><Pencil aria-hidden="true"/></button>
       </li>
     </ul>
-    <p v-else-if="live && !records.length" class="empty t-body-sm t-muted">Bu araç için henüz kayıt yok. Yapılan bakımı “Kayıt ekle” ile gir.</p>
-    <p v-else class="empty t-body-sm t-muted">Bu süzgeçte kayıt yok.</p>
+    <p v-else-if="live && !records.length" class="empty t-body-sm t-muted">{{ t('Bu araç için henüz kayıt yok. Yapılan bakımı “Kayıt ekle” ile gir.') }}</p>
+    <p v-else class="empty t-body-sm t-muted">{{ t('Bu süzgeçte kayıt yok.') }}</p>
   </section>
 </template>
 

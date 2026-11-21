@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref} from 'vue';
 import {ArrowRight, Car, Check, Info, Star} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeQuoteDefaultOffer, homeQuoteOffers, homeQuoteRequest, homeQuoteSteps} from '~/data/mock/home';
 
 // Figma 112:211 "Teklif · tek talep, çok teklif". Steps tick as they progress (step 1 when the section
 // comes into view, step 2 once an offer is picked); the chosen offer gets the orange frame.
+// Step, badge and time texts are Turkish source text, translated at render; numbers follow the language.
+const {t, localeTag} = useLocale();
+const decimal = (value: number) => value.toLocaleString(localeTag.value, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+const lira = (value: number) => new Intl.NumberFormat(localeTag.value, {style: 'currency', currency: 'TRY', currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0}).format(value);
 const done = ref(1);
 const chosen = ref(homeQuoteDefaultOffer);
 const root = ref<HTMLElement | null>(null);
@@ -36,9 +41,9 @@ function choose(id: string) {
   <section ref="root" class="home-quote" aria-labelledby="home-quote-title">
     <div class="v2-wrap inner">
       <div class="text">
-        <p class="t-mono-md t-eyebrow">TEKLİF AL</p>
-        <h2 id="home-quote-title" class="t-h2">Bir kez anlat,<br>teklifler gelsin.</h2>
-        <p class="t-body-md t-muted lead">Tek tek aramakla uğraşma. Aracını ve ihtiyacını yaz; yakınındaki servisler fiyat ve en erken randevu saatiyle dönsün.</p>
+        <p class="t-mono-md t-eyebrow">{{ t('TEKLİF AL') }}</p>
+        <h2 id="home-quote-title" class="t-h2" v-html="t('Bir kez anlat,<br>teklifler gelsin.')"/>
+        <p class="t-body-md t-muted lead">{{ t('Tek tek aramakla uğraşma. Aracını ve ihtiyacını yaz; yakınındaki servisler fiyat ve en erken randevu saatiyle dönsün.') }}</p>
         <ol class="steps">
           <li v-for="(step, i) in homeQuoteSteps" :key="step.title" :class="{done: i < done, current: i === done}">
             <span class="num" aria-hidden="true">
@@ -48,50 +53,50 @@ function choose(id: string) {
               </Transition>
             </span>
             <span class="step-text">
-              <span class="step-title">{{ step.title }}<span class="sr-only">{{ i < done ? ' (tamamlandı)' : i === done ? ' (şu an)' : '' }}</span></span>
-              <span class="t-body-sm t-muted">{{ step.text }}</span>
+              <span class="step-title">{{ t(step.title) }}<span class="sr-only">{{ i < done ? t(' (tamamlandı)') : i === done ? t(' (şu an)') : '' }}</span></span>
+              <span class="t-body-sm t-muted">{{ t(step.text) }}</span>
             </span>
           </li>
         </ol>
         <div class="cta">
-          <NuxtLink to="/talep" class="btn btn-dark">Teklif iste<ArrowRight aria-hidden="true"/></NuxtLink>
-          <span class="t-body-sm t-muted">Ücretsiz · bağlayıcı değil</span>
+          <NuxtLink to="/talep" class="btn btn-dark">{{ t('Teklif iste') }}<ArrowRight aria-hidden="true"/></NuxtLink>
+          <span class="t-body-sm t-muted">{{ t('Ücretsiz · bağlayıcı değil') }}</span>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head">
           <div class="request">
-            <p class="t-mono-sm t-muted">TALEBİN</p>
-            <h3 class="t-h4">{{ homeQuoteRequest.title }}</h3>
+            <p class="t-mono-sm t-muted">{{ t('TALEBİN') }}</p>
+            <h3 class="t-h4">{{ t(homeQuoteRequest.title) }}</h3>
             <p class="t-body-sm t-muted vehicle"><Car :size="15" aria-hidden="true"/>{{ homeQuoteRequest.vehicle }}</p>
           </div>
-          <span class="arrived t-label-sm"><span class="dot" aria-hidden="true"/>{{ homeQuoteOffers.length }} teklif geldi</span>
+          <span class="arrived t-label-sm"><span class="dot" aria-hidden="true"/>{{ t('{count} teklif geldi', {count: homeQuoteOffers.length}) }}</span>
         </div>
 
-        <ul class="offers" aria-label="Gelen teklifler">
+        <ul class="offers" :aria-label="t('Gelen teklifler')">
           <li v-for="offer in homeQuoteOffers" :key="offer.id">
             <button type="button" class="offer" :class="{on: chosen === offer.id}" :aria-pressed="chosen === offer.id" @click="choose(offer.id)">
               <img :src="offer.photo" alt="" width="52" height="52">
               <span class="who">
                 <span class="t-label-md">{{ offer.name }}</span>
-                <span class="rate"><Star :size="14" aria-hidden="true"/><span class="t-label-sm">{{ offer.rating }}</span><span class="t-body-sm t-muted">· {{ offer.distance }}</span></span>
+                <span class="rate"><Star :size="14" aria-hidden="true"/><span class="t-label-sm">{{ decimal(offer.rating) }}</span><span class="t-body-sm t-muted">· {{ decimal(offer.distanceKm) }} km</span></span>
               </span>
               <span class="when">
-                <span class="t-mono-sm t-muted">EN ERKEN</span>
-                <span class="t-label-sm">{{ offer.earliest }}</span>
+                <span class="t-mono-sm t-muted">{{ t('EN ERKEN') }}</span>
+                <span class="t-label-sm">{{ t(offer.earliest) }}</span>
               </span>
               <span class="price">
-                <span class="badge" :class="offer.tone">{{ offer.badge.toLocaleUpperCase('tr-TR') }}</span>
-                <span class="amount">{{ offer.price }}</span>
+                <span class="badge" :class="offer.tone">{{ t(offer.badge).toLocaleUpperCase(localeTag) }}</span>
+                <span class="amount">{{ lira(offer.price) }}</span>
               </span>
             </button>
           </li>
         </ul>
 
         <div class="card-foot">
-          <p class="t-body-sm t-muted note"><Info :size="16" aria-hidden="true"/>Fiyatlar örnektir; her işletme kendi teklifini verir.</p>
-          <NuxtLink to="/talep" class="btn btn-primary">Randevu al<ArrowRight aria-hidden="true"/></NuxtLink>
+          <p class="t-body-sm t-muted note"><Info :size="16" aria-hidden="true"/>{{ t('Fiyatlar örnektir; her işletme kendi teklifini verir.') }}</p>
+          <NuxtLink to="/talep" class="btn btn-primary">{{ t('Randevu al') }}<ArrowRight aria-hidden="true"/></NuxtLink>
         </div>
       </div>
     </div>

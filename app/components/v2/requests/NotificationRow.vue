@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import {Bell, Calendar, File, MessageSquare, ShieldCheck} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import type {NotificationView} from '~/lib/v2/requests';
 
 // One row of the W17 notification list. Unread rows are cream with an orange dot;
-// opening the row or pressing the dot marks it read.
+// opening the row or pressing the dot marks it read. Title and text are Turkish source text built by the web
+// (lib/v2/requests, demo mock) and are translated here; API-written text has no key and stays as sent.
 defineProps<{item: NotificationView}>();
 const emit = defineEmits<{read: []}>();
+const {t} = useLocale();
 const icons = {file: File, calendar: Calendar, bell: Bell, message: MessageSquare, shield: ShieldCheck};
 </script>
 
@@ -13,11 +16,11 @@ const icons = {file: File, calendar: Calendar, bell: Bell, message: MessageSquar
   <li class="row" :class="{unread: item.unread}">
     <span class="icon" :class="item.tone" aria-hidden="true"><component :is="icons[item.icon]" :size="20"/></span>
     <NuxtLink :to="item.to" class="copy" @click="emit('read')">
-      <span class="title">{{ item.title }}<span v-if="item.unread" class="sr-only"> (okunmadı)</span></span>
-      <span class="t-body-sm t-muted text">{{ item.text }}</span>
+      <span class="title">{{ t(item.title) }}<span v-if="item.unread" class="sr-only"> {{ t('(okunmadı)') }}</span></span>
+      <span class="t-body-sm t-muted text">{{ t(item.text) }}</span>
     </NuxtLink>
     <span class="t-mono-sm t-muted time">{{ item.time }}</span>
-    <button v-if="item.unread" type="button" class="dot-btn" :aria-label="`${item.title}: okundu olarak işaretle`" @click="emit('read')"><span class="dot"/></button>
+    <button v-if="item.unread" type="button" class="dot-btn" :aria-label="t('{title}: okundu olarak işaretle', {title: t(item.title)})" @click="emit('read')"><span class="dot"/></button>
     <span v-else class="dot-btn" aria-hidden="true"/>
   </li>
 </template>

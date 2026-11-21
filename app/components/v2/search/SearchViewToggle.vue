@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import {List, Map as MapIcon} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // "Görünüm seçici" (Figma 119:257): list / map switch.
 defineProps<{view: 'liste' | 'harita'}>();
 const emit = defineEmits<{change: [view: 'liste' | 'harita']}>();
+const {t} = useLocale();
 </script>
 
 <template>
-  <div class="views" role="group" aria-label="Görünüm">
+  <div class="views" role="group" :aria-label="t('Görünüm')">
     <button type="button" class="t-label-sm" :class="{on: view === 'liste'}" :aria-pressed="view === 'liste'" @click="emit('change', 'liste')">
-      <List :size="15" aria-hidden="true"/>Liste
+      <List :size="15" aria-hidden="true"/>{{ t('Liste') }}
     </button>
     <button type="button" class="t-label-sm" :class="{on: view === 'harita'}" :aria-pressed="view === 'harita'" @click="emit('change', 'harita')">
-      <MapIcon :size="15" aria-hidden="true"/>Harita
+      <MapIcon :size="15" aria-hidden="true"/>{{ t('Harita') }}
     </button>
   </div>
 </template>

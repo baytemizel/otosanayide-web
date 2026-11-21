@@ -1,5 +1,6 @@
 import {computed, ref, shallowRef} from 'vue';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
 import {useMockSaved} from '~/composables/useMockSaved';
 import {findBusiness} from '~/data/mock/catalog';
 import {useMockSavedLists} from '~/data/mock/garage';
@@ -20,10 +21,12 @@ export type SavedEntry =
  * Live: saved services are the account favorites (app store, GET /api/me), each resolved with
  * GET /api/businesses/{id}; named lists come from /api/me/lists (web-13) and are created, renamed,
  * deleted and edited there. Demo: the mock catalog and in-memory lists, unchanged.
+ * Cards and error messages are kept in Turkish; the page shows them in its language (localiseCard, t).
  */
 export function useSavedPage() {
   const app = useApp();
   const live = !demoMode();
+  const {locale} = useLocale();
   const saved = useMockSaved();
   const demoLists = useMockSavedLists();
 
@@ -48,7 +51,7 @@ export function useSavedPage() {
     if (!todo.length) return;
     entries.value = {...entries.value, ...Object.fromEntries(todo.map((id) => [id, {status: 'loading'} as SavedEntry]))};
     await eachLimited(todo, 4, async (id) => {
-      const read = await readBusiness(id, 'tr');
+      const read = await readBusiness(id, locale.value);
       const next: SavedEntry = read.status === 'found' ? {status: 'found', card: toCardBusiness(read.business, read.extras)} : {status: read.status};
       entries.value = {...entries.value, [id]: next};
     });

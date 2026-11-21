@@ -5,23 +5,26 @@ import V2Button from '~/components/v2/V2Button.vue';
 import V2PageHeader from '~/components/v2/V2PageHeader.vue';
 import {publicEnv} from '~/lib/env';
 import {isLegalSlug, legalPages} from '~/lib/legal';
+import {useLocale} from '~/composables/useLocale';
 
 // Legal drafts (K160): only the title ships; the page exists only while legal pages are enabled.
 const route = useRoute();
 const slug = String(route.params.slug);
 if (!publicEnv().legalPagesEnabled || !isLegalSlug(slug)) throw createError({statusCode: 404, statusMessage: 'Not Found', fatal: true});
 const page = computed(() => legalPages[slug as keyof typeof legalPages]);
-useSeoMeta({title: () => page.value.title, robots: 'noindex, nofollow'});
+// Titles in lib/legal.ts are Turkish source text, translated here (no draft body text ships to the client).
+const {t} = useLocale();
+useSeoMeta({title: () => t(page.value.title), robots: 'noindex, nofollow'});
 </script>
 
 <template>
   <div>
-    <V2PageHeader eyebrow="Yasal · taslak" :title="page.title"/>
+    <V2PageHeader :eyebrow="t('Yasal · taslak')" :title="t(page.title)"/>
     <div class="v2-wrap body">
       <div class="surface card">
-        <p class="hint"><FileText aria-hidden="true"/>Bu metin hukuk incelemesinden geçmedi ve yürürlükte değildir. Onaylanan metin yayımlandığında bu sayfada yer alacak.</p>
-        <p class="t-body-sm t-muted">Kaynak belge: {{ page.source }}</p>
-        <V2Button variant="outline" to="/hakkinda">Hakkında</V2Button>
+        <p class="hint"><FileText aria-hidden="true"/>{{ t('Bu metin hukuk incelemesinden geçmedi ve yürürlükte değildir. Onaylanan metin yayımlandığında bu sayfada yer alacak.') }}</p>
+        <p class="t-body-sm t-muted">{{ t('Kaynak belge: {source}', {source: page.source}) }}</p>
+        <V2Button variant="outline" to="/hakkinda">{{ t('Hakkında') }}</V2Button>
       </div>
     </div>
   </div>

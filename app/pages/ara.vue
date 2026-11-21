@@ -15,6 +15,7 @@ import SearchStrip from '~/components/v2/search/SearchStrip.vue';
 import SearchViewToggle from '~/components/v2/search/SearchViewToggle.vue';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
+import {useLocale} from '~/composables/useLocale';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
 import {useCoverage, useLiveSearch, useSearchCards} from '~/composables/v2/useSearch';
@@ -26,7 +27,7 @@ import {
 import {errorStatus} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
 import {waitlistApi} from '~/lib/member-api';
-import {placeOnMap} from '~/lib/v2/business-card';
+import {localiseCard, placeOnMap} from '~/lib/v2/business-card';
 import {
   coveredName, isCovered, liveBrands, liveDistricts, livePrimaryBrands, livePrimaryServices, liveServices, nearbyCovered, readLiveQuery,
   resultCount, searchCenter,
@@ -36,7 +37,8 @@ import {
 // S02 Kapsam dışı il (128:138). The filter state lives in the URL.
 // Demo: mock data only, the page filters `searchBusinesses`. Live: GET /api/search?v=2 (useLiveSearch);
 // filters the API rejected (taksit, nakit, şu an açık, hafta sonu, counts, bbox) are passive.
-useSeoMeta({title: 'Arama sonuçları'});
+const {t, locale, localeTag} = useLocale();
+useSeoMeta({title: () => t('Arama sonuçları')});
 const demo = demoMode();
 const app = useApp();
 const searchCards = useSearchCards();
@@ -152,7 +154,7 @@ function clearFilters() {
 // ---- Results --------------------------------------------------------------------------------------
 const sortOptions = computed(() => (Object.keys(sortLabels) as SearchSort[]).map((value) => {
   const off = !demo && value === 'yakin' && filters.area === 'ilce';
-  return {value, label: sortLabels[value], disabled: off, hint: off ? 'Çevre ya da konum seç' : undefined};
+  return {value, label: t(sortLabels[value]), disabled: off, hint: off ? t('Çevre ya da konum seç') : undefined};
 }));
 const demoResults = computed(() => (demo ? sortBusinesses(searchBusinesses.filter((b) => matchesFilters(b, filters)), filters.sort) : []));
 const outOfScope = computed(() => (demo ? !cities.some((city) => sameText(city, filters.il)) : !isCovered(filters.il, coverage.value)));
@@ -164,7 +166,7 @@ const locating = ref(false);
 function askDevice() {
   if (locating.value) return;
   if (!navigator.geolocation) {
-    app.notify('Tarayıcın konum desteklemiyor. İl ya da ilçe seçerek arayabilirsin.');
+    app.notify(t('Tarayıcın konum desteklemiyor. İl ya da ilçe seçerek arayabilirsin.'));
     patch({area: 'ilce'});
     return;
   }
@@ -174,7 +176,7 @@ function askDevice() {
     locating.value = false;
   }, () => {
     locating.value = false;
-    app.notify('Konum alınamadı. İl ya da ilçe seçerek arayabilirsin.');
+    app.notify(t('Konum alınamadı. İl ya da ilçe seçerek arayabilirsin.'));
     patch({area: 'ilce'});
   }, {timeout: 10000, maximumAge: 60000});
 }
@@ -191,7 +193,7 @@ const liveCards = computed(() => placeOnMap(live.cards.value));
 const results = computed(() => (demo ? demoResults.value : liveCards.value));
 const liveBusy = computed(() => !demo && (live.loading.value || locating.value || (filters.area === 'konum' && !device.value)));
 const noResults = computed(() => (demo ? !results.value.length : live.loaded.value && !live.cards.value.length));
-const resultLine = computed(() => (demo ? `${results.value.length} işletme` : resultCount(live.total.value, live.cards.value.length)));
+const resultLine = computed(() => (demo ? t('{count} işletme', {count: results.value.length}) : resultCount(live.total.value, live.cards.value.length, t)));
 const mapTotal = computed(() => (demo ? results.value.length : live.total.value?.exact ? live.total.value.value : live.cards.value.length));
 const liveFilterOptions = {services: liveServices, primaryServices: livePrimaryServices, brands: liveBrands, primaryBrands: livePrimaryBrands};
 const districtOptions = computed(() => (demo ? undefined : liveDistricts(filters.il, live.districts.value, coverage.value)));
@@ -211,31 +213,32 @@ const counts = computed(() => {
 });
 
 const coveredList = computed(() => (demo ? undefined : coverage.value.cities));
-const title = computed(() => `${place2.value} · ${filters.services.join(', ') || filters.symptom || filters.text || 'Tüm hizmetler'}`);
+const title = computed(() => `${place2.value} · ${filters.services.map((s) => t(s)).join(', ') || filters.symptom || filters.text || t('Tüm hizmetler')}`);
 const scope = computed(() => {
-  if (!demo && filters.area === 'cevre') return `${place2.value} çevresi ${filters.km} km, il sınırı olmadan`;
-  if (filters.area === 'konum') return `Konumuna ${filters.km} km, il sınırı olmadan`;
-  if (filters.area === 'cevre' && sameText(filters.il, 'İstanbul')) return `${place2.value} çevresi ${filters.km} km, il sınırı olmadan`;
-  return filters.ilce && filters.area === 'ilce' ? `Yalnız ${filters.ilce}` : `Tüm ${filters.il}`;
+  if (!demo && filters.area === 'cevre') return t('{place} çevresi {km} km, il sınırı olmadan', {place: place2.value, km: filters.km});
+  if (filters.area === 'konum') return t('Konumuna {km} km, il sınırı olmadan', {km: filters.km});
+  if (filters.area === 'cevre' && sameText(filters.il, 'İstanbul')) return t('{place} çevresi {km} km, il sınırı olmadan', {place: place2.value, km: filters.km});
+  return filters.ilce && filters.area === 'ilce' ? t('Yalnız {place}', {place: filters.ilce}) : t('Tüm {place}', {place: filters.il});
 });
-const scopeShort = computed(() => (filters.area === 'ilce' || (demo && filters.area === 'cevre' && !sameText(filters.il, 'İstanbul')) ? place2.value : `${filters.km} km çevre`));
+const scopeShort = computed(() => (filters.area === 'ilce' || (demo && filters.area === 'cevre' && !sameText(filters.il, 'İstanbul')) ? place2.value : t('{km} km çevre', {km: filters.km})));
 
 // "Anladığımız" chips (strip) and the removable chips of S03.
 type Chip = {key: string; label: string};
+// Chip keys carry the filter values (Turkish catalogue names); only the labels are translated.
 const facetChips = computed<Chip[]>(() => [
-  ...filters.services.map((s) => ({key: `service:${s}`, label: `Hizmet: ${s}`})),
-  ...filters.brands.map((b) => ({key: `brand:${b}`, label: `Marka: ${b}`})),
-  ...filters.payments.map((p) => ({key: `payment:${p}`, label: `Ödeme: ${paymentLabels[p].chip}`})),
-  ...(filters.symptom ? [{key: 'symptom', label: `Belirti: ${filters.symptom}`}] : []),
-  ...(filters.text ? [{key: 'text', label: `Arama: ${filters.text}`}] : []),
+  ...filters.services.map((s) => ({key: `service:${s}`, label: t('Hizmet: {value}', {value: t(s)})})),
+  ...filters.brands.map((b) => ({key: `brand:${b}`, label: t('Marka: {value}', {value: b})})),
+  ...filters.payments.map((p) => ({key: `payment:${p}`, label: t('Ödeme: {value}', {value: t(paymentLabels[p].chip)})})),
+  ...(filters.symptom ? [{key: 'symptom', label: t('Belirti: {value}', {value: filters.symptom})}] : []),
+  ...(filters.text ? [{key: 'text', label: t('Arama: {value}', {value: filters.text})}] : []),
 ]);
-const stripChips = computed<Chip[]>(() => [...(filters.ilce ? [{key: 'ilce', label: `Konum: ${filters.ilce}`}] : []), ...facetChips.value]);
+const stripChips = computed<Chip[]>(() => [...(filters.ilce ? [{key: 'ilce', label: t('Konum: {value}', {value: filters.ilce})}] : []), ...facetChips.value]);
 const emptyChips = computed<Chip[]>(() => [
   ...facetChips.value,
-  ...(filters.ilce && filters.area === 'ilce' ? [{key: 'ilce', label: `İlçe: ${filters.ilce}`}] : []),
-  ...(demo && filters.openNow ? [{key: 'openNow', label: 'Şu an açık'}] : []),
-  ...(demo && filters.weekend ? [{key: 'weekend', label: 'Hafta sonu açık'}] : []),
-  ...(filters.verifiedOnly ? [{key: 'verifiedOnly', label: 'Sadece doğrulanmış'}] : []),
+  ...(filters.ilce && filters.area === 'ilce' ? [{key: 'ilce', label: t('İlçe: {value}', {value: filters.ilce})}] : []),
+  ...(demo && filters.openNow ? [{key: 'openNow', label: t('Şu an açık')}] : []),
+  ...(demo && filters.weekend ? [{key: 'weekend', label: t('Hafta sonu açık')}] : []),
+  ...(filters.verifiedOnly ? [{key: 'verifiedOnly', label: t('Sadece doğrulanmış')}] : []),
 ]);
 function removeChip(chipKey: string) {
   const [kind, value = ''] = chipKey.split(/:(.*)/s);
@@ -255,20 +258,26 @@ watch(() => key(toQuery(filters, 'liste')), () => { showAll.value = false; });
 // Demo pages the mock list locally; live shows every loaded card and asks for the next page with the cursor.
 const visible = computed(() => (!demo || showAll.value ? results.value : results.value.slice(0, pageSize)));
 const remaining = computed(() => results.value.length - visible.value.length);
-// Accusative suffix after a numeral: 4’ü, 6’sı, 10’u, 40’ı.
+// Cards in the page language (category, hours, chips); filtering above keeps the Turkish records.
+const shownCards = computed(() => visible.value.map((b) => localiseCard(b, t, localeTag.value)));
+const mapResults = computed(() => results.value.map((b) => localiseCard(b, t, localeTag.value)));
+// Turkish: accusative suffix after a numeral (4’ü, 6’sı, 10’u, 40’ı); other languages: the plain number.
 function ofCount(n: number) {
+  if (locale.value !== 'tr') return String(n);
   const ones = ['', 'i', 'si', 'ü', 'ü', 'i', 'sı', 'si', 'i', 'u'];
   const tens = ['', 'u', 'si', 'u', 'ı', 'si', 'ı', 'i', 'i', 'ı'];
   const suffix = n % 10 ? ones[n % 10] : n % 100 ? tens[(n % 100) / 10] : 'ü';
   return `${n}’${suffix}`;
 }
+// "Tüm İstanbul’da ara": the locative suffix only in Turkish.
+const placeIn = (name: string) => (locale.value === 'tr' ? locative(name) : name);
 
 const compareNotice = ref('');
 const cardKeys = reactive<Record<string, number>>({});
 function onCompare(id: string, on: boolean) {
   compareNotice.value = '';
   if (on && !compare.has(id) && compare.ids.value.length >= compare.max) {
-    compareNotice.value = `En fazla ${compare.max} işletme karşılaştırabilirsin. Önce birini çıkar.`;
+    compareNotice.value = t('En fazla {max} işletme karşılaştırabilirsin. Önce birini çıkar.', {max: compare.max});
     cardKeys[id] = (cardKeys[id] ?? 0) + 1; // re-render so the checkbox shows the real (unticked) state
     return;
   }
@@ -276,7 +285,7 @@ function onCompare(id: string, on: boolean) {
 }
 const compareItems = computed(() => (demo
   ? compare.ids.value.map((id) => searchBusiness(id)).filter((b): b is SearchBusiness => !!b)
-  : compare.ids.value.map((id) => searchCards.cards.value[id] ?? {id, name: 'Seçili işletme'})));
+  : compare.ids.value.map((id) => searchCards.cards.value[id] ?? {id, name: t('Seçili işletme')})));
 
 // ---- Mobile filter drawer and "Yanlış anladıysak düzelt" -------------------------------------------
 const filtersOpen = ref(false);
@@ -328,7 +337,7 @@ async function notifyMe() {
     return;
   }
   if (!user.emailVerified) {
-    waitMessage.value = {tone: 'err', text: 'Haber almak için önce e-posta adresini doğrula (Hesabım → Güvenlik).'};
+    waitMessage.value = {tone: 'err', text: t('Haber almak için önce e-posta adresini doğrula (Hesabım → Güvenlik).')};
     return;
   }
   if (waitBusy.value) return;
@@ -337,13 +346,13 @@ async function notifyMe() {
   try {
     const item = await waitlistApi.join(() => user.getIdToken(), coveredName(filters.il));
     waitlisted.value = [...new Set([...waitlisted.value, item.city])];
-    waitMessage.value = {tone: 'ok', text: `${item.city} bekleme listesine eklendin. Bildirim gönderimi henüz etkin değil; il açıldığında hesabında duyurulacak.`};
+    waitMessage.value = {tone: 'ok', text: t('{city} bekleme listesine eklendin. Bildirim gönderimi henüz etkin değil; il açıldığında hesabında duyurulacak.', {city: item.city})};
   } catch (e) {
     const status = errorStatus(e);
-    waitMessage.value = {tone: 'err', text: status === 409 ? 'En fazla 5 il için bekleme listesine katılabilirsin.'
-      : status === 403 ? 'Haber almak için önce e-posta adresini doğrula.'
-        : status === 401 ? 'Oturumun kapanmış. Tekrar giriş yap.'
-          : e instanceof Error && e.message ? e.message : 'İşlem tamamlanamadı. Tekrar dene.'};
+    waitMessage.value = {tone: 'err', text: status === 409 ? t('En fazla 5 il için bekleme listesine katılabilirsin.')
+      : status === 403 ? t('Haber almak için önce e-posta adresini doğrula.')
+        : status === 401 ? t('Oturumun kapanmış. Tekrar giriş yap.')
+          : e instanceof Error && e.message ? e.message : t('İşlem tamamlanamadı. Tekrar dene.')};
   } finally {
     waitBusy.value = false;
   }
@@ -357,9 +366,9 @@ async function leaveWaitlist() {
     const city = waitlisted.value.find((c) => sameText(c, filters.il)) ?? coveredName(filters.il);
     await waitlistApi.leave(() => user.getIdToken(), city);
     waitlisted.value = waitlisted.value.filter((c) => !sameText(c, city));
-    waitMessage.value = {tone: 'ok', text: 'Bekleme listesinden çıktın.'};
+    waitMessage.value = {tone: 'ok', text: t('Bekleme listesinden çıktın.')};
   } catch (e) {
-    waitMessage.value = {tone: 'err', text: e instanceof Error && e.message ? e.message : 'İşlem tamamlanamadı. Tekrar dene.'};
+    waitMessage.value = {tone: 'err', text: e instanceof Error && e.message ? e.message : t('İşlem tamamlanamadı. Tekrar dene.')};
   } finally {
     waitBusy.value = false;
   }
@@ -368,42 +377,42 @@ async function leaveWaitlist() {
 
 <template>
   <div class="search-page">
-    <SearchState v-if="outOfScope" :icon="MapPin" eyebrow="Kapsam dışı" title="Bu ilde henüz yokuz."
-                 :text="`Şimdilik ${coverage.cityCount} ilde hizmet veriyoruz. Seçtiğin il kapsama girdiğinde sana haber verebiliriz.`">
-      <V2Button size="lg" arrow @click="patch({il: nearby, ilce: '', area: 'ilce'})">Yakındaki ili gör</V2Button>
-      <V2Button v-if="demo" variant="outline" :disabled="notified" @click="notifyMe">{{ notified ? 'Haber vereceğiz' : 'Haber ver' }}</V2Button>
+    <SearchState v-if="outOfScope" :icon="MapPin" :eyebrow="t('Kapsam dışı')" :title="t('Bu ilde henüz yokuz.')"
+                 :text="t('Şimdilik {count} ilde hizmet veriyoruz. Seçtiğin il kapsama girdiğinde sana haber verebiliriz.', {count: coverage.cityCount})">
+      <V2Button size="lg" arrow @click="patch({il: nearby, ilce: '', area: 'ilce'})">{{ t('Yakındaki ili gör') }}</V2Button>
+      <V2Button v-if="demo" variant="outline" :disabled="notified" @click="notifyMe">{{ notified ? t('Haber vereceğiz') : t('Haber ver') }}</V2Button>
       <template v-else-if="joined">
-        <V2Button variant="outline" disabled>Bekleme listesindesin</V2Button>
-        <V2Button variant="ghost" :disabled="waitBusy" @click="leaveWaitlist">Listeden çık</V2Button>
+        <V2Button variant="outline" disabled>{{ t('Bekleme listesindesin') }}</V2Button>
+        <V2Button variant="ghost" :disabled="waitBusy" @click="leaveWaitlist">{{ t('Listeden çık') }}</V2Button>
       </template>
-      <V2Button v-else variant="outline" :disabled="waitBusy" @click="notifyMe">{{ waitBusy ? 'Kaydediliyor…' : app.member ? 'Haber ver' : 'Giriş yap, haber ver' }}</V2Button>
+      <V2Button v-else variant="outline" :disabled="waitBusy" @click="notifyMe">{{ waitBusy ? t('Kaydediliyor…') : app.member ? t('Haber ver') : t('Giriş yap, haber ver') }}</V2Button>
       <template #after>
-        <p v-if="demo && notified" class="t-body-sm done">{{ filters.il }} kapsama girdiğinde bildirim alacaksın.</p>
+        <p v-if="demo && notified" class="t-body-sm done">{{ t('{city} kapsama girdiğinde bildirim alacaksın.', {city: filters.il}) }}</p>
         <p v-if="waitMessage" class="t-body-sm" :class="waitMessage.tone === 'ok' ? 'done' : 'fail'" :role="waitMessage.tone === 'err' ? 'alert' : 'status'">{{ waitMessage.text }}</p>
-        <p class="t-body-sm t-muted foot"><Info :size="16" aria-hidden="true"/>Yakındaki il sonuçları ancak sen seçersen açılır.</p>
+        <p class="t-body-sm t-muted foot"><Info :size="16" aria-hidden="true"/>{{ t('Yakındaki il sonuçları ancak sen seçersen açılır.') }}</p>
       </template>
     </SearchState>
 
-    <SearchState v-else-if="noResults" :icon="Search" eyebrow="Sonuç yok" title="Bu filtrelerle sonuç çıkmadı."
-                 text="Filtreleri gevşetmeyi ya da aramayı genişletmeyi dene.">
+    <SearchState v-else-if="noResults" :icon="Search" :eyebrow="t('Sonuç yok')" :title="t('Bu filtrelerle sonuç çıkmadı.')"
+                 :text="t('Filtreleri gevşetmeyi ya da aramayı genişletmeyi dene.')">
       <template #chips>
         <ul v-if="emptyChips.length" class="empty-chips">
           <li v-for="chip in emptyChips" :key="chip.key">
-            <button type="button" class="read-chip t-label-sm" :aria-label="`Kaldır: ${chip.label}`" @click="removeChip(chip.key)">{{ chip.label }}<X :size="13" aria-hidden="true"/></button>
+            <button type="button" class="read-chip t-label-sm" :aria-label="t('Kaldır: {label}', {label: chip.label})" @click="removeChip(chip.key)">{{ chip.label }}<X :size="13" aria-hidden="true"/></button>
           </li>
         </ul>
       </template>
-      <V2Button size="lg" arrow @click="widen">{{ filters.ilce ? `Tüm ${locative(filters.il)} ara` : 'Aramayı genişlet' }}</V2Button>
-      <V2Button variant="outline" @click="clearFilters">Filtreleri temizle</V2Button>
+      <V2Button size="lg" arrow @click="widen">{{ filters.ilce ? t('Tüm {place} ara', {place: placeIn(filters.il)}) : t('Aramayı genişlet') }}</V2Button>
+      <V2Button variant="outline" @click="clearFilters">{{ t('Filtreleri temizle') }}</V2Button>
     </SearchState>
 
     <template v-else>
       <SearchStrip :filters="filters" :chips="stripChips" :districts="districtOptions" :covered="coveredList" @submit="submit" @place="place" @remove="removeChip" @fix="openFilters"/>
 
-      <SearchMap v-if="view === 'harita' && !liveBusy && !live.error.value" :results="results" :total="mapTotal" :scope="scopeShort" :live="!demo" @view="view = $event"/>
+      <SearchMap v-if="view === 'harita' && !liveBusy && !live.error.value" :results="mapResults" :total="mapTotal" :scope="scopeShort" :live="!demo" @view="view = $event"/>
 
       <div v-else class="content v2-wrap">
-        <aside class="filters" :class="{open: filtersOpen}" aria-label="Filtreler">
+        <aside class="filters" :class="{open: filtersOpen}" :aria-label="t('Filtreler')">
           <SearchFilters :filters="filters" :counts="counts" :total="demo ? results.length : live.total.value?.exact ? live.total.value.value : null"
                          :live="demo ? undefined : liveFilterOptions" @patch="patch" @clear="clearFilters" @show="showResults"/>
         </aside>
@@ -412,44 +421,44 @@ async function leaveWaitlist() {
           <div class="results-head">
             <div class="heading">
               <h1 id="sonuc-baslik" class="t-h3">{{ title }}</h1>
-              <p class="t-body-sm t-muted">{{ liveBusy ? 'Aranıyor…' : resultLine }} · {{ scope }}</p>
+              <p class="t-body-sm t-muted">{{ liveBusy ? t('Aranıyor…') : resultLine }} · {{ scope }}</p>
             </div>
             <div class="tools">
               <button type="button" class="filter-toggle t-label-sm" :aria-expanded="filtersOpen" @click="filtersOpen ? (filtersOpen = false) : openFilters()">
-                <ListFilter :size="16" aria-hidden="true"/>Filtreler
+                <ListFilter :size="16" aria-hidden="true"/>{{ t('Filtreler') }}
               </button>
               <span class="sort">
                 <SlidersHorizontal :size="16" aria-hidden="true"/>
-                <V2Select :model-value="filters.sort" :options="sortOptions" variant="bare" anchor=".sort" stretch :match-width="false" class="t-label-sm" aria-label="Sıralama" @change="patch({sort: $event})"/>
+                <V2Select :model-value="filters.sort" :options="sortOptions" variant="bare" anchor=".sort" stretch :match-width="false" class="t-label-sm" :aria-label="t('Sıralama')" @change="patch({sort: $event})"/>
               </span>
               <SearchViewToggle :view="view" @change="view = $event"/>
             </div>
           </div>
 
           <p v-if="compareNotice" class="notice t-body-sm" role="status">{{ compareNotice }}</p>
-          <p v-if="!demo && liveBusy" class="t-body-md t-muted" role="status">{{ locating ? 'Konumun alınıyor…' : 'Sonuçlar yükleniyor…' }}</p>
+          <p v-if="!demo && liveBusy" class="t-body-md t-muted" role="status">{{ locating ? t('Konumun alınıyor…') : t('Sonuçlar yükleniyor…') }}</p>
           <div v-else-if="!demo && live.error.value" class="notice error t-body-sm" role="alert">
-            <span>{{ live.error.value }}</span>
-            <V2Button variant="outline" size="sm" @click="live.retry()">Tekrar dene</V2Button>
+            <span>{{ t(live.error.value) }}</span>
+            <V2Button variant="outline" size="sm" @click="live.retry()">{{ t('Tekrar dene') }}</V2Button>
           </div>
 
           <ul class="cards">
-            <li v-for="b in visible" :key="`${b.id}-${cardKeys[b.id] ?? 0}`">
+            <li v-for="b in shownCards" :key="`${b.id}-${cardKeys[b.id] ?? 0}`">
               <V2ServiceCard :business="b" :compared="compare.has(b.id)" :saved="saved.has(b.id)"
                              @update:compared="onCompare(b.id, $event)" @update:saved="saved.toggle(b.id, $event)"/>
             </li>
           </ul>
 
           <div v-if="demo" class="more">
-            <V2Button v-if="remaining > 0" variant="outline" @click="showAll = true">{{ remaining }} işletme daha göster</V2Button>
-            <p class="t-body-sm t-muted">{{ remaining > 0 ? `${results.length} sonuçtan ${ofCount(visible.length)} gösteriliyor` : `${results.length} sonucun tamamı gösteriliyor` }}</p>
+            <V2Button v-if="remaining > 0" variant="outline" @click="showAll = true">{{ t('{count} işletme daha göster', {count: remaining}) }}</V2Button>
+            <p class="t-body-sm t-muted">{{ remaining > 0 ? t('{total} sonuçtan {shown} gösteriliyor', {total: results.length, shown: ofCount(visible.length)}) : t('{count} sonucun tamamı gösteriliyor', {count: results.length}) }}</p>
           </div>
           <div v-else-if="live.loaded.value && results.length" class="more">
-            <V2Button v-if="live.nextCursor.value" variant="outline" :disabled="live.loadingMore.value" @click="live.more()">{{ live.loadingMore.value ? 'Yükleniyor…' : 'Daha fazla göster' }}</V2Button>
+            <V2Button v-if="live.nextCursor.value" variant="outline" :disabled="live.loadingMore.value" @click="live.more()">{{ live.loadingMore.value ? t('Yükleniyor…') : t('Daha fazla göster') }}</V2Button>
             <p class="t-body-sm t-muted">{{ live.nextCursor.value
-              ? (live.total.value?.exact ? `${live.total.value.value} sonuçtan ${ofCount(results.length)} gösteriliyor` : `${results.length} sonuç gösteriliyor, devamı var`)
-              : `${results.length} sonucun tamamı gösteriliyor` }}</p>
-            <p v-if="live.moreError.value" class="fail t-body-sm" role="alert">{{ live.moreError.value }}</p>
+              ? (live.total.value?.exact ? t('{total} sonuçtan {shown} gösteriliyor', {total: live.total.value.value, shown: ofCount(results.length)}) : t('{count} sonuç gösteriliyor, devamı var', {count: results.length}))
+              : t('{count} sonucun tamamı gösteriliyor', {count: results.length}) }}</p>
+            <p v-if="live.moreError.value" class="fail t-body-sm" role="alert">{{ t(live.moreError.value) }}</p>
           </div>
         </section>
       </div>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
 import {Locate, Minus, Plus, Search, Star} from '@lucide/vue';
-import {formatKm, formatRating, type MockBusiness} from '~/data/mock/businesses';
+import {useLocale} from '~/composables/useLocale';
+import type {MockBusiness} from '~/data/mock/businesses';
 import {homeMapPins} from '~/data/mock/home';
 import type {CardBusiness} from '~/lib/v2/business-card';
 import {openLabel} from '~/lib/v2/search';
@@ -14,6 +15,9 @@ type MapBusiness = MockBusiness & Pick<CardBusiness, 'hoursKnown' | 'coords' | '
 const props = defineProps<{businesses: MapBusiness[]; selectedId: string | null; hoverId: string | null; photos?: Record<string, string>; live?: boolean; searchHref?: string}>();
 const emit = defineEmits<{select: [id: string]}>();
 
+const {t, localeTag} = useLocale();
+const decimal = (value: number) => value.toLocaleString(localeTag.value, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+const km = (value: number | null) => (value === null ? '' : `${decimal(value)} km`);
 const W = 600;
 const H = 706;
 const zoom = ref(1);
@@ -31,7 +35,7 @@ function locate() {
 </script>
 
 <template>
-  <div class="home-map" role="region" aria-label="Servis haritası (örnek)">
+  <div class="home-map" role="region" :aria-label="t('Servis haritası (örnek)')">
     <div class="layer" :style="{transform: `scale(${zoom})`}">
       <img class="base" src="/v2/home/map-base.svg" alt="" width="600" height="800" aria-hidden="true">
       <span v-if="!live" class="you" aria-hidden="true">
@@ -46,28 +50,28 @@ function locate() {
           <img v-if="!live || pin.business.photo" :src="photos?.[pin.business.id] ?? pin.business.photo ?? '/v2/workshop.jpg'" alt="" width="48" height="48">
           <span class="popup-text">
             <NuxtLink :to="`/servis/${pin.business.id}`" class="t-label-sm">{{ pin.business.name }}</NuxtLink>
-            <span class="t-body-sm t-muted">{{ [formatKm(pin.business.distanceKm), live ? openLabel(pin.business).text : pin.business.open ? 'Açık' : 'Kapalı'].filter(Boolean).join(' · ') }}</span>
+            <span class="t-body-sm t-muted">{{ [km(pin.business.distanceKm), live ? openLabel(pin.business, t).text : pin.business.open ? t('Açık') : t('Kapalı')].filter(Boolean).join(' · ') }}</span>
           </span>
         </span>
         <button
           type="button" class="pin t-label-sm" :aria-pressed="pin.business.id === selectedId"
-          :aria-label="pin.business.reviewCount ? `${pin.business.name}, puan ${formatRating(pin.business.rating)}` : `${pin.business.name}, henüz puan yok`"
+          :aria-label="pin.business.reviewCount ? t('{name}, puan {rating}', {name: pin.business.name, rating: decimal(pin.business.rating)}) : t('{name}, henüz puan yok', {name: pin.business.name})"
           @click="emit('select', pin.business.id)">
-          <template v-if="pin.business.reviewCount"><Star :size="14" aria-hidden="true"/>{{ formatRating(pin.business.rating) }}</template>
-          <template v-else>Yeni</template>
+          <template v-if="pin.business.reviewCount"><Star :size="14" aria-hidden="true"/>{{ decimal(pin.business.rating) }}</template>
+          <template v-else>{{ t('Yeni') }}</template>
         </button>
       </span>
     </div>
 
-    <NuxtLink v-if="live" :to="searchHref ?? '/ara'" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>Tüm sonuçları aç</NuxtLink>
-    <NuxtLink v-else to="/ara" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>Bu alanda ara</NuxtLink>
-    <p v-if="live && unpinned" class="unpinned t-body-sm">{{ unpinned }} işletmenin doğrulanmış konumu yok; yalnız listede.</p>
+    <NuxtLink v-if="live" :to="searchHref ?? '/ara'" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>{{ t('Tüm sonuçları aç') }}</NuxtLink>
+    <NuxtLink v-else to="/ara" class="area t-label-sm"><Search :size="16" aria-hidden="true"/>{{ t('Bu alanda ara') }}</NuxtLink>
+    <p v-if="live && unpinned" class="unpinned t-body-sm">{{ t('{count} işletmenin doğrulanmış konumu yok; yalnız listede.', {count: unpinned}) }}</p>
     <div class="zoom">
-      <button type="button" aria-label="Yakınlaştır" :disabled="zoom >= 1.6" @click="setZoom(zoom + 0.2)"><Plus :size="18" aria-hidden="true"/></button>
+      <button type="button" :aria-label="t('Yakınlaştır')" :disabled="zoom >= 1.6" @click="setZoom(zoom + 0.2)"><Plus :size="18" aria-hidden="true"/></button>
       <span class="zoom-sep" aria-hidden="true"/>
-      <button type="button" aria-label="Uzaklaştır" :disabled="zoom <= 1" @click="setZoom(zoom - 0.2)"><Minus :size="18" aria-hidden="true"/></button>
+      <button type="button" :aria-label="t('Uzaklaştır')" :disabled="zoom <= 1" @click="setZoom(zoom - 0.2)"><Minus :size="18" aria-hidden="true"/></button>
     </div>
-    <button v-if="!live" type="button" class="locate" aria-label="Konumuma en yakın servisi seç" @click="locate"><Locate :size="20" aria-hidden="true"/></button>
+    <button v-if="!live" type="button" class="locate" :aria-label="t('Konumuma en yakın servisi seç')" @click="locate"><Locate :size="20" aria-hidden="true"/></button>
   </div>
 </template>
 

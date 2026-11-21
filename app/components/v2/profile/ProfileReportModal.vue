@@ -4,6 +4,7 @@ import {Check, Info} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
 import {reportReasons} from '~/data/mock/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // S08 "Yanlış bilgi bildir" modal (Figma 128:932).
 // Demo: the mock reasons and a local confirmation. Live (`submit` set): the web-04 reasons, members only
@@ -16,13 +17,15 @@ const props = withDefaults(defineProps<{
   signInHref?: string | null;
 }>(), {reasons: () => reportReasons.map((label) => ({value: label, label})), submit: undefined, signInHref: null});
 const emit = defineEmits<{close: []}>();
+// Reason labels and error messages are Turkish source texts; t() shows them in the page language.
+const {t} = useLocale();
 
 const reason = ref('');
 const note = ref('');
 const sent = ref(false);
 const busy = ref(false);
 const error = ref('');
-const reasonLabel = computed(() => props.reasons.find((r) => r.value === reason.value)?.label ?? reason.value);
+const reasonLabel = computed(() => t(props.reasons.find((r) => r.value === reason.value)?.label ?? reason.value));
 const live = computed(() => !!props.submit);
 const needsNote = computed(() => live.value && reason.value === 'other');
 const ready = computed(() => !!reason.value && (!needsNote.value || note.value.trim().length >= 10));
@@ -45,7 +48,7 @@ async function send() {
     await props.submit(reason.value, note.value.trim());
     sent.value = true;
   } catch (e) {
-    error.value = e instanceof Error && e.message ? e.message : 'Bildirim gönderilemedi. Daha sonra tekrar dene.';
+    error.value = e instanceof Error && e.message ? t(e.message) : t('Bildirim gönderilemedi. Daha sonra tekrar dene.');
   } finally {
     busy.value = false;
   }
@@ -56,40 +59,40 @@ function close() {
 </script>
 
 <template>
-  <V2Modal :open="open" title="Yanlış bilgi bildir" :subtitle="businessName" :width="640" @close="close">
+  <V2Modal :open="open" :title="t('Yanlış bilgi bildir')" :subtitle="businessName" :width="640" @close="close">
     <div v-if="sent" class="sent" role="status">
       <span class="sent-icon"><Check :size="28" aria-hidden="true"/></span>
-      <p class="t-h4">Bildirimin alındı</p>
-      <p class="t-body-sm t-muted">“{{ reasonLabel }}” bildirimin incelenecek. Bildirim profili doğrudan değiştirmez; profil değişirse eski ve yeni değer zamanıyla birlikte kaydedilir.</p>
+      <p class="t-h4">{{ t('Bildirimin alındı') }}</p>
+      <p class="t-body-sm t-muted">{{ t('“{reason}” bildirimin incelenecek. Bildirim profili doğrudan değiştirmez; profil değişirse eski ve yeni değer zamanıyla birlikte kaydedilir.', {reason: reasonLabel}) }}</p>
     </div>
     <div v-else-if="guest" class="sent">
-      <p class="t-h4">Bildirim için giriş yap</p>
-      <p class="t-body-sm t-muted">Yanlış bilgi bildirimi e-postası doğrulanmış üyelerden alınır.</p>
+      <p class="t-h4">{{ t('Bildirim için giriş yap') }}</p>
+      <p class="t-body-sm t-muted">{{ t('Yanlış bilgi bildirimi e-postası doğrulanmış üyelerden alınır.') }}</p>
     </div>
     <form v-else id="bildir-form" class="form" @submit.prevent="send">
       <fieldset class="options" :disabled="busy">
-        <legend class="sr-only">Sorun ne?</legend>
+        <legend class="sr-only">{{ t('Sorun ne?') }}</legend>
         <label v-for="option in reasons" :key="option.value" class="option">
           <input v-model="reason" type="radio" name="bildir-neden" class="radio" :value="option.value">
-          {{ option.label }}
+          {{ t(option.label) }}
         </label>
       </fieldset>
       <label class="field">
-        <span class="field-label">{{ needsNote ? 'Açıklama (en az 10 karakter)' : 'Doğrusu ne? (isteğe bağlı)' }}</span>
-        <textarea v-model="note" class="textarea" :maxlength="live ? 1000 : 500" :disabled="busy" :required="needsNote" placeholder="İşletme aynı sitede C bloğa taşınmış."/>
+        <span class="field-label">{{ needsNote ? t('Açıklama (en az 10 karakter)') : t('Doğrusu ne? (isteğe bağlı)') }}</span>
+        <textarea v-model="note" class="textarea" :maxlength="live ? 1000 : 500" :disabled="busy" :required="needsNote" :placeholder="t('İşletme aynı sitede C bloğa taşınmış.')"/>
       </label>
-      <p class="hint"><Info aria-hidden="true"/>{{ live ? 'Kişisel bilgi, bağlantı veya telefon numarası yazma. Bildirimin incelenir; profil değişikliği eski ve yeni değerle birlikte kaydedilir.' : 'Bildirimin incelenir; profil değişikliği eski ve yeni değerle birlikte kaydedilir.' }}</p>
+      <p class="hint"><Info aria-hidden="true"/>{{ live ? t('Kişisel bilgi, bağlantı veya telefon numarası yazma. Bildirimin incelenir; profil değişikliği eski ve yeni değerle birlikte kaydedilir.') : t('Bildirimin incelenir; profil değişikliği eski ve yeni değerle birlikte kaydedilir.') }}</p>
       <p v-if="error" class="t-body-sm error" role="alert">{{ error }}</p>
     </form>
     <template #footer>
-      <V2Button v-if="sent" @click="emit('close')">Kapat</V2Button>
+      <V2Button v-if="sent" @click="emit('close')">{{ t('Kapat') }}</V2Button>
       <template v-else-if="guest">
-        <V2Button variant="outline" @click="emit('close')">Vazgeç</V2Button>
-        <V2Button :to="signInHref ?? undefined" arrow>Giriş yap</V2Button>
+        <V2Button variant="outline" @click="emit('close')">{{ t('Vazgeç') }}</V2Button>
+        <V2Button :to="signInHref ?? undefined" arrow>{{ t('Giriş yap') }}</V2Button>
       </template>
       <template v-else>
-        <V2Button variant="outline" :disabled="busy" @click="close">Vazgeç</V2Button>
-        <V2Button type="submit" form="bildir-form" arrow :disabled="!ready || busy">{{ busy ? 'Gönderiliyor…' : 'Bildir' }}</V2Button>
+        <V2Button variant="outline" :disabled="busy" @click="close">{{ t('Vazgeç') }}</V2Button>
+        <V2Button type="submit" form="bildir-form" arrow :disabled="!ready || busy">{{ busy ? t('Gönderiliyor…') : t('Bildir') }}</V2Button>
       </template>
     </template>
   </V2Modal>

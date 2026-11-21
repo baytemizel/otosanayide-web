@@ -7,6 +7,7 @@ import V2Modal from '~/components/v2/V2Modal.vue';
 import OfferMessages from '~/components/v2/requests/OfferMessages.vue';
 import OfferPickCard from '~/components/v2/requests/OfferPickCard.vue';
 import OfferQuoteCard from '~/components/v2/requests/OfferQuoteCard.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useMemberRequests, useRequestThread} from '~/composables/v2/useRequests';
 import {
@@ -14,7 +15,7 @@ import {
   type MockOffer, type OfferMessage, type OfferStatus, type RequestStatus,
 } from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
-import {cancelProblem, cancelReasons, threadMessage, type CancelReason, type OfferCardView, type RequestView} from '~/lib/v2/requests';
+import {cancelProblem, cancelReasons, slotLabel, threadMessage, type CancelReason, type OfferCardView, type RequestView} from '~/lib/v2/requests';
 
 // W15 · Taleplerim · Teklif ayrıntısı (Figma 126:734). The top part (header, Ön teklif, Mesajlar) is the
 // Figma frame; below it the request's incoming offers and the member's other requests.
@@ -27,8 +28,9 @@ import {cancelProblem, cancelReasons, threadMessage, type CancelReason, type Off
 // are shown; cancel sends a reason code (found_other | price | timing | other; other needs a text).
 useMemberPage();
 const demo = demoMode();
+const {t, localeTag} = useLocale();
 
-useSeoMeta({title: 'Taleplerim', robots: 'noindex, nofollow'});
+useSeoMeta({title: () => t('Taleplerim'), robots: 'noindex, nofollow'});
 
 const route = useRoute();
 const router = useRouter();
@@ -64,7 +66,7 @@ function requestState(id: string): RequestStatus {
 }
 const stateTone = (state: RequestStatus) => (state === 'offers' ? 'orange' : state === 'scheduled' ? 'lime' : 'cream');
 
-function select(target: MockOffer) {
+function select(target: {id: string}) {
   chosen[mockRequest.value.id] = target.id;
 }
 function mockAccept() {
@@ -96,7 +98,7 @@ const cancelOpen = ref(false);
 const cancelCode = ref<CancelReason | ''>('');
 const cancelText = ref('');
 const cancelTried = ref(false);
-const cancelError = computed(() => cancelProblem(cancelCode.value, cancelText.value));
+const cancelError = computed(() => cancelProblem(cancelCode.value, cancelText.value, t));
 
 async function liveAccept() {
   const current = liveRequest.value;
@@ -106,7 +108,7 @@ async function liveAccept() {
     await live.accept(current);
     if (current.kind === 'quotes') void router.push(`/randevu?servis=${encodeURIComponent(current.businessId)}&talep=${encodeURIComponent(current.id)}`);
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : 'İşlem tamamlanamadı.';
+    actionError.value = error instanceof Error ? error.message : t('İşlem tamamlanamadı.');
   }
 }
 function openCancel() {
@@ -124,7 +126,7 @@ async function liveCancel() {
     await live.cancel(current, cancelCode.value, cancelText.value);
     cancelOpen.value = false;
   } catch (error) {
-    actionError.value = error instanceof Error ? error.message : 'İşlem tamamlanamadı.';
+    actionError.value = error instanceof Error ? error.message : t('İşlem tamamlanamadı.');
     cancelOpen.value = false;
   }
 }
@@ -132,56 +134,65 @@ async function liveCancel() {
 /* ---------------------------------------------------------------- one view for the template */
 interface DetailOffer {offer: OfferCardView; status: OfferStatus; business?: {name: string}}
 const ready = computed(() => demo || (live.loaded.value && !!liveRequest.value));
+/** Demo offers as the cards draw them: the mock's Turkish line labels and dates go through `t`; notes stay as "written". */
+const demoOffer = (item: MockOffer): OfferCardView => ({...item, validUntil: t(item.validUntil), lines: item.lines.map((line) => ({...line, item: t(line.item)}))});
 const requestId = computed(() => (demo ? mockRequest.value.id : liveRequest.value?.id ?? ''));
 const offer = computed<DetailOffer | undefined>(() => {
-  if (demo) return mockOffer.value ? {offer: mockOffer.value, status: statusOf(mockOffer.value)} : undefined;
+  if (demo) return mockOffer.value ? {offer: demoOffer(mockOffer.value), status: statusOf(mockOffer.value)} : undefined;
   const current = liveRequest.value;
   return current?.offer && current.offerStatus ? {offer: current.offer, status: current.offerStatus, business: {name: current.businessName}} : undefined;
 });
 const businessName = computed(() => (demo ? (mockOffer.value ? requestBusiness(mockOffer.value.businessId)?.name : undefined) : liveRequest.value?.businessName));
 const subtitle = computed(() => {
   const r = demo ? mockRequest.value : liveRequest.value;
-  return r ? [businessName.value, r.service, r.vehicle].filter(Boolean).join(' · ') : '';
+  // Demo service names are our labels; a live request's service is the member's own text.
+  // Live services are the Turkish names the member picked (or the business's own); known ones translate.
+  return r ? [businessName.value, t(r.service), r.vehicle].filter(Boolean).join(' · ') : '';
 });
 const headStatus = computed(() => {
   if (!demo) {
     const current = liveRequest.value;
     return current ? {label: current.statusLabel, tone: current.tone} : {label: '', tone: 'cream'};
   }
-  if (!offer.value) return {label: requestStatusLabel[requestState(mockRequest.value.id)], tone: 'cream'};
+  if (!offer.value) return {label: t(requestStatusLabel[requestState(mockRequest.value.id)]), tone: 'cream'};
   const status = offer.value.status;
-  if (status === 'accepted') return {label: 'Kabul edildi', tone: 'lime'};
-  if (status === 'rejected') return {label: 'Reddedildi', tone: 'cream'};
-  return {label: 'Karar bekleniyor', tone: 'orange'};
+  if (status === 'accepted') return {label: t('Kabul edildi'), tone: 'lime'};
+  if (status === 'rejected') return {label: t('Reddedildi'), tone: 'cream'};
+  return {label: t('Karar bekleniyor'), tone: 'orange'};
 });
 const offers = computed<DetailOffer[]>(() => (demo
-  ? mockRequest.value.offers.map((item) => ({offer: item, status: statusOf(item)}))
+  ? mockRequest.value.offers.map((item) => ({offer: demoOffer(item), status: statusOf(item)}))
   : offer.value ? [offer.value] : []));
-const messages = computed(() => (demo ? (mockOffer.value ? threads.value[mockOffer.value.id] ?? [] : []) : thread.items.value.map(threadMessage)));
+const messages = computed(() => (demo
+  ? (mockOffer.value ? threads.value[mockOffer.value.id] ?? [] : []).map((message) => ({...message, time: slotLabel(message.time, localeTag.value)}))
+  : thread.items.value.map((message) => threadMessage(message, localeTag.value))));
 const rows = computed(() => (demo
   ? mockRequests.map((item) => {
     const state = requestState(item.id);
-    return {id: item.id, meta: `#${item.id} · ${item.createdText}`, title: `${item.service} · ${item.vehicle}`, count: item.offers.length ? `${item.offers.length} teklif` : 'Teklif yok', label: requestStatusLabel[state], tone: stateTone(state)};
+    return {
+      id: item.id, meta: `#${item.id} · ${t(item.createdText)}`, title: `${t(item.service)} · ${item.vehicle}`,
+      count: item.offers.length ? t('{count} teklif', {count: item.offers.length}) : t('Teklif yok'), label: t(requestStatusLabel[state]), tone: stateTone(state),
+    };
   })
   : live.views.value.map((item) => ({
-    id: item.id, meta: [item.code, item.businessName, item.createdShort].filter(Boolean).join(' · '), title: `${item.service} · ${item.vehicle}`,
-    count: item.offer ? '1 yanıt' : item.status === 'requested' && item.seenText ? 'Görüldü' : 'Yanıt yok', label: item.statusLabel, tone: item.tone,
+    id: item.id, meta: [item.code, item.businessName, item.createdShort].filter(Boolean).join(' · '), title: `${t(item.service)} · ${item.vehicle}`,
+    count: item.offer ? t('1 yanıt') : item.status === 'requested' && item.seenText ? t('Görüldü') : t('Yanıt yok'), label: item.statusLabel, tone: item.tone,
   }))));
 const headTitle = computed(() => {
-  if (demo) return offer.value ? `Teklif #${offer.value.offer.code}` : `Talep #${requestId.value}`;
+  if (demo) return offer.value ? t('Teklif #{code}', {code: offer.value.offer.code}) : t('Talep #{code}', {code: requestId.value});
   const code = liveRequest.value?.code ?? '';
-  return offer.value ? `Teklif ${code}` : `Talep ${code}`;
+  return offer.value ? t('Teklif {code}', {code}) : t('Talep {code}', {code});
 });
 /** Live: the "görüldü" line while the business has not answered yet. */
 const seenLine = computed(() => {
   const current = liveRequest.value;
   if (!current || current.status !== 'requested' || current.seenText === null) return '';
-  return current.seenText ? `İşletme talebini gördü · ${current.seenText}` : 'İşletme talebini henüz görmedi.';
+  return current.seenText ? t('İşletme talebini gördü · {time}', {time: current.seenText}) : t('İşletme talebini henüz görmedi.');
 });
 const respondLine = computed(() => {
   const current = liveRequest.value;
   if (!current?.respondByText) return '';
-  return current.respondByPassed ? 'Yanıt süresi geçti. İşletme yine de yanıt verebilir ya da talep kapanır.' : `İşletmenin yanıt süresi: ${current.respondByText}`;
+  return current.respondByPassed ? t('Yanıt süresi geçti. İşletme yine de yanıt verebilir ya da talep kapanır.') : t('İşletmenin yanıt süresi: {time}', {time: current.respondByText});
 });
 const bookingTo = computed(() => {
   const current = liveRequest.value;
@@ -197,28 +208,28 @@ const bookingTo = computed(() => {
       <template v-if="!demo && !ready">
         <header class="head">
           <div class="titles">
-            <p class="t-mono-md t-eyebrow">TALEPLERİM</p>
-            <h1 class="t-h2">Taleplerim</h1>
+            <p class="t-mono-md t-eyebrow">{{ t('TALEPLERİM') }}</p>
+            <h1 class="t-h2">{{ t('Taleplerim') }}</h1>
           </div>
         </header>
-        <p v-if="live.loading.value" class="t-body-md t-muted" role="status">Talepler yükleniyor…</p>
+        <p v-if="live.loading.value" class="t-body-md t-muted" role="status">{{ t('Talepler yükleniyor…') }}</p>
         <section v-else-if="live.error.value" class="empty surface" role="alert">
-          <h2 class="t-h4">Talepler yüklenemedi</h2>
+          <h2 class="t-h4">{{ t('Talepler yüklenemedi') }}</h2>
           <p class="t-body-md t-muted">{{ live.error.value }}</p>
-          <V2Button variant="outline" @click="live.load()"><RefreshCw aria-hidden="true"/>Tekrar dene</V2Button>
+          <V2Button variant="outline" @click="live.load()"><RefreshCw aria-hidden="true"/>{{ t('Tekrar dene') }}</V2Button>
         </section>
         <section v-else-if="live.loaded.value" class="empty surface">
           <span class="empty-icon" aria-hidden="true"><Inbox :size="26"/></span>
-          <h2 class="t-h4">Henüz talebin yok</h2>
-          <p class="t-body-md t-muted">Bir işletmenin profilinden teklif ya da randevu iste; yanıtlar burada görünür.</p>
-          <V2Button to="/ara" variant="outline" arrow>Servis bul</V2Button>
+          <h2 class="t-h4">{{ t('Henüz talebin yok') }}</h2>
+          <p class="t-body-md t-muted">{{ t('Bir işletmenin profilinden teklif ya da randevu iste; yanıtlar burada görünür.') }}</p>
+          <V2Button to="/ara" variant="outline" arrow>{{ t('Servis bul') }}</V2Button>
         </section>
       </template>
 
       <template v-else>
         <header class="head">
           <div class="titles">
-            <p class="t-mono-md t-eyebrow">{{ offer ? 'TALEPLERİM · TEKLİF' : 'TALEPLERİM · TALEP' }}</p>
+            <p class="t-mono-md t-eyebrow">{{ offer ? t('TALEPLERİM · TEKLİF') : t('TALEPLERİM · TALEP') }}</p>
             <h1 class="t-h2">{{ headTitle }}</h1>
             <p class="t-body-md t-muted">{{ subtitle }}</p>
           </div>
@@ -247,7 +258,7 @@ const bookingTo = computed(() => {
             :busy="live.acting.value"
             :undoable="false"
             :booking-to="bookingTo"
-            :rejected-text="liveRequest?.resolution ? `${liveRequest.statusLabel}: ${liveRequest.resolution}` : 'Bu talep kapandı.'"
+            :rejected-text="liveRequest?.resolution ? `${liveRequest.statusLabel}: ${liveRequest.resolution}` : t('Bu talep kapandı.')"
             @accept="liveAccept"
             @reject="openCancel"
           />
@@ -261,18 +272,18 @@ const bookingTo = computed(() => {
             :error="thread.error.value"
             :has-more="!!thread.next.value"
             :closed="!liveRequest?.messagesOpen"
-            hint="İletişim bilgisi veya bağlantı paylaşma. Mesajlar bildirim olarak gönderilmez."
+            :hint="t('İletişim bilgisi veya bağlantı paylaşma. Mesajlar bildirim olarak gönderilmez.')"
             @more="thread.load(thread.next.value ?? '')"
           />
         </div>
         <div v-else class="detail">
           <section class="empty surface grow">
             <span class="empty-icon" aria-hidden="true"><Inbox :size="26"/></span>
-            <h2 class="t-h4">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? 'Henüz teklif gelmedi' : 'Henüz yanıt gelmedi') : liveRequest?.status === 'expired' ? 'Yanıt süresi doldu' : 'Bu talep yanıtsız kapandı' }}</h2>
-            <p class="t-body-md t-muted">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? 'İşletmeler ön tekliflerini gönderdiğinde burada görünür. Teklif gelince bildirim alırsın.' : 'İşletme saati onayladığında ya da yeni saat önerdiğinde burada görünür.') : liveRequest?.status === 'expired' ? 'İşletme 48 saat içinde yanıt vermediği için talep kapandı. Aynı ya da başka bir işletmeden yeniden isteyebilirsin.' : liveRequest?.resolution }}</p>
+            <h2 class="t-h4">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? t('Henüz teklif gelmedi') : t('Henüz yanıt gelmedi')) : liveRequest?.status === 'expired' ? t('Yanıt süresi doldu') : t('Bu talep yanıtsız kapandı') }}</h2>
+            <p class="t-body-md t-muted">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? t('İşletmeler ön tekliflerini gönderdiğinde burada görünür. Teklif gelince bildirim alırsın.') : t('İşletme saati onayladığında ya da yeni saat önerdiğinde burada görünür.')) : liveRequest?.status === 'expired' ? t('İşletme {count} saat içinde yanıt vermediği için talep kapandı. Aynı ya da başka bir işletmeden yeniden isteyebilirsin.', {count: 48}) : liveRequest?.resolution }}</p>
             <p v-if="respondLine" class="t-body-sm deadline" :class="{passed: liveRequest?.respondByPassed}">{{ respondLine }}</p>
             <p v-if="seenLine" class="t-body-sm t-muted">{{ seenLine }}</p>
-            <V2Button :to="demo ? '/talep' : '/ara'" variant="outline">Yeni talep oluştur</V2Button>
+            <V2Button :to="demo ? '/talep' : '/ara'" variant="outline">{{ t('Yeni talep oluştur') }}</V2Button>
           </section>
           <OfferMessages
             v-if="!demo && liveRequest"
@@ -283,40 +294,40 @@ const bookingTo = computed(() => {
             :error="thread.error.value"
             :has-more="!!thread.next.value"
             :closed="!liveRequest.messagesOpen"
-            hint="İletişim bilgisi veya bağlantı paylaşma. Mesajlar bildirim olarak gönderilmez."
+            :hint="t('İletişim bilgisi veya bağlantı paylaşma. Mesajlar bildirim olarak gönderilmez.')"
             @more="thread.load(thread.next.value ?? '')"
           />
         </div>
 
-        <section v-if="!demo && liveRequest" class="facts surface" aria-label="Talep ayrıntısı">
-          <p class="t-mono-sm t-muted">{{ [liveRequest.kindText.toLocaleUpperCase('tr-TR'), liveRequest.code, liveRequest.createdText].filter(Boolean).join(' · ') }}</p>
+        <section v-if="!demo && liveRequest" class="facts surface" :aria-label="t('Talep ayrıntısı')">
+          <p class="t-mono-sm t-muted">{{ [liveRequest.kindText.toLocaleUpperCase(localeTag), liveRequest.code, liveRequest.createdText].filter(Boolean).join(' · ') }}</p>
           <p class="t-body-md">{{ liveRequest.message }}</p>
-          <p v-if="liveRequest.preferredText" class="t-body-sm t-muted">İstenen zaman: {{ liveRequest.preferredText }}</p>
-          <p v-else-if="liveRequest.windowText" class="t-body-sm t-muted">Tercih edilen zaman: {{ liveRequest.windowText }}</p>
-          <p v-if="liveRequest.contactText" class="t-body-sm t-muted">İletişim tercihi: {{ liveRequest.contactText }}</p>
+          <p v-if="liveRequest.preferredText" class="t-body-sm t-muted">{{ t('İstenen zaman: {time}', {time: liveRequest.preferredText}) }}</p>
+          <p v-else-if="liveRequest.windowText" class="t-body-sm t-muted">{{ t('Tercih edilen zaman: {time}', {time: liveRequest.windowText}) }}</p>
+          <p v-if="liveRequest.contactText" class="t-body-sm t-muted">{{ t('İletişim tercihi: {contact}', {contact: liveRequest.contactText}) }}</p>
           <p v-if="offer && seenLine" class="t-body-sm t-muted">{{ seenLine }}</p>
-          <p v-if="liveRequest.resolutionLabel && !liveRequest.canCancel" class="t-body-sm t-muted">Kapanış nedeni: {{ liveRequest.resolutionLabel }}</p>
+          <p v-if="liveRequest.resolutionLabel && !liveRequest.canCancel" class="t-body-sm t-muted">{{ t('Kapanış nedeni: {reason}', {reason: liveRequest.resolutionLabel}) }}</p>
           <div v-if="liveRequest.canCancel && liveRequest.offerStatus !== 'pending'" class="facts-actions">
-            <V2Button variant="ghost" size="sm" :disabled="live.acting.value" @click="openCancel">Talebi iptal et</V2Button>
+            <V2Button variant="ghost" size="sm" :disabled="live.acting.value" @click="openCancel">{{ t('Talebi iptal et') }}</V2Button>
           </div>
         </section>
 
         <section v-if="offers.length > 1" class="block" aria-labelledby="offers-title">
           <div class="block-head">
-            <h2 id="offers-title" class="t-h4">Bu talebe gelen teklifler · {{ offers.length }}</h2>
-            <p class="t-body-sm t-muted">Ayrıntısını görmek istediğin teklifi seç.</p>
+            <h2 id="offers-title" class="t-h4">{{ t('Bu talebe gelen teklifler · {count}', {count: offers.length}) }}</h2>
+            <p class="t-body-sm t-muted">{{ t('Ayrıntısını görmek istediğin teklifi seç.') }}</p>
           </div>
           <ul class="offers">
             <li v-for="item in offers" :key="item.offer.id">
-              <OfferPickCard :offer="item.offer" :status="item.status" :business="item.business" :selected="item.offer.id === offer?.offer.id" :cheapest="item.offer.id === cheapestId" @select="demo && select(item.offer as MockOffer)"/>
+              <OfferPickCard :offer="item.offer" :status="item.status" :business="item.business" :selected="item.offer.id === offer?.offer.id" :cheapest="item.offer.id === cheapestId" @select="demo && select(item.offer)"/>
             </li>
           </ul>
         </section>
 
         <section class="block" aria-labelledby="requests-title">
           <div class="block-head">
-            <h2 id="requests-title" class="t-h4">Tüm taleplerim</h2>
-            <V2Button :to="demo ? '/talep' : '/ara'" variant="ghost" size="sm" arrow>Yeni talep</V2Button>
+            <h2 id="requests-title" class="t-h4">{{ t('Tüm taleplerim') }}</h2>
+            <V2Button :to="demo ? '/talep' : '/ara'" variant="ghost" size="sm" arrow>{{ t('Yeni talep') }}</V2Button>
           </div>
           <ul class="requests surface">
             <li v-for="item in rows" :key="item.id">
@@ -331,27 +342,27 @@ const bookingTo = computed(() => {
               </NuxtLink>
             </li>
           </ul>
-          <V2Button v-if="!demo && live.next.value" variant="outline" size="sm" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">Daha fazla talep</V2Button>
+          <V2Button v-if="!demo && live.next.value" variant="outline" size="sm" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">{{ t('Daha fazla talep') }}</V2Button>
         </section>
       </template>
     </div>
 
-    <V2Modal :open="cancelOpen" :title="liveRequest?.offerStatus === 'pending' ? 'Teklifi reddet' : 'Talebi iptal et'" subtitle="Talep kapanır ve işletme nedenini görür. Bu işlem geri alınamaz." :width="560" @close="cancelOpen = false">
+    <V2Modal :open="cancelOpen" :title="liveRequest?.offerStatus === 'pending' ? t('Teklifi reddet') : t('Talebi iptal et')" :subtitle="t('Talep kapanır ve işletme nedenini görür. Bu işlem geri alınamaz.')" :width="560" @close="cancelOpen = false">
       <fieldset class="reasons" :disabled="live.acting.value">
-        <legend class="field-label">Neden vazgeçiyorsun?</legend>
+        <legend class="field-label">{{ t('Neden vazgeçiyorsun?') }}</legend>
         <label v-for="item in cancelReasons" :key="item.id" class="option">
           <input v-model="cancelCode" type="radio" name="iptal-nedeni" :value="item.id" class="radio">
-          <span>{{ item.label }}</span>
+          <span>{{ t(item.label) }}</span>
         </label>
       </fieldset>
       <label class="field">
-        <span class="field-label">{{ cancelCode === 'other' ? 'Açıklama (en az 10 karakter)' : 'Açıklama (isteğe bağlı)' }}</span>
-        <textarea v-model="cancelText" class="textarea" maxlength="1000" :disabled="live.acting.value" :placeholder="cancelCode === 'other' ? 'Nedenini kısaca yaz.' : 'Boş bırakırsan yalnız seçtiğin neden iletilir.'"/>
+        <span class="field-label">{{ cancelCode === 'other' ? t('Açıklama (en az 10 karakter)') : t('Açıklama (isteğe bağlı)') }}</span>
+        <textarea v-model="cancelText" class="textarea" maxlength="1000" :disabled="live.acting.value" :placeholder="cancelCode === 'other' ? t('Nedenini kısaca yaz.') : t('Boş bırakırsan yalnız seçtiğin neden iletilir.')"/>
       </label>
       <p v-if="cancelTried && cancelError" class="action-error t-body-sm" role="alert">{{ cancelError }}</p>
       <template #footer>
-        <V2Button variant="outline" :disabled="live.acting.value" @click="cancelOpen = false">Vazgeç</V2Button>
-        <V2Button variant="dark" :disabled="live.acting.value" @click="liveCancel">{{ live.acting.value ? 'Gönderiliyor…' : 'Onayla' }}</V2Button>
+        <V2Button variant="outline" :disabled="live.acting.value" @click="cancelOpen = false">{{ t('Vazgeç') }}</V2Button>
+        <V2Button variant="dark" :disabled="live.acting.value" @click="liveCancel">{{ live.acting.value ? t('Gönderiliyor…') : t('Onayla') }}</V2Button>
       </template>
     </V2Modal>
   </div>

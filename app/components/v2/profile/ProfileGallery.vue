@@ -1,33 +1,36 @@
 <script setup lang="ts">
 import {LayoutGrid, ShieldCheck} from '@lucide/vue';
 import type {ProfilePhoto} from '~/data/mock/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // Gallery strip of W04 (photo profile) and the photo-less cover of W05.
 defineProps<{photos: ProfilePhoto[]; photoCount: number; category: string}>();
 const emit = defineEmits<{'open-all': [index: number]}>();
+// `category` arrives in the page language; photo alt texts are translated here (demo alts are Turkish source texts).
+const {t, localeTag} = useLocale();
 </script>
 
 <template>
-  <section id="fotograflar" class="profile-gallery v2-wrap" aria-label="Fotoğraflar">
+  <section id="fotograflar" class="profile-gallery v2-wrap" :aria-label="t('Fotoğraflar')">
     <div v-if="photos.length" class="grid">
       <button type="button" class="photo main" @click="emit('open-all', 0)">
-        <img :src="photos[0]!.src" :alt="photos[0]!.alt" width="828" height="420">
+        <img :src="photos[0]!.src" :alt="t(photos[0]!.alt)" width="828" height="420">
       </button>
       <div class="side">
         <button v-if="photos[1]" type="button" class="photo" @click="emit('open-all', 1)">
-          <img :src="photos[1].src" :alt="photos[1].alt" width="400" height="204">
+          <img :src="photos[1].src" :alt="t(photos[1].alt)" width="400" height="204">
         </button>
         <div v-if="photos[2]" class="photo last">
-          <img :src="photos[2].src" :alt="photos[2].alt" width="400" height="204">
+          <img :src="photos[2].src" :alt="t(photos[2].alt)" width="400" height="204">
           <button type="button" class="all" @click="emit('open-all', 0)">
-            <LayoutGrid :size="16" aria-hidden="true"/><span class="long">Tüm fotoğraflar ({{ photoCount }})</span><span class="short" aria-hidden="true">Tümü ({{ photoCount }})</span>
+            <LayoutGrid :size="16" aria-hidden="true"/><span class="long">{{ t('Tüm fotoğraflar ({count})', {count: photoCount}) }}</span><span class="short" aria-hidden="true">{{ t('Tümü ({count})', {count: photoCount}) }}</span>
           </button>
         </div>
       </div>
     </div>
     <div v-else class="cover">
       <span class="cover-icon"><ShieldCheck :size="28" aria-hidden="true"/></span>
-      <p class="t-mono-md">{{ `${category} · Fotoğraf henüz eklenmedi`.toLocaleUpperCase('tr-TR') }}</p>
+      <p class="t-mono-md">{{ t('{category} · Fotoğraf henüz eklenmedi', {category}).toLocaleUpperCase(localeTag) }}</p>
     </div>
   </section>
 </template>

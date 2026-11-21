@@ -3,6 +3,7 @@ import {computed, ref} from 'vue';
 import {Check, Flag, User} from '@lucide/vue';
 import ProfileStars from './ProfileStars.vue';
 import {reviewReportReasons, type ProfileReviewView, type ReviewReportReason} from '~/lib/v2/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // One review on the profile (W04 "Yorum" card): author, stars, text, resolved tag, owner reply, helpful/report.
 // Live (`live`): the author's short name when the account has one (else the anonymous label), the
@@ -16,6 +17,9 @@ const props = withDefaults(defineProps<{
   report?: (id: string, reason: ReviewReportReason, text: string) => Promise<void>;
   signInHref?: string | null;
 }>(), {preview: false, live: false, report: undefined, signInHref: null});
+// Author names, review text and the owner's reply are user content and stay as written.
+// `resolved` and the reason labels are Turkish source texts; demo `meta` and photo alts are translated too.
+const {t} = useLocale();
 const helpful = ref(false);
 const reported = ref(false);
 
@@ -39,7 +43,7 @@ async function sendReport() {
     reported.value = true;
     reporting.value = false;
   } catch (error) {
-    reportError.value = error instanceof Error && error.message && !error.message.startsWith('[') ? error.message : 'Bildirim gönderilemedi. Tekrar dene.';
+    reportError.value = error instanceof Error && error.message && !error.message.startsWith('[') ? t(error.message) : t('Bildirim gönderilemedi. Tekrar dene.');
   } finally {
     sending.value = false;
   }
@@ -52,8 +56,8 @@ async function sendReport() {
       <span v-if="review.author" class="avatar" :style="{background: review.avatarColor}" aria-hidden="true">{{ review.initials }}</span>
       <span v-else class="avatar anon" aria-hidden="true"><User :size="18"/></span>
       <span class="names">
-        <span class="t-label-md">{{ review.author || 'Hizmet deneyimi' }}</span>
-        <span v-if="review.meta" class="t-body-sm t-muted">{{ review.meta }}</span>
+        <span class="t-label-md">{{ review.author || t('Hizmet deneyimi') }}</span>
+        <span v-if="review.meta" class="t-body-sm t-muted">{{ t(review.meta) }}</span>
       </span>
       <span class="rating">
         <ProfileStars :value="review.rating" :size="16"/>
@@ -62,47 +66,47 @@ async function sendReport() {
     </header>
     <p class="text t-body-md">{{ review.text }}</p>
     <div class="tags">
-      <span class="pill pill-lime" :class="{'pill-cream': review.resolved !== 'Evet'}"><Check v-if="review.resolved === 'Evet'" :size="14" aria-hidden="true"/>Sorun çözüldü: {{ review.resolved }}</span>
+      <span class="pill pill-lime" :class="{'pill-cream': review.resolved !== 'Evet'}"><Check v-if="review.resolved === 'Evet'" :size="14" aria-hidden="true"/>{{ t('Sorun çözüldü: {answer}', {answer: t(review.resolved)}) }}</span>
       <span v-for="chip in review.chips ?? []" :key="chip" class="pill pill-cream">{{ chip }}</span>
-      <span v-if="review.photoCount && !review.photos?.length" class="pill pill-cream">{{ review.photoCount }} fotoğraf</span>
+      <span v-if="review.photoCount && !review.photos?.length" class="pill pill-cream">{{ t('{count} fotoğraf', {count: review.photoCount}) }}</span>
     </div>
     <ul v-if="review.photos?.length" class="photos">
       <li v-for="photo in review.photos" :key="photo.src">
-        <a :href="photo.src" target="_blank" rel="noopener noreferrer" :aria-label="`${photo.alt}, büyük boyutu yeni sekmede aç`">
+        <a :href="photo.src" target="_blank" rel="noopener noreferrer" :aria-label="t('{alt}, büyük boyutu yeni sekmede aç', {alt: photo.alt})">
           <img :src="photo.thumb ?? photo.src" :alt="photo.alt" width="96" height="72" loading="lazy" decoding="async">
         </a>
       </li>
     </ul>
     <div v-if="review.ownerReply" class="reply">
-      <p class="t-mono-sm t-muted">İşletme yanıtı</p>
+      <p class="t-mono-sm t-muted">{{ t('İşletme yanıtı') }}</p>
       <p class="t-body-sm">{{ review.ownerReply }}</p>
     </div>
     <div v-if="!props.preview && !live" class="actions t-label-sm">
-      <button type="button" class="helpful" :aria-pressed="helpful" @click="helpful = !helpful">Faydalı ({{ review.helpful + (helpful ? 1 : 0) }})</button>
-      <button type="button" class="report" :disabled="reported" @click="reported = true">{{ reported ? 'Bildirildi' : 'Bildir' }}</button>
+      <button type="button" class="helpful" :aria-pressed="helpful" @click="helpful = !helpful">{{ t('Faydalı ({count})', {count: review.helpful + (helpful ? 1 : 0)}) }}</button>
+      <button type="button" class="report" :disabled="reported" @click="reported = true">{{ reported ? t('Bildirildi') : t('Bildir') }}</button>
     </div>
     <div v-else-if="!props.preview" class="actions t-label-sm">
-      <button type="button" class="helpful" disabled title="Faydalı oyu henüz kullanılamıyor">Faydalı<span class="sr-only"> (henüz kullanılamıyor)</span></button>
-      <NuxtLink v-if="signInHref" :to="signInHref" class="report">Bildirmek için giriş yap</NuxtLink>
-      <p v-else-if="reported" class="t-body-sm t-muted" role="status">Bildirimin alındı. Sonucu Başvurularım sayfasından takip edebilirsin.</p>
-      <button v-else-if="!reporting && report" type="button" class="report" @click="reporting = true"><Flag :size="12" aria-hidden="true"/>Bildir</button>
+      <button type="button" class="helpful" disabled :title="t('Faydalı oyu henüz kullanılamıyor')">{{ t('Faydalı') }}<span class="sr-only"> ({{ t('henüz kullanılamıyor') }})</span></button>
+      <NuxtLink v-if="signInHref" :to="signInHref" class="report">{{ t('Bildirmek için giriş yap') }}</NuxtLink>
+      <p v-else-if="reported" class="t-body-sm t-muted" role="status">{{ t('Bildirimin alındı. Sonucu Başvurularım sayfasından takip edebilirsin.') }}</p>
+      <button v-else-if="!reporting && report" type="button" class="report" @click="reporting = true"><Flag :size="12" aria-hidden="true"/>{{ t('Bildir') }}</button>
     </div>
     <form v-if="live && reporting && !reported" class="report-form" @submit.prevent="sendReport">
       <fieldset class="reasons" :disabled="sending">
-        <legend class="field-label">Bu yorumu neden bildiriyorsun?</legend>
+        <legend class="field-label">{{ t('Bu yorumu neden bildiriyorsun?') }}</legend>
         <label v-for="option in reviewReportReasons" :key="option.value" class="reason t-body-sm">
           <input v-model="reportReason" type="radio" :name="`yorum-bildir-${review.id}`" class="radio" :value="option.value">
-          {{ option.label }}
+          {{ t(option.label) }}
         </label>
       </fieldset>
       <label class="field">
-        <span class="field-label">{{ textRequired ? 'Açıklama (en az 10 karakter)' : 'Açıklama (isteğe bağlı, yazarsan en az 10 karakter)' }}</span>
-        <textarea v-model="reportText" class="textarea" maxlength="2000" :required="textRequired" :disabled="sending" placeholder="Örneğin: yorum bu işletmeyle ilgili değil."/>
+        <span class="field-label">{{ textRequired ? t('Açıklama (en az 10 karakter)') : t('Açıklama (isteğe bağlı, yazarsan en az 10 karakter)') }}</span>
+        <textarea v-model="reportText" class="textarea" maxlength="2000" :required="textRequired" :disabled="sending" :placeholder="t('Örneğin: yorum bu işletmeyle ilgili değil.')"/>
       </label>
       <p v-if="reportError" class="t-body-sm error" role="alert">{{ reportError }}</p>
       <div class="report-actions">
-        <button type="button" class="btn btn-outline btn-sm" :disabled="sending" @click="reporting = false">Vazgeç</button>
-        <button type="submit" class="btn btn-primary btn-sm" :disabled="sending || !reportValid">{{ sending ? 'Gönderiliyor…' : 'Bildir' }}</button>
+        <button type="button" class="btn btn-outline btn-sm" :disabled="sending" @click="reporting = false">{{ t('Vazgeç') }}</button>
+        <button type="submit" class="btn btn-primary btn-sm" :disabled="sending || !reportValid">{{ sending ? t('Gönderiliyor…') : t('Bildir') }}</button>
       </div>
     </form>
   </article>

@@ -1,16 +1,20 @@
 // Live data for the account screens: W17 /bildirimler, W18 /hesabim (preferences, data export,
 // deletion request, security), /yorumlarim and /basvurularim. Live mode only; the pages keep
 // their demo branch on app/data/mock/*.
+// Messages are translated when they are set (K223); the API's own 4xx text is shown as sent (the API
+// localises it). Preference rows and the export / review summaries are computeds and follow the language.
 import {computed, ref, shallowRef} from 'vue';
 import {z} from 'zod';
 import {privacyOwnerAction, privacyOwnerResponse, type PrivacyOwnRequest} from '@otosanayide/core/privacy-requests';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
+import {useLocale} from '~/composables/useLocale';
 import {memberToken} from '~/composables/v2/useRequests';
 import {useUnreadCount} from '~/composables/v2/useUnreadCount';
 import {securityErrorMessage} from '~/lib/account-security';
 import {callApi} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
+import {turkish, type Translate} from '~/lib/i18n';
 import {exportsApi, preferencesApi, type ExportRequest, type PreferenceChanges, type Preferences} from '~/lib/member-api';
 import {readAllNotifications} from '~/lib/notifications-read';
 import type {Notice} from '~/lib/notifications-helpers';
@@ -18,7 +22,7 @@ import {fetchOwnReviews, type OwnReviewListItem} from '~/lib/own-reviews';
 import {SessionRequestError} from '~/lib/session';
 import {readUnreadCount} from '~/lib/v2/account';
 import {browserSession} from '~/lib/session-instance';
-import {decodeClaims, decodeNotices, exportErrorMessage, exportSummary, liveErrorMessage, noticeKindParam, ownReviewRow, type LiveClaim, type OwnReviewRow} from '~/lib/v2/requests';
+import {decodeClaims, decodeNotices, exportErrorMessage, exportSummary, liveErrorMessage, noticeKindParam, ownReviewRowIn, type LiveClaim, type OwnReviewRow} from '~/lib/v2/requests';
 
 const live = () => !demoMode();
 
@@ -26,6 +30,7 @@ const live = () => !demoMode();
 
 export function useNotices(filter: () => string) {
   const app = useApp();
+  const {t} = useLocale();
   const token = memberToken();
   const items = ref<Notice[]>([]);
   const next = ref<string | null>(null);
@@ -52,7 +57,7 @@ export function useNotices(filter: () => string) {
       items.value = after ? [...items.value, ...page.items] : page.items;
       next.value = page.next;
     } catch (e) {
-      if (run === generation) error.value = liveErrorMessage(e, 'Bildirimler yüklenemedi. Tekrar dene.');
+      if (run === generation) error.value = liveErrorMessage(e, t('Bildirimler yüklenemedi. Tekrar dene.'), {}, t);
     } finally {
       if (run === generation) loading.value = false;
     }
@@ -71,7 +76,7 @@ export function useNotices(filter: () => string) {
       items.value = items.value.map(n => (n.id === id ? {...n, read: true} : n));
       unread.adjust(-1);
     } catch (e) {
-      app.notify(liveErrorMessage(e, 'Bildirim okundu olarak işaretlenemedi.'));
+      app.notify(liveErrorMessage(e, t('Bildirim okundu olarak işaretlenemedi.'), {}, t));
     }
   }
 
@@ -82,9 +87,9 @@ export function useNotices(filter: () => string) {
       const updated = await readAllNotifications(token, Date.now());
       items.value = items.value.map(n => ({...n, read: true}));
       void unread.refresh(true);
-      app.notify(updated ? `${updated} bildirim okundu olarak işaretlendi.` : 'Okunmamış bildirim yok.');
+      app.notify(updated ? t('{count} bildirim okundu olarak işaretlendi.', {count: updated}) : t('Okunmamış bildirim yok.'));
     } catch (e) {
-      app.notify(liveErrorMessage(e, 'İşlem tamamlanamadı. Tekrar dene.'));
+      app.notify(liveErrorMessage(e, t('İşlem tamamlanamadı. Tekrar dene.'), {}, t));
     } finally {
       markingAll.value = false;
     }
@@ -98,6 +103,7 @@ export interface PreferenceRow {id: keyof PreferenceChanges | 'inApp'; title: st
 
 export function usePreferences() {
   const app = useApp();
+  const {t, localeTag} = useLocale();
   const token = memberToken();
   const prefs = shallowRef<Preferences | null>(null);
   const loading = ref(false);
@@ -114,7 +120,7 @@ export function usePreferences() {
     preferencesApi.read(token).then(v => {
       if (!cancelled) prefs.value = v;
     }).catch(e => {
-      if (!cancelled) error.value = liveErrorMessage(e, 'Tercihler yüklenemedi.');
+      if (!cancelled) error.value = liveErrorMessage(e, t('Tercihler yüklenemedi.'), {}, t);
     }).finally(() => {
       if (!cancelled) loading.value = false;
     });
@@ -123,18 +129,18 @@ export function usePreferences() {
     };
   });
 
-  const off = 'Bu kanaldan gönderim henüz etkin değil; seçimin saklanır.';
   const rows = computed<PreferenceRow[]>(() => {
     const p = prefs.value;
     if (!p) return [];
+    const off = t('Bu kanaldan gönderim henüz etkin değil; seçimin saklanır.');
     const consent = p.productNews.enabled && p.productNews.consentAtMs
-      ? `Onay: ${new Date(p.productNews.consentAtMs).toLocaleString('tr-TR', {timeZone: 'Europe/Istanbul'})} · metin ${p.productNews.textVersion ?? ''}` : '';
+      ? t('Onay: {date} · metin {version}', {date: new Date(p.productNews.consentAtMs).toLocaleString(localeTag.value, {timeZone: 'Europe/Istanbul'}), version: p.productNews.textVersion ?? ''}) : '';
     return [
-      {id: 'inApp', title: 'Talep güncellemeleri · uygulama içi', text: 'İşlem bildirimidir, kapatılamaz.', on: true, locked: true, note: ''},
-      {id: 'requestUpdatesPush', title: 'Talep güncellemeleri · push', text: 'Tarayıcı ve uygulama bildirimi', on: p.requestUpdates.push, locked: false, note: p.delivery.requestUpdatesPush === 'not_enabled' ? off : ''},
-      {id: 'requestUpdatesEmail', title: 'Talep güncellemeleri · e-posta', text: 'Doğrulanmış adres', on: p.requestUpdates.email, locked: false, note: p.delivery.requestUpdatesEmail === 'not_enabled' ? off : ''},
-      {id: 'reminderEmail', title: 'Bakım hatırlatmaları e-postası', text: 'Kapalıyken hiçbir hatırlatma e-postası gönderilmez.', on: p.reminderEmail, locked: false, note: ''},
-      {id: 'productNews', title: 'Ürün duyuruları', text: 'Pazarlama iletisi · varsayılan kapalı. Açarsan onayın zaman ve metin sürümüyle kaydedilir.', on: p.productNews.enabled, locked: false, note: [consent, p.delivery.productNews === 'not_enabled' ? off : ''].filter(Boolean).join(' ')},
+      {id: 'inApp', title: t('Talep güncellemeleri · uygulama içi'), text: t('İşlem bildirimidir, kapatılamaz.'), on: true, locked: true, note: ''},
+      {id: 'requestUpdatesPush', title: t('Talep güncellemeleri · push'), text: t('Tarayıcı ve uygulama bildirimi'), on: p.requestUpdates.push, locked: false, note: p.delivery.requestUpdatesPush === 'not_enabled' ? off : ''},
+      {id: 'requestUpdatesEmail', title: t('Talep güncellemeleri · e-posta'), text: t('Doğrulanmış adres'), on: p.requestUpdates.email, locked: false, note: p.delivery.requestUpdatesEmail === 'not_enabled' ? off : ''},
+      {id: 'reminderEmail', title: t('Bakım hatırlatmaları e-postası'), text: t('Kapalıyken hiçbir hatırlatma e-postası gönderilmez.'), on: p.reminderEmail, locked: false, note: ''},
+      {id: 'productNews', title: t('Ürün duyuruları'), text: t('Pazarlama iletisi · varsayılan kapalı. Açarsan onayın zaman ve metin sürümüyle kaydedilir.'), on: p.productNews.enabled, locked: false, note: [consent, p.delivery.productNews === 'not_enabled' ? off : ''].filter(Boolean).join(' ')},
     ];
   });
 
@@ -146,9 +152,9 @@ export function usePreferences() {
     saved.value = '';
     try {
       prefs.value = await preferencesApi.change(token, current.version, {[id]: next});
-      saved.value = 'Tercihin kaydedildi.';
+      saved.value = t('Tercihin kaydedildi.');
     } catch (e) {
-      error.value = liveErrorMessage(e, 'Tercih kaydedilemedi.', {409: 'Tercihler başka bir yerde değişti. Sayfayı yenile.', 403: 'Bu tercih için önce e-posta adresini doğrula.'});
+      error.value = liveErrorMessage(e, t('Tercih kaydedilemedi.'), {409: t('Tercihler başka bir yerde değişti. Sayfayı yenile.'), 403: t('Bu tercih için önce e-posta adresini doğrula.')}, t);
     } finally {
       busy.value = false;
     }
@@ -160,6 +166,7 @@ export function usePreferences() {
 
 export function useDataExports() {
   const app = useApp();
+  const {t, localeTag} = useLocale();
   const token = memberToken();
   const items = ref<ExportRequest[]>([]);
   const loading = ref(false);
@@ -176,7 +183,7 @@ export function useDataExports() {
       items.value = (await exportsApi.read(token)).items;
       loaded.value = true;
     } catch (e) {
-      error.value = exportErrorMessage(e);
+      error.value = exportErrorMessage(e, t);
     } finally {
       loading.value = false;
     }
@@ -198,9 +205,9 @@ export function useDataExports() {
       const created = await exportsApi.create(token, operationId);
       operationId = '';
       items.value = [created.request, ...items.value.filter(i => i.id !== created.request.id)];
-      done.value = 'Talebin alındı. Kopya bir görevli tarafından elle hazırlanır; bu sayfada indirme yoktur.';
+      done.value = t('Talebin alındı. Kopya bir görevli tarafından elle hazırlanır; bu sayfada indirme yoktur.');
     } catch (e) {
-      error.value = exportErrorMessage(e);
+      error.value = exportErrorMessage(e, t);
     } finally {
       busy.value = false;
     }
@@ -215,28 +222,29 @@ export function useDataExports() {
       const changed = ('request' in raw && raw.request && typeof raw.request === 'object' ? raw.request : raw) as ExportRequest;
       items.value = items.value.map(i => (i.id === changed.id ? changed : i));
     } catch (e) {
-      error.value = exportErrorMessage(e);
+      error.value = exportErrorMessage(e, t);
     } finally {
       busy.value = false;
     }
   }
-  const summary = computed(() => exportSummary(items.value));
+  const summary = computed(() => exportSummary(items.value, t, localeTag.value));
   return {items, summary, loading, loaded, busy, error, done, request, cancel};
 }
 
 /* ------------------------------------------------------------------ W18 deletion request (/api/me/privacy) */
 
-export function privacyErrorMessage(error: unknown) {
-  return liveErrorMessage(error, 'Talep durumu değişti. Yeniden kontrol et.', {
-    428: 'Güvenlik için son 10 dakika içinde yeniden giriş yapman gerekiyor. Çıkış yapıp tekrar giriş yap.',
-    409: 'Talep durumu değişti. Sayfayı yenileyip tekrar dene.',
-    503: 'Veri talepleri henüz kullanıma açılmadı.',
-    403: 'Silme talebi için önce e-posta adresini doğrula.',
-  });
+export function privacyErrorMessage(error: unknown, t: Translate = turkish) {
+  return liveErrorMessage(error, t('Talep durumu değişti. Yeniden kontrol et.'), {
+    428: t('Güvenlik için son 10 dakika içinde yeniden giriş yapman gerekiyor. Çıkış yapıp tekrar giriş yap.'),
+    409: t('Talep durumu değişti. Sayfayı yenileyip tekrar dene.'),
+    503: t('Veri talepleri henüz kullanıma açılmadı.'),
+    403: t('Silme talebi için önce e-posta adresini doğrula.'),
+  }, t);
 }
 
 export function usePrivacyRequest() {
   const app = useApp();
+  const {t} = useLocale();
   const token = memberToken();
   const request = shallowRef<PrivacyOwnRequest | null>(null);
   const loading = ref(false);
@@ -258,7 +266,7 @@ export function usePrivacyRequest() {
     if (!live() || !app.user) return;
     loading.value = true;
     call().catch(e => {
-      error.value = privacyErrorMessage(e);
+      error.value = privacyErrorMessage(e, t);
     }).finally(() => {
       loading.value = false;
     });
@@ -274,7 +282,7 @@ export function usePrivacyRequest() {
       notice.value = message;
       return true;
     } catch (e) {
-      error.value = privacyErrorMessage(e);
+      error.value = privacyErrorMessage(e, t);
       return false;
     } finally {
       busy.value = false;
@@ -286,9 +294,9 @@ export function usePrivacyRequest() {
   });
   return {
     request, loading, loaded, busy, error, notice,
-    submit: (scope: 'garage' | 'account') => act(() => ({action: 'submit', scope, operationId: crypto.randomUUID(), acknowledged: true, confirmedScope: true}), 'Silme talebin alındı. Verilerin henüz silinmedi; talep incelenir.'),
-    cancel: () => act(existing('cancel'), 'Silme talebin iptal edildi.'),
-    confirm: () => act(existing('confirm'), 'Kapsamı onayladın. Talep yeniden incelemeye alındı.'),
+    submit: (scope: 'garage' | 'account') => act(() => ({action: 'submit', scope, operationId: crypto.randomUUID(), acknowledged: true, confirmedScope: true}), t('Silme talebin alındı. Verilerin henüz silinmedi; talep incelenir.')),
+    cancel: () => act(existing('cancel'), t('Silme talebin iptal edildi.')),
+    confirm: () => act(existing('confirm'), t('Kapsamı onayladın. Talep yeniden incelemeye alındı.')),
   };
 }
 
@@ -296,6 +304,7 @@ export function usePrivacyRequest() {
 
 export function useAccountSecurity() {
   const app = useApp();
+  const {t} = useLocale();
   const totp = ref<'unknown' | 'off' | 'on'>('unknown');
   const busy = ref<'' | 'email' | 'password'>('');
   const message = ref<{tone: 'ok' | 'err' | 'info'; text: string} | null>(null);
@@ -324,9 +333,9 @@ export function useAccountSecurity() {
     } catch (error) {
       if (error instanceof SessionRequestError && error.status === 403) {
         totp.value = 'on';
-        message.value = {tone: 'info', text: 'İki adımlı doğrulama kodu gerekli. Kodu yazıp tekrar gönder.'};
+        message.value = {tone: 'info', text: t('İki adımlı doğrulama kodu gerekli. Kodu yazıp tekrar gönder.')};
       } else if (error instanceof SessionRequestError && error.status === 400) message.value = {tone: 'err', text: wrong};
-      else message.value = {tone: 'err', text: securityErrorMessage(error)};
+      else message.value = {tone: 'err', text: t(securityErrorMessage(error))};
       return false;
     } finally {
       busy.value = '';
@@ -334,12 +343,12 @@ export function useAccountSecurity() {
   }
   const changeEmail = (newEmail: string, password: string, code?: string) => run('email', async () => {
     await browserSession().changeEmail(newEmail.trim(), password, code || undefined);
-    return 'Yeni adrese onay bağlantısı gönderdik. Bağlantıyı açana kadar mevcut adresin geçerli kalır; onaydan sonra bütün oturumların kapanır.';
-  }, 'Şifreyi, kodu ve yeni adresin mevcut adresten farklı olduğunu kontrol et.');
+    return t('Yeni adrese onay bağlantısı gönderdik. Bağlantıyı açana kadar mevcut adresin geçerli kalır; onaydan sonra bütün oturumların kapanır.');
+  }, t('Şifreyi, kodu ve yeni adresin mevcut adresten farklı olduğunu kontrol et.'));
   const changePassword = (currentPassword: string, newPassword: string, code?: string) => run('password', async () => {
     await browserSession().changePassword(currentPassword, newPassword, code || undefined);
-    return 'Şifren güncellendi. Diğer cihazlardaki oturumlar kapatıldı.';
-  }, 'Şifre veya doğrulama kodu hatalı.');
+    return t('Şifren güncellendi. Diğer cihazlardaki oturumlar kapatıldı.');
+  }, t('Şifre veya doğrulama kodu hatalı.'));
   return {totp, busy, message, changeEmail, changePassword};
 }
 
@@ -347,6 +356,7 @@ export function useAccountSecurity() {
 
 export function useOwnReviews() {
   const app = useApp();
+  const {t, localeTag} = useLocale();
   const token = memberToken();
   const items = ref<OwnReviewListItem[]>([]);
   const next = ref<string | null>(null);
@@ -363,7 +373,8 @@ export function useOwnReviews() {
       items.value = after ? [...items.value, ...page.items] : page.items;
       next.value = page.next;
     } catch (e) {
-      error.value = e instanceof Error && e.message ? e.message : 'Yorumlar yüklenemedi.';
+      // fetchOwnReviews throws its own Turkish text (a key) or the API's text (shown as sent).
+      error.value = e instanceof Error && e.message ? t(e.message) : t('Yorumlar yüklenemedi.');
     } finally {
       loading.value = false;
     }
@@ -372,7 +383,7 @@ export function useOwnReviews() {
     items.value = [];
     void load();
   });
-  const rows = computed<OwnReviewRow[]>(() => items.value.map(ownReviewRow));
+  const rows = computed<OwnReviewRow[]>(() => items.value.map(ownReviewRowIn(t, localeTag.value)));
 
   /** PATCH /api/reviews/mine {action:'withdraw'} (same body as the review-author client). */
   async function withdraw(row: OwnReviewRow) {
@@ -381,10 +392,10 @@ export function useOwnReviews() {
     try {
       await callApi('/api/reviews/mine', {method: 'PATCH', token: await token(), body: {action: 'withdraw', businessId: row.businessId, expectedVersion: row.version, confirmed: true}},
         raw => z.object({ok: z.literal(true), status: z.literal('withdrawn')}).passthrough().parse(raw));
-      app.notify('Yorumun geri çekildi.');
+      app.notify(t('Yorumun geri çekildi.'));
       await load();
     } catch (e) {
-      app.notify(liveErrorMessage(e, 'Yorum geri çekilemedi.', {409: 'Yorum değişti. Liste yenilendi; tekrar dene.'}));
+      app.notify(liveErrorMessage(e, t('Yorum geri çekilemedi.'), {409: t('Yorum değişti. Liste yenilendi; tekrar dene.')}, t));
       await load();
     } finally {
       busy.value = '';
@@ -398,6 +409,7 @@ export function useOwnReviews() {
 
 export function useClaims() {
   const app = useApp();
+  const {t} = useLocale();
   const token = memberToken();
   const claims = ref<LiveClaim[]>([]);
   const loading = ref(false);
@@ -413,7 +425,7 @@ export function useClaims() {
       claims.value = await callApi('/api/claims', {token: await token()}, decodeClaims);
       loaded.value = true;
     } catch (e) {
-      error.value = liveErrorMessage(e, 'Başvurular yüklenemedi.');
+      error.value = liveErrorMessage(e, t('Başvurular yüklenemedi.'), {}, t);
     } finally {
       loading.value = false;
     }
@@ -428,10 +440,10 @@ export function useClaims() {
     busy.value = claimId;
     try {
       await callApi('/api/claims', {method: 'PATCH', token: await token(), body: {claimId, message: message.trim()}}, () => null);
-      app.notify('Yanıtın incelemeye gönderildi.');
+      app.notify(t('Yanıtın incelemeye gönderildi.'));
       await load();
     } catch (e) {
-      throw Error(liveErrorMessage(e, 'Yanıt gönderilemedi.'));
+      throw Error(liveErrorMessage(e, t('Yanıt gönderilemedi.'), {}, t));
     } finally {
       busy.value = '';
     }

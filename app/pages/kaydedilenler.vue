@@ -6,9 +6,11 @@ import V2ServiceCard from '~/components/v2/V2ServiceCard.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import SavedListModal from '~/components/v2/garage/SavedListModal.vue';
 import {useClientEffect} from '~/composables/useClientEffect';
+import {useLocale} from '~/composables/useLocale';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useSavedPage} from '~/composables/v2/useSavedPage';
+import {localiseCard} from '~/lib/v2/business-card';
 import {accusative, LIST_NAME_MAX} from '~/lib/v2/saved';
 
 // W13 · Kaydedilenler ve listeler (Figma 125:387). "Tümü" holds every saved service; a list is a subset.
@@ -16,7 +18,8 @@ import {accusative, LIST_NAME_MAX} from '~/lib/v2/saved';
 // from /api/me/lists (create, rename, delete, add, remove). Demo: mock catalog and in-memory lists;
 // removing the heart drops the service from every list.
 const app = useMemberPage();
-useSeoMeta({title: 'Kaydedilenler'});
+const {t, locale, localeTag} = useLocale();
+useSeoMeta({title: () => t('Kaydedilenler')});
 
 const page = useSavedPage();
 const {live} = page;
@@ -29,7 +32,11 @@ const PAGE = 3;
 const activeChip = computed(() => page.chips.value.find((c) => c.id === active.value));
 const ids = computed(() => page.idsFor(active.value));
 const shownIds = computed(() => (expanded.value ? ids.value : ids.value.slice(0, PAGE)));
-const shown = computed(() => shownIds.value.map((id) => ({id, entry: page.entry(id)})));
+// Cards are shown in the page language (category, hours, chips); the saved records stay as read.
+const shown = computed(() => shownIds.value.map((id) => {
+  const entry = page.entry(id);
+  return {id, entry: entry.status === 'found' ? {...entry, card: localiseCard(entry.card, t, localeTag.value)} : entry};
+}));
 
 // Live: read the services on screen (and every saved one while the list modal is open).
 watch(shownIds, (value) => { void page.resolve(value); }, {immediate: true});
@@ -57,7 +64,9 @@ function setCompared(id: string, on: boolean) {
 const countText = computed(() => {
   const total = ids.value.length;
   const visible = shownIds.value.length;
-  return visible < total ? `${total} kayıttan ${visible}’${accusative(visible)} gösteriliyor.` : `${total} kayıt gösteriliyor.`;
+  // Turkish adds the accusative suffix to the shown count ("3’ü"); other languages use the number.
+  const shownCount = locale.value === 'tr' ? `${visible}’${accusative(visible)}` : String(visible);
+  return visible < total ? t('{total} kayıttan {shown} gösteriliyor.', {total, shown: shownCount}) : t('{count} kayıt gösteriliyor.', {count: total});
 });
 
 /* ---------- list modal (new / rename) ---------- */
@@ -108,31 +117,31 @@ const listsWithout = (businessId: string) => page.chips.value.filter((c) => !c.i
     <section class="main" aria-labelledby="saved-title">
       <header class="head">
         <div class="titles">
-          <p class="t-mono-md t-eyebrow">HESABIM</p>
-          <h1 id="saved-title" class="t-h2">Kaydedilenler</h1>
+          <p class="t-mono-md t-eyebrow">{{ t('HESABIM') }}</p>
+          <h1 id="saved-title" class="t-h2">{{ t('Kaydedilenler') }}</h1>
         </div>
-        <button type="button" class="btn btn-dark" :disabled="live && page.listsState.value !== 'ready'" @click="openNew">Yeni liste<ArrowRight aria-hidden="true"/></button>
+        <button type="button" class="btn btn-dark" :disabled="live && page.listsState.value !== 'ready'" @click="openNew">{{ t('Yeni liste') }}<ArrowRight aria-hidden="true"/></button>
       </header>
 
-      <div v-if="!page.ready.value" class="state" role="status"><LoaderCircle :size="20" class="spin" aria-hidden="true"/><p class="t-body-md t-muted">Kaydedilenler yükleniyor…</p></div>
+      <div v-if="!page.ready.value" class="state" role="status"><LoaderCircle :size="20" class="spin" aria-hidden="true"/><p class="t-body-md t-muted">{{ t('Kaydedilenler yükleniyor…') }}</p></div>
       <template v-else>
-        <div class="lists" role="group" aria-label="Listeler">
-          <button type="button" class="chip" :class="active === 'all' ? 'chip-active' : 'chip-default'" :aria-pressed="active === 'all'" @click="pick('all')">Tümü · {{ page.savedIds.value.length }}</button>
+        <div class="lists" role="group" :aria-label="t('Listeler')">
+          <button type="button" class="chip" :class="active === 'all' ? 'chip-active' : 'chip-default'" :aria-pressed="active === 'all'" @click="pick('all')">{{ t('Tümü') }} · {{ page.savedIds.value.length }}</button>
           <button v-for="l in page.chips.value" :key="l.id" type="button" class="chip" :class="active === l.id ? 'chip-active' : 'chip-default'" :aria-pressed="active === l.id" @click="pick(l.id)">{{ l.name }} · {{ page.countFor(l) }}</button>
-          <span v-if="page.listsState.value === 'loading'" class="lists-note t-body-sm t-muted" role="status"><LoaderCircle :size="14" class="spin" aria-hidden="true"/>Listeler yükleniyor…</span>
+          <span v-if="page.listsState.value === 'loading'" class="lists-note t-body-sm t-muted" role="status"><LoaderCircle :size="14" class="spin" aria-hidden="true"/>{{ t('Listeler yükleniyor…') }}</span>
         </div>
         <p v-if="page.listsState.value === 'error'" class="banner t-body-sm" role="alert">
-          {{ page.listsError.value }}
-          <button type="button" class="btn btn-outline btn-sm" @click="page.loadLists()">Tekrar dene</button>
+          {{ t(page.listsError.value) }}
+          <button type="button" class="btn btn-outline btn-sm" @click="page.loadLists()">{{ t('Tekrar dene') }}</button>
         </p>
 
         <div v-if="live && activeChip" class="list-tools">
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="openRename">Adını değiştir</button>
-          <button type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="deleteList">{{ confirmDelete ? 'Silmeyi onayla' : 'Listeyi sil' }}</button>
-          <button v-if="confirmDelete" type="button" class="btn btn-ghost btn-sm" @click="confirmDelete = false">Vazgeç</button>
-          <span v-if="confirmDelete" class="t-body-sm t-muted">Liste silinir; servisler kaydedilenlerde kalır.</span>
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="openRename">{{ t('Adını değiştir') }}</button>
+          <button type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="deleteList">{{ confirmDelete ? t('Silmeyi onayla') : t('Listeyi sil') }}</button>
+          <button v-if="confirmDelete" type="button" class="btn btn-ghost btn-sm" @click="confirmDelete = false">{{ t('Vazgeç') }}</button>
+          <span v-if="confirmDelete" class="t-body-sm t-muted">{{ t('Liste silinir; servisler kaydedilenlerde kalır.') }}</span>
         </div>
-        <p v-if="page.actionError.value && listModal === null" class="banner t-body-sm" role="alert">{{ page.actionError.value }}</p>
+        <p v-if="page.actionError.value && listModal === null" class="banner t-body-sm" role="alert">{{ t(page.actionError.value) }}</p>
 
         <ul v-if="shown.length" class="cards">
           <li v-for="item in shown" :key="item.id">
@@ -144,39 +153,39 @@ const listsWithout = (businessId: string) => page.chips.value.filter((c) => !c.i
                 @update:saved="page.setSaved(item.id, $event)"
                 @update:compared="setCompared(item.id, $event)"/>
               <div v-if="live && (activeChip || listsWithout(item.id).length)" class="card-tools">
-                <button v-if="activeChip" type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="page.removeFrom(activeChip.id, item.id)">Listeden çıkar</button>
+                <button v-if="activeChip" type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="page.removeFrom(activeChip.id, item.id)">{{ t('Listeden çıkar') }}</button>
                 <template v-else>
-                  <label class="sr-only" :for="`add-${item.id}`">{{ item.entry.card.name }} için liste seç</label>
+                  <label class="sr-only" :for="`add-${item.id}`">{{ t('{name} için liste seç', {name: item.entry.card.name}) }}</label>
                   <V2Select
                     :id="`add-${item.id}`" :model-value="null" :options="listsWithout(item.id).map((c) => ({value: c.id, label: c.name}))"
-                    placeholder="Listeye ekle…" class="add-select" :match-width="false" :disabled="page.busy.value" @change="addTo($event, item.id)"/>
+                    :placeholder="t('Listeye ekle…')" class="add-select" :match-width="false" :disabled="page.busy.value" @change="addTo($event, item.id)"/>
                 </template>
               </div>
             </template>
-            <div v-else-if="item.entry.status === 'loading'" class="placeholder" role="status"><LoaderCircle :size="18" class="spin" aria-hidden="true"/><span class="t-body-sm t-muted">Servis bilgileri yükleniyor…</span></div>
+            <div v-else-if="item.entry.status === 'loading'" class="placeholder" role="status"><LoaderCircle :size="18" class="spin" aria-hidden="true"/><span class="t-body-sm t-muted">{{ t('Servis bilgileri yükleniyor…') }}</span></div>
             <div v-else class="placeholder">
-              <span class="t-body-sm">{{ item.entry.status === 'missing' ? 'Bu servis artık yayında değil.' : 'Servis bilgileri alınamadı.' }}</span>
-              <button v-if="item.entry.status === 'unavailable'" type="button" class="btn btn-outline btn-sm" @click="page.resolve([item.id], true)">Tekrar dene</button>
-              <button v-if="activeChip" type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="page.removeFrom(activeChip.id, item.id)">Listeden çıkar</button>
-              <button v-else-if="page.saved.has(item.id)" type="button" class="btn btn-ghost btn-sm" @click="page.setSaved(item.id, false)">Kaydedilenlerden çıkar</button>
+              <span class="t-body-sm">{{ item.entry.status === 'missing' ? t('Bu servis artık yayında değil.') : t('Servis bilgileri alınamadı.') }}</span>
+              <button v-if="item.entry.status === 'unavailable'" type="button" class="btn btn-outline btn-sm" @click="page.resolve([item.id], true)">{{ t('Tekrar dene') }}</button>
+              <button v-if="activeChip" type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="page.removeFrom(activeChip.id, item.id)">{{ t('Listeden çıkar') }}</button>
+              <button v-else-if="page.saved.has(item.id)" type="button" class="btn btn-ghost btn-sm" @click="page.setSaved(item.id, false)">{{ t('Kaydedilenlerden çıkar') }}</button>
             </div>
           </li>
         </ul>
         <div v-else class="empty">
           <span class="empty-icon" aria-hidden="true"><Heart :size="26"/></span>
-          <p class="t-h4">{{ activeChip ? 'Bu liste boş' : 'Henüz kaydettiğin servis yok' }}</p>
-          <p class="t-body-sm t-muted">Servis kartlarındaki kalp düğmesiyle kaydet; burada listelere ayır.</p>
-          <NuxtLink to="/" class="btn btn-outline">Servis keşfet<ArrowRight aria-hidden="true"/></NuxtLink>
+          <p class="t-h4">{{ activeChip ? t('Bu liste boş') : t('Henüz kaydettiğin servis yok') }}</p>
+          <p class="t-body-sm t-muted">{{ t('Servis kartlarındaki kalp düğmesiyle kaydet; burada listelere ayır.') }}</p>
+          <NuxtLink to="/" class="btn btn-outline">{{ t('Servis keşfet') }}<ArrowRight aria-hidden="true"/></NuxtLink>
         </div>
 
         <div v-if="ids.length" class="foot">
-          <p class="info t-body-sm t-muted"><Info :size="16" aria-hidden="true"/>Karşılaştırmak için en fazla 3 işletme işaretleyebilirsin. {{ countText }}</p>
+          <p class="info t-body-sm t-muted"><Info :size="16" aria-hidden="true"/>{{ t('Karşılaştırmak için en fazla 3 işletme işaretleyebilirsin.') }} {{ countText }}</p>
           <div class="foot-actions">
-            <button v-if="shownIds.length < ids.length" type="button" class="btn btn-outline btn-sm" @click="expanded = true">Tümünü göster</button>
-            <NuxtLink v-if="compare.ids.value.length >= 2" :to="compare.href.value" class="btn btn-primary btn-sm">Karşılaştır ({{ compare.ids.value.length }})<ArrowRight aria-hidden="true"/></NuxtLink>
+            <button v-if="shownIds.length < ids.length" type="button" class="btn btn-outline btn-sm" @click="expanded = true">{{ t('Tümünü göster') }}</button>
+            <NuxtLink v-if="compare.ids.value.length >= 2" :to="compare.href.value" class="btn btn-primary btn-sm">{{ t('Karşılaştır ({count})', {count: compare.ids.value.length}) }}<ArrowRight aria-hidden="true"/></NuxtLink>
           </div>
         </div>
-        <p v-if="compareFull" class="full t-body-sm" role="status">En fazla 3 işletme karşılaştırabilirsin. Önce birinin işaretini kaldır.</p>
+        <p v-if="compareFull" class="full t-body-sm" role="status">{{ t('En fazla 3 işletme karşılaştırabilirsin. Önce birinin işaretini kaldır.') }}</p>
       </template>
     </section>
 

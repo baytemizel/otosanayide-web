@@ -2,7 +2,8 @@
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {ArrowRight, Bell, ChevronDown, Globe, Menu, X} from '@lucide/vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
-import {useLocale} from '~/composables/useLocale';
+import V2Select from '~/components/v2/V2Select.vue';
+import {localeOptions, useLocale} from '~/composables/useLocale';
 import {useSession} from '~/composables/useSession';
 import {useUnreadCount} from '~/composables/v2/useUnreadCount';
 import {portalUrl} from '~/lib/portal';
@@ -14,11 +15,12 @@ import {unreadBadge} from '~/lib/v2/account';
 // bell's dot is the unread count of GET /api/notifications?v=2, asked on sign-in and on page changes
 // (at most every 30 s). Demo keeps the design's bell with its dot.
 const route = useRoute();
-const {locale, setLocale} = useLocale();
+const {locale, setLocale, t} = useLocale();
 const session = useSession();
 const {value: unreadCount, refresh: refreshUnread} = useUnreadCount();
-const bellLabel = computed(() => (unreadCount.value ? `Bildirimler, ${unreadBadge(unreadCount.value)} okunmamış` : 'Bildirimler'));
+const bellLabel = computed(() => (unreadCount.value ? t('Bildirimler, {badge} okunmamış', {badge: unreadBadge(unreadCount.value)}) : t('Bildirimler')));
 
+// Labels are Turkish source text, translated at render (app/locales/v2-shell.json).
 const links = [
   {label: 'Keşfet', to: '/ara', match: ['/ara', '/servis', '/karsilastir']},
   {label: 'Belirti Bulucu', to: '/#belirti-bulucu', match: []},
@@ -59,8 +61,12 @@ watch(() => route.fullPath, () => {
   accountOpen.value = false;
 });
 
-function toggleLocale() {
-  setLocale(locale.value === 'tr' ? 'en' : 'tr');
+// Language: a picker with both languages (the header shows the current one); choosing does not toggle.
+const languageLabel = computed(() => t('Dil'));
+const languageShort = computed(() => localeOptions.find((option) => option.value === locale.value)?.short ?? 'TR');
+function chooseLocale(next: string) {
+  const option = localeOptions.find((item) => item.value === next);
+  if (option && option.value !== locale.value) setLocale(option.value);
 }
 async function signOut() {
   accountOpen.value = false;
@@ -71,24 +77,33 @@ async function signOut() {
 
 <template>
   <div class="nav-slot v2-wrap" :class="{scrolled}">
-    <nav class="v2-nav" aria-label="Ana menü">
-      <NuxtLink to="/" class="brand" aria-label="otosanayide ana sayfa"><V2Logo/></NuxtLink>
+    <nav class="v2-nav" :aria-label="t('Ana menü')">
+      <NuxtLink to="/" class="brand" :aria-label="t('otosanayide ana sayfa')"><V2Logo/></NuxtLink>
 
       <ul class="menu" :class="{open: menuOpen}">
         <li v-for="link in links" :key="link.label">
           <NuxtLink :to="link.to" class="menu-link" :class="{on: active(link.match)}" :aria-current="active(link.match) ? 'page' : undefined">
-            <span v-if="active(link.match)" class="dot" aria-hidden="true"/>{{ link.label }}
+            <span v-if="active(link.match)" class="dot" aria-hidden="true"/>{{ t(link.label) }}
           </NuxtLink>
         </li>
-        <li v-if="!session.signedIn.value" class="menu-extra"><NuxtLink to="/giris" class="menu-link">Giriş yap</NuxtLink></li>
-        <li v-if="session.signedIn.value" class="menu-extra menu-extra-sm"><NuxtLink to="/bildirimler" class="menu-link">Bildirimler<span v-if="unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span></NuxtLink></li>
-        <li class="menu-extra menu-extra-sm"><button type="button" class="menu-link" @click="toggleLocale"><Globe :size="16" aria-hidden="true"/>{{ locale === 'tr' ? 'English' : 'Türkçe' }}</button></li>
+        <li v-if="!session.signedIn.value" class="menu-extra"><NuxtLink to="/giris" class="menu-link">{{ t('Giriş yap') }}</NuxtLink></li>
+        <li v-if="session.signedIn.value" class="menu-extra menu-extra-sm"><NuxtLink to="/bildirimler" class="menu-link">{{ t('Bildirimler') }}<span v-if="unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only">{{ t(' okunmamış') }}</span></span></NuxtLink></li>
+        <li class="menu-extra menu-extra-sm">
+          <div class="lang-row" role="group" :aria-label="languageLabel">
+            <Globe :size="16" aria-hidden="true"/>
+            <button v-for="option in localeOptions" :key="option.value" type="button" class="lang-opt" :class="{on: option.value === locale}" :aria-pressed="option.value === locale" @click="chooseLocale(option.value)">{{ option.label }}</button>
+          </div>
+        </li>
       </ul>
 
       <div class="right">
-        <button type="button" class="lang" :aria-label="locale === 'tr' ? 'Dil: Türkçe. English’e geç.' : 'Language: English. Switch to Turkish.'" @click="toggleLocale">
-          <Globe :size="16" aria-hidden="true"/>{{ locale === 'tr' ? 'TR' : 'EN' }}
-        </button>
+        <V2Select
+          class="lang" variant="bare" :match-width="false" :aria-label="languageLabel"
+          :model-value="locale" :options="localeOptions" @update:model-value="chooseLocale">
+          <template #value="{item}">
+            <span class="lang-value"><Globe :size="16" aria-hidden="true"/><span aria-hidden="true">{{ languageShort }}</span><span class="sr-only">{{ item?.label }}</span></span>
+          </template>
+        </V2Select>
 
         <template v-if="session.signedIn.value">
           <NuxtLink to="/bildirimler" class="bell" :aria-label="bellLabel">
@@ -103,18 +118,18 @@ async function signOut() {
             </button>
             <ul v-if="accountOpen" class="account-menu" role="menu">
               <li v-for="item in accountLinks" :key="item.to" role="none">
-                <NuxtLink :to="item.to" role="menuitem">{{ item.label }}<span v-if="item.to === '/bildirimler' && unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span></NuxtLink>
+                <NuxtLink :to="item.to" role="menuitem">{{ t(item.label) }}<span v-if="item.to === '/bildirimler' && unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only">{{ t(' okunmamış') }}</span></span></NuxtLink>
               </li>
-              <li role="none"><button type="button" role="menuitem" @click="signOut">Çıkış yap</button></li>
+              <li role="none"><button type="button" role="menuitem" @click="signOut">{{ t('Çıkış yap') }}</button></li>
             </ul>
           </div>
         </template>
         <template v-else>
-          <NuxtLink to="/giris" class="login">Giriş yap</NuxtLink>
-          <a :href="businessHref" class="btn btn-dark cta">İşletmeni ekle<ArrowRight aria-hidden="true"/></a>
+          <NuxtLink to="/giris" class="login">{{ t('Giriş yap') }}</NuxtLink>
+          <a :href="businessHref" class="btn btn-dark cta">{{ t('İşletmeni ekle') }}<ArrowRight aria-hidden="true"/></a>
         </template>
 
-        <button type="button" class="burger" :aria-expanded="menuOpen" aria-label="Menü" @click="menuOpen = !menuOpen">
+        <button type="button" class="burger" :aria-expanded="menuOpen" :aria-label="t('Menü')" @click="menuOpen = !menuOpen">
           <X v-if="menuOpen" :size="20" aria-hidden="true"/><Menu v-else :size="20" aria-hidden="true"/>
         </button>
       </div>
@@ -135,8 +150,18 @@ async function signOut() {
 .dot{width:7px;height:7px;border-radius:999px;background:var(--orange-500)}
 .menu-extra{display:none}
 .right{display:flex;align-items:center;gap:8px;flex:none}
-.lang{display:flex;align-items:center;gap:6px;padding:10px 14px;border:1px solid var(--cream-200);border-radius:999px;font-weight:600;font-size:13px;line-height:1.2;color:var(--ink-800)}
-.lang:hover{border-color:var(--ink-300)}
+/* V2Select renders a fragment, so its trigger is reached with :deep() from the nav. */
+.right :deep(.lang){display:flex;align-items:center;gap:6px;padding:10px 12px 10px 14px;border:1px solid var(--cream-200);border-radius:999px;font-weight:600;font-size:13px;line-height:1.2;color:var(--ink-800)}
+.right :deep(.lang:hover),.right :deep(.lang.open){border-color:var(--ink-300)}
+.right :deep(.lang:focus-visible){outline:none;box-shadow:0 0 0 3px rgba(243,107,33,.18)}
+.right :deep(.lang .v2-select-chev){width:14px;height:14px}
+/* Block flex: an inline box would sit on the text baseline, about 2px above the chevron. */
+.lang-value{display:flex;align-items:center;gap:6px;line-height:16px}
+.lang-row{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 16px;color:var(--ink-700)}
+.lang-row > svg{margin-right:4px}
+.lang-opt{padding:8px 14px;border:1px solid var(--cream-200);border-radius:999px;font-weight:600;font-size:14px;line-height:1.2;color:var(--ink-700)}
+.lang-opt:hover{border-color:var(--ink-300);color:var(--ink-900)}
+.lang-opt.on{background:var(--ink-900);border-color:var(--ink-900);color:var(--white)}
 .login{padding:10px 14px;font-weight:600;font-size:15px;line-height:1.2;color:var(--ink-900)}
 .bell img{width:42px;height:42px}
 .bell{position:relative;display:block}
@@ -166,7 +191,7 @@ async function signOut() {
   .v2-nav :deep(.v2-logo){gap:8px}
   .v2-nav :deep(.v2-logo img){width:49.2px;height:28.8px}
   .v2-nav :deep(.v2-logo .word){font-size:20.8px}
-  .cta,.login,.lang,.account-pill .name,.account-pill > svg{display:none}
+  .cta,.login,.right :deep(.lang),.account-pill .name,.account-pill > svg{display:none}
   .account-pill{padding:4px}
 }
 @media (min-width:761px){

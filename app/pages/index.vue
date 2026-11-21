@@ -8,12 +8,14 @@ import HomeHero from '~/components/v2/home/HomeHero.vue';
 import HomeQuote from '~/components/v2/home/HomeQuote.vue';
 import HomeReviews from '~/components/v2/home/HomeReviews.vue';
 import HomeSymptomFinder from '~/components/v2/home/HomeSymptomFinder.vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Web v2 home (Figma 107:38 "W-V2 · Ana sayfa · Misafir"). Navbar and footer come from app.vue.
 // All content is synthetic mock data from app/data/mock/home.ts and businesses.ts.
+const {t} = useLocale();
 useSeoMeta({
-  title: 'Aracına iyi bakacak ustayı bul',
-  description: 'Mekanikten oto kuaföre 20 kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.',
+  title: () => t('Aracına iyi bakacak ustayı bul'),
+  description: () => t('Mekanikten oto kuaföre 20 kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.'),
 });
 </script>
 

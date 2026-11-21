@@ -2,9 +2,11 @@
 import {computed, onBeforeUnmount, onMounted, ref} from 'vue';
 import {ArrowLeft, ArrowRight} from '@lucide/vue';
 import V2ReviewCard from '~/components/v2/V2ReviewCard.vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeReviews} from '~/data/mock/home';
 
 // Figma 113:253 "Yorumlar · karusel": draggable track with arrows, a position counter and a progress line.
+const {t} = useLocale();
 const track = ref<HTMLElement | null>(null);
 const index = ref(0);
 const progress = ref({width: 0.2, offset: 0});
@@ -74,21 +76,21 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="home-reviews" aria-labelledby="home-reviews-title" aria-roledescription="karusel">
+  <section class="home-reviews" aria-labelledby="home-reviews-title" :aria-roledescription="t('karusel')">
     <div class="head">
       <div class="titles">
-        <p class="t-mono-md">YORUMLAR</p>
-        <h2 id="home-reviews-title" class="t-h2">Sürücüler ne diyor?</h2>
+        <p class="t-mono-md">{{ t('YORUMLAR') }}</p>
+        <h2 id="home-reviews-title" class="t-h2">{{ t('Sürücüler ne diyor?') }}</h2>
       </div>
       <div class="arrows">
         <p class="t-mono-md counter" aria-live="polite">{{ counter }}</p>
-        <button type="button" class="arrow outline" aria-label="Önceki yorum" :disabled="atStart" @click="go(-1)"><ArrowLeft :size="20" aria-hidden="true"/></button>
-        <button type="button" class="arrow solid" aria-label="Sonraki yorum" :disabled="atEnd" @click="go(1)"><ArrowRight :size="20" aria-hidden="true"/></button>
+        <button type="button" class="arrow outline" :aria-label="t('Önceki yorum')" :disabled="atStart" @click="go(-1)"><ArrowLeft :size="20" aria-hidden="true"/></button>
+        <button type="button" class="arrow solid" :aria-label="t('Sonraki yorum')" :disabled="atEnd" @click="go(1)"><ArrowRight :size="20" aria-hidden="true"/></button>
       </div>
     </div>
 
     <ul
-      ref="track" class="track" tabindex="0" aria-label="Sürücü yorumları"
+      ref="track" class="track" tabindex="0" :aria-label="t('Sürücü yorumları')"
       @scroll.passive="update" @pointerdown="down" @pointermove="move" @click.capture="clickCapture" @dragstart.prevent>
       <li v-for="(review, i) in homeReviews" :key="review.id" class="slide" :aria-label="`${i + 1} / ${homeReviews.length}`">
         <V2ReviewCard :review="review"/>
@@ -99,7 +101,7 @@ onBeforeUnmount(() => {
       <span class="bar" aria-hidden="true">
         <span class="bar-fill" :style="{width: `${progress.width * 100}%`, transform: `translateX(${(progress.offset / Math.max(progress.width, 0.01)) * 100}%)`}"/>
       </span>
-      <span class="t-body-sm drag-hint">Sürükle ya da okları kullan</span>
+      <span class="t-body-sm drag-hint">{{ t('Sürükle ya da okları kullan') }}</span>
     </div>
   </section>
 </template>

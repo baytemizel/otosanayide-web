@@ -1,6 +1,7 @@
 import {brands as coreBrands, categories, cities} from '@otosanayide/core';
 import {maxNearbyRadius, type AreaPoint} from '@otosanayide/core/coverage';
 import {allProvinces, nearbyProvince, sameText, trLower, type SearchFilters, type SearchSort} from '~/data/mock/search';
+import {turkish, type Translate} from '~/lib/i18n';
 import {toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
 import {bundledCoverage, coverageCenter, coverageCity, coverageDistricts, type Coverage} from '~/lib/v2/coverage';
 import type {SearchPage} from '~/lib/search-response';
@@ -152,12 +153,12 @@ export function appendCards(list: CardBusiness[], next: CardBusiness[]) {
 }
 
 /** "18 işletme" / "en az 480 işletme" / "24 işletme gösteriliyor". */
-export function resultCount(total: SearchPage['total'], shown: number) {
-  if (total) return total.exact ? `${total.value} işletme` : `en az ${total.value} işletme`;
-  return `${shown} işletme gösteriliyor`;
+export function resultCount(total: SearchPage['total'], shown: number, t: Translate = turkish) {
+  if (total) return total.exact ? t('{count} işletme', {count: total.value}) : t('en az {count} işletme', {count: total.value});
+  return t('{count} işletme gösteriliyor', {count: shown});
 }
 
-/** Readable message for a failed search. */
+/** Readable message for a failed search, in Turkish (the page translates it when it is shown). */
 export function searchErrorText(status: number, apiMessage = '') {
   if (status === 400) return 'Arama filtreleri kabul edilmedi. Filtreleri değiştirip tekrar dene.';
   if (status === 429) return 'Çok fazla arama yapıldı. Biraz bekleyip tekrar dene.';
@@ -178,8 +179,8 @@ export const homeLiveCity = cities.includes('İstanbul') ? 'İstanbul' : cities[
  * Open/closed wording for the map pop-ups and rows. A live card whose hours are only free text has no
  * open state (toCardBusiness reports it as known but closed), so it shows the text instead of "Kapalı".
  */
-export function openLabel(b: Pick<CardBusiness, 'hoursKnown' | 'open' | 'hoursText' | 'source' | 'extras'>): {open: boolean | null; text: string} {
-  if (b.hoursKnown === false) return {open: null, text: 'Saat bilgisi yok'};
+export function openLabel(b: Pick<CardBusiness, 'hoursKnown' | 'open' | 'hoursText' | 'source' | 'extras'>, t: Translate = turkish): {open: boolean | null; text: string} {
+  if (b.hoursKnown === false) return {open: null, text: t('Saat bilgisi yok')};
   if (b.source && !b.extras?.openingHours) return {open: null, text: b.hoursText};
-  return {open: b.open, text: b.open ? 'Açık' : 'Kapalı'};
+  return {open: b.open, text: b.open ? t('Açık') : t('Kapalı')};
 }

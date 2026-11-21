@@ -7,8 +7,10 @@ import {requestReceipt} from '@otosanayide/core/request-client';
 import {requestAction} from '@otosanayide/core/request-operations';
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
+import {useLocale} from '~/composables/useLocale';
 import {callApi, errorStatus} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
+import {turkish, type Translate} from '~/lib/i18n';
 import {messagesApi, type RequestMessage} from '~/lib/member-api';
 import {readBusiness} from '~/lib/server-read';
 import {toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
@@ -20,9 +22,10 @@ import {
 /** Bearer token of the signed-in member; throws a readable message when the session is gone. */
 export function memberToken() {
   const app = useApp();
+  const {t} = useLocale();
   return async () => {
     const user = app.user;
-    if (!user) throw Error('Oturumun sona erdi. Yeniden giriş yap.');
+    if (!user) throw Error(t('Oturumun sona erdi. Yeniden giriş yap.'));
     return user.getIdToken();
   };
 }
@@ -31,9 +34,10 @@ export type BusinessState = 'loading' | 'found' | 'missing' | 'unavailable';
 
 /** The business a request goes to (?servis=). Live only; `canRequest` follows the core feature rule. */
 export function useRequestBusiness(id: () => string, kind: 'quotes' | 'appointments') {
+  const {locale} = useLocale();
   const state = ref<BusinessState>('loading');
   const business = shallowRef<CardBusiness | null>(null);
-  useClientEffect(() => [id()], () => {
+  useClientEffect(() => [id(), locale.value], () => {
     if (demoMode()) return;
     const wanted = id();
     let cancelled = false;
@@ -43,7 +47,7 @@ export function useRequestBusiness(id: () => string, kind: 'quotes' | 'appointme
       state.value = 'missing';
       return;
     }
-    void readBusiness(wanted, 'tr').then(read => {
+    void readBusiness(wanted, locale.value).then(read => {
       if (cancelled) return;
       if (read.status === 'found') business.value = toCardBusiness(read.business, read.extras);
       state.value = read.status;
@@ -84,16 +88,20 @@ export function requestKeyKeeper() {
   };
 }
 
-export function requestSendError(error: unknown, kind: 'quotes' | 'appointments') {
-  return liveErrorMessage(error, 'Talep gönderilemedi. Tekrar dene.', {
-    403: 'Talep göndermek için önce e-posta adresini doğrula (Hesabım sayfası).',
-    ...(kind === 'appointments' ? {409: 'Seçtiğin saat artık uygun değil. Başka bir saat seç.'} : {}),
-  });
+/** Called from a page's catch block (no Nuxt context there), so the page passes its `t`. */
+export function requestSendError(error: unknown, kind: 'quotes' | 'appointments', t: Translate = turkish) {
+  return liveErrorMessage(error, t('Talep gönderilemedi. Tekrar dene.'), {
+    403: t('Talep göndermek için önce e-posta adresini doğrula (Hesabım sayfası).'),
+    ...(kind === 'appointments' ? {409: slotTakenMessage(t)} : {}),
+  }, t);
 }
+/** The 409 text of an appointment whose slot was taken meanwhile; /randevu compares against it. */
+export const slotTakenMessage = (t: Translate = turkish) => t('Seçtiğin saat artık uygun değil. Başka bir saat seç.');
 
 /** The member's requests (GET /api/requests?v=2) with accept/cancel (PATCH, customer actions only; cancel carries a v2-01 reason code). */
 export function useMemberRequests() {
   const app = useApp();
+  const {t, localeTag} = useLocale();
   const token = memberToken();
   const items = ref<LiveRequest[]>([]);
   const next = ref<string | null>(null);
@@ -117,7 +125,7 @@ export function useMemberRequests() {
       now.value = Date.now();
       loaded.value = true;
     } catch (e) {
-      if (run === generation) error.value = liveErrorMessage(e, 'Talepler yüklenemedi. Tekrar dene.');
+      if (run === generation) error.value = liveErrorMessage(e, t('Talepler yüklenemedi. Tekrar dene.'), {}, t);
     } finally {
       if (run === generation) loading.value = false;
     }
@@ -128,18 +136,18 @@ export function useMemberRequests() {
     void load();
   });
 
-  const views = computed<RequestView[]>(() => items.value.map(item => requestView(item, now.value)));
+  const views = computed<RequestView[]>(() => items.value.map(item => requestView(item, now.value, t, localeTag.value)));
 
   async function act(view: RequestView, action: 'accept' | 'cancel', reason?: {code: CancelReason; text: string}) {
     if (acting.value) return;
     acting.value = true;
     try {
       // The core action schema is strict and has no reasonCode yet: the cancel body is built here.
-      const body = action === 'cancel' && reason ? cancelBody(view, reason.code, reason.text) : requestAction.parse({id: view.id, version: view.version, action});
+      const body = action === 'cancel' && reason ? cancelBody(view, reason.code, reason.text, t) : requestAction.parse({id: view.id, version: view.version, action});
       await callApi('/api/requests', {method: 'PATCH', token: await token(), body}, raw => z.object({ok: z.literal(true)}).passthrough().parse(raw));
       await load();
     } catch (e) {
-      throw Error(liveErrorMessage(e, 'İşlem tamamlanamadı. Tekrar dene.', {409: 'Talep değişti ya da önerinin süresi doldu. Liste yenilendi.'}));
+      throw Error(liveErrorMessage(e, t('İşlem tamamlanamadı. Tekrar dene.'), {409: t('Talep değişti ya da önerinin süresi doldu. Liste yenilendi.')}, t));
     } finally {
       acting.value = false;
     }
@@ -151,6 +159,7 @@ export function useMemberRequests() {
 /** Messages of one request (web-15 (2)). No notification is sent to the business. */
 export function useRequestThread(requestId: () => string) {
   const app = useApp();
+  const {t} = useLocale();
   const token = memberToken();
   const items = ref<RequestMessage[]>([]);
   const next = ref<string | null>(null);
@@ -171,7 +180,7 @@ export function useRequestThread(requestId: () => string) {
       items.value = after ? [...items.value, ...page.items] : page.items;
       next.value = page.next;
     } catch (e) {
-      if (run === generation) error.value = liveErrorMessage(e, 'Mesajlar yüklenemedi.');
+      if (run === generation) error.value = liveErrorMessage(e, t('Mesajlar yüklenemedi.'), {}, t);
     } finally {
       if (run === generation) loading.value = false;
     }
@@ -195,7 +204,7 @@ export function useRequestThread(requestId: () => string) {
       // A refused message (4xx) was not stored: the next text gets a new operation id.
       const status = errorStatus(e);
       if (status >= 400 && status < 500) operationId = '';
-      throw Error(liveErrorMessage(e, 'Mesaj gönderilemedi.', {409: 'Bu talep kapandığı için mesaj gönderilemez.'}));
+      throw Error(liveErrorMessage(e, t('Mesaj gönderilemedi.'), {409: t('Bu talep kapandığı için mesaj gönderilemez.')}, t));
     }
   }
   return {items, next, loading, error, load, send};
@@ -203,6 +212,7 @@ export function useRequestThread(requestId: () => string) {
 
 /** Public availability for a week (web-15 (3); v2-01: free and full slots, 30-minute slots). */
 export function useAvailability(businessId: () => string, from: Ref<string>, enabled: () => boolean) {
+  const {t} = useLocale();
   const data = shallowRef<LiveAvailability | null>(null);
   const loading = ref(false);
   const error = ref('');
@@ -215,7 +225,7 @@ export function useAvailability(businessId: () => string, from: Ref<string>, ena
     callApi(`/api/businesses/${encodeURIComponent(businessId())}/availability?from=${from.value}&days=7&v=2`, {}, decodeAvailability).then(value => {
       if (!cancelled) data.value = value;
     }).catch(e => {
-      if (!cancelled) error.value = liveErrorMessage(e, 'Uygun saatler yüklenemedi.');
+      if (!cancelled) error.value = liveErrorMessage(e, t('Uygun saatler yüklenemedi.'), {}, t);
     }).finally(() => {
       if (!cancelled) loading.value = false;
     });

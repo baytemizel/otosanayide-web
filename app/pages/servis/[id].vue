@@ -20,7 +20,7 @@ import {mockProfile} from '~/data/mock/profile';
 import {demoMode, publicEnv} from '~/lib/env';
 import {readBusiness} from '~/lib/server-read';
 import {businessJsonLd, serializeJsonLd} from '~/lib/structured-data';
-import {toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
+import {localiseCard, toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
 import {contactTargets, liveProfile, liveReportReasons, profileSeo, requestActions, type ProfileView, type ReportReason, type ReviewSummaryView} from '~/lib/v2/profile';
 
 // Business profile (Figma W04 verified + photos, W05 unclaimed + no photo).
@@ -33,7 +33,7 @@ definePageMeta({key: (route) => String(route.params.id)});
 const route = useRoute();
 const router = useRouter();
 const app = useApp();
-const {locale} = useLocale();
+const {t, locale, localeTag} = useLocale();
 const demo = demoMode();
 const id = String(route.params.id);
 
@@ -76,7 +76,8 @@ async function retry() {
 // Browser-side live data (no-ops in demo mode).
 const liveData = useProfileLive(id, found.value?.extras.reviewSummary ?? null);
 const live = !demo;
-const business = computed(() => view.value?.business ?? null);
+// The card in the page language (category, hours text); the profile labels are translated by the components.
+const business = computed(() => (view.value ? localiseCard(view.value.business, t, localeTag.value) : null));
 const profile = computed<ProfileView | null>(() => {
   const base = view.value?.profile;
   if (!base) return null;
@@ -96,13 +97,13 @@ onMounted(() => {
 // --- Head: title, description, canonical, JSON-LD (as the pre-v2 profile did) ----------------------
 if (demo && loaded) {
   const b = loaded.business;
-  useSeoMeta({title: `${b.name} · ${b.district} / ${b.city} · ${b.category}`});
+  useSeoMeta({title: () => `${b.name} · ${b.district} / ${b.city} · ${t(b.category)}`});
 } else {
   const site = publicEnv().siteOrigin;
   const canonical = computed(() => (site && found.value ? `${site}/servis/${encodeURIComponent(id)}` : undefined));
-  const seo = computed(() => (found.value ? profileSeo(found.value.business) : null));
+  const seo = computed(() => (found.value ? profileSeo(found.value.business, t) : null));
   useSeoMeta({
-    title: () => seo.value?.title ?? 'Profil şu anda kullanılamıyor',
+    title: () => seo.value?.title ?? t('Profil şu anda kullanılamıyor'),
     description: () => seo.value?.description,
     ogTitle: () => seo.value?.title,
     ogDescription: () => seo.value?.description,
@@ -185,11 +186,12 @@ const reportReview = live ? liveData.reportReview : undefined;
 const submitReview = live ? liveData.submitReview : undefined;
 const editReview = live ? liveData.editReview : undefined;
 const submitReport = live ? (reason: string, note: string) => liveData.reportBusiness(reason as ReportReason, note) : undefined;
+const photoCaption = (alt: string) => t(alt);
 </script>
 
 <template>
   <div v-if="business && profile" class="profile-page">
-    <nav class="crumbs v2-wrap t-body-sm" aria-label="Konum yolu">
+    <nav class="crumbs v2-wrap t-body-sm" :aria-label="t('Konum yolu')">
       <ol>
         <li>{{ business.city }}</li>
         <li aria-hidden="true" class="sep">/</li>
@@ -228,31 +230,31 @@ const submitReport = live ? (reason: string, note: string) => liveData.reportBus
       v-bind="live ? {reasons: liveReportReasons, submit: submitReport, signInHref: guestHref} : {}"
       @close="closeReport"/>
 
-    <V2Modal :open="photosOpen" title="Fotoğraflar" :subtitle="`${business.name} · ${profile.photoCount} fotoğraf`" :width="960" @close="photosOpen = false">
+    <V2Modal :open="photosOpen" :title="t('Fotoğraflar')" :subtitle="t('{name} · {count} fotoğraf', {name: business.name, count: profile.photoCount})" :width="960" @close="photosOpen = false">
       <figure v-if="currentPhoto" class="viewer">
-        <img :src="currentPhoto.src" :alt="currentPhoto.alt" width="896" height="504">
-        <figcaption class="t-body-sm t-muted">{{ currentPhoto.alt }}</figcaption>
+        <img :src="currentPhoto.src" :alt="photoCaption(currentPhoto.alt)" width="896" height="504">
+        <figcaption class="t-body-sm t-muted">{{ photoCaption(currentPhoto.alt) }}</figcaption>
       </figure>
       <ul class="thumbs">
         <li v-for="(photo, i) in profile.photos" :key="photo.src">
-          <button type="button" class="thumb" :class="{on: i === photoIndex}" :aria-pressed="i === photoIndex" :aria-label="`${i + 1}. fotoğraf`" @click="photoIndex = i">
+          <button type="button" class="thumb" :class="{on: i === photoIndex}" :aria-pressed="i === photoIndex" :aria-label="t('{n}. fotoğraf', {n: i + 1})" @click="photoIndex = i">
             <img :src="photo.thumb ?? photo.src" alt="" width="160" height="100">
           </button>
         </li>
       </ul>
-      <p v-if="live" class="t-body-sm t-muted">İşletme sahibi tarafından eklendi ve yayın incelemesinden geçti. Hizmet kalitesi garantisi değildir.</p>
+      <p v-if="live" class="t-body-sm t-muted">{{ t('İşletme sahibi tarafından eklendi ve yayın incelemesinden geçti. Hizmet kalitesi garantisi değildir.') }}</p>
     </V2Modal>
 
-    <V2Modal v-if="!live" :open="mapOpen" title="Konum" :subtitle="`${business.address} / ${business.city}`" :width="760" @close="mapOpen = false">
-      <ProfileMiniMap :label="`${business.name} konumu, örnek harita`" class="big-map"/>
-      <p class="t-body-sm t-muted">Harita görünümü temsilidir; yol tarifi için adresi kullanın.</p>
+    <V2Modal v-if="!live" :open="mapOpen" :title="t('Konum')" :subtitle="`${business.address} / ${business.city}`" :width="760" @close="mapOpen = false">
+      <ProfileMiniMap :label="t('{name} konumu, örnek harita', {name: business.name})" class="big-map"/>
+      <p class="t-body-sm t-muted">{{ t('Harita görünümü temsilidir; yol tarifi için adresi kullanın.') }}</p>
     </V2Modal>
   </div>
 
   <div v-else-if="unavailable" class="profile-page v2-wrap fallback" role="alert">
-    <h1 class="t-h2">Profil şu anda kullanılamıyor</h1>
-    <p class="t-body-md t-muted">İşletme bilgisi alınamadı. Bağlantı kurulduğunda profil burada görünecek.</p>
-    <V2Button variant="outline" :disabled="retrying" @click="retry">{{ retrying ? 'Yükleniyor…' : 'Tekrar dene' }}</V2Button>
+    <h1 class="t-h2">{{ t('Profil şu anda kullanılamıyor') }}</h1>
+    <p class="t-body-md t-muted">{{ t('İşletme bilgisi alınamadı. Bağlantı kurulduğunda profil burada görünecek.') }}</p>
+    <V2Button variant="outline" :disabled="retrying" @click="retry">{{ retrying ? t('Yükleniyor…') : t('Tekrar dene') }}</V2Button>
   </div>
 </template>
 

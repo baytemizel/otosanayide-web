@@ -1,9 +1,10 @@
 import {computed, ref, watch} from 'vue';
 import {z} from 'zod';
 import {publicBusinessPhotos} from '@otosanayide/core/business-photos';
-import {parsePublicReviews} from '@otosanayide/core/public-reviews-client';
+import {parsePublicReviews, type PublicReviewItem} from '@otosanayide/core/public-reviews-client';
 import {ownReviewView, type OwnReviewView} from '@otosanayide/core/review-author-client';
 import {useApp} from '~/composables/useApp';
+import {useLocale} from '~/composables/useLocale';
 import {apiUrl} from '~/lib/api';
 import {callApi, errorStatus} from '~/lib/api-read';
 import {ReportError, submitBusinessReport, type ReportReason} from '~/lib/business-report';
@@ -20,13 +21,16 @@ import {
  * wrong data (POST /api/businesses/{id}/reports) and public photos (GET /api/businesses/photos/public,
  * only with NUXT_PUBLIC_BUSINESS_PHOTOS_ENABLED). Nothing here runs in demo mode or during SSR.
  * An API without v2-03 answers `v=2` with 400; the reads then fall back to the v1 shape once.
+ * Reviews and photos are kept as read and turned into cards in the page language (a language switch re-renders).
+ * Error messages are Turkish source texts; the components translate them when they show them.
  */
 export function useProfileLive(businessId: string, initialSummary: ReviewSummaryView) {
   const app = useApp();
   const route = useRoute();
   const live = !demoMode();
+  const {t, localeTag} = useLocale();
 
-  const reviews = ref<ProfileReviewView[]>([]);
+  const items = ref<PublicReviewItem[]>([]);
   const summary = ref<ReviewSummaryView>(initialSummary);
   const state = ref<'loading' | 'ready' | 'error'>('loading');
   const error = ref('');
@@ -56,14 +60,13 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
       const query = new URLSearchParams({businessId});
       if (after) query.set('after', after);
       const page = await readV2(`/api/reviews?${query}`, undefined, parsePublicReviews);
-      const items = page.reviews.map((item) => reviewView(item, reviewMedia));
-      reviews.value = after ? [...reviews.value, ...items.filter((r) => !reviews.value.some((x) => x.id === r.id))] : items;
+      items.value = after ? [...items.value, ...page.reviews.filter((r) => !items.value.some((x) => x.id === r.id))] : page.reviews;
       next.value = page.nextCursor;
       summary.value = {count: page.count, average: page.average};
       state.value = 'ready';
     } catch (e) {
       const message = e instanceof Error && e.message ? e.message : 'Yorumlar yüklenemedi.';
-      if (after) app.notify(message);
+      if (after) app.notify(t(message));
       else {
         error.value = message;
         state.value = 'error';
@@ -147,7 +150,15 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
     }
   }
 
-  const photos = ref<ProfilePhotoView[]>([]);
+  const reviews = computed<ProfileReviewView[]>(() => items.value.map((item) => reviewView(item, reviewMedia, t, localeTag.value)));
+
+  const photoList = ref<{name: string; ids: string[]}>({name: '', ids: []});
+  const photoMedia = (id: string, size = '') => apiUrl(`/api/businesses/photos/media?businessId=${encodeURIComponent(businessId)}&id=${encodeURIComponent(id)}${size}`);
+  const photos = computed<ProfilePhotoView[]>(() => photoList.value.ids.map((id, i) => ({
+    src: photoMedia(id),
+    thumb: photoMedia(id, '&size=thumbnail'),
+    alt: i === 0 ? t('{name} kapak fotoğrafı', {name: photoList.value.name}) : t('{name} işletme fotoğrafı {n}', {name: photoList.value.name, n: i + 1}),
+  })));
   async function loadPhotos(name: string) {
     if (!live || !publicEnv().businessPhotosEnabled) return;
     try {
@@ -157,11 +168,10 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
         return value;
       });
       const ids = list.coverId ? [list.coverId, ...list.ids.filter((id) => id !== list.coverId)] : list.ids;
-      const media = (id: string, size = '') => apiUrl(`/api/businesses/photos/media?businessId=${encodeURIComponent(businessId)}&id=${encodeURIComponent(id)}${size}`);
-      photos.value = ids.map((id, i) => ({src: media(id), thumb: media(id, '&size=thumbnail'), alt: i === 0 ? `${name} kapak fotoğrafı` : `${name} işletme fotoğrafı ${i + 1}`}));
+      photoList.value = {name, ids};
     } catch {
       // Photos are optional: the no-photo cover stays.
-      photos.value = [];
+      photoList.value = {name, ids: []};
     }
   }
 

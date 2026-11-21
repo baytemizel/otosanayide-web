@@ -3,6 +3,7 @@ import {computed, ref, watch} from 'vue';
 import {MapPin, Search, X} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Select from '~/components/v2/V2Select.vue';
+import {useLocale} from '~/composables/useLocale';
 import {allProvinces, districtsByProvince, type SearchFilters} from '~/data/mock/search';
 
 // "Arama şeridi" (Figma 119:68): natural-language search, province and district pickers, and the
@@ -11,6 +12,7 @@ import {allProvinces, districtsByProvince, type SearchFilters} from '~/data/mock
 // picker then groups the provinces outside coverage, which only lead to S02.
 const props = defineProps<{filters: SearchFilters; chips: {key: string; label: string}[]; districts?: string[]; covered?: string[]}>();
 const emit = defineEmits<{submit: [text: string]; place: [il: string, ilce: string]; remove: [key: string]; fix: []}>();
+const {t} = useLocale();
 
 const text = ref(props.filters.q);
 watch(() => props.filters.q, (value) => { text.value = value; });
@@ -22,9 +24,9 @@ const inService = computed(() => provinces.value.filter((p) => coveredSet.value.
 const outside = computed(() => provinces.value.filter((p) => !coveredSet.value.has(p)));
 
 const provinceOptions = computed(() => (props.covered
-  ? [...inService.value.map((p) => ({value: p, group: 'Hizmet verilen iller'})), ...outside.value.map((p) => ({value: p, group: 'Henüz hizmet verilmeyen iller'}))]
+  ? [...inService.value.map((p) => ({value: p, group: t('Hizmet verilen iller')})), ...outside.value.map((p) => ({value: p, group: t('Henüz hizmet verilmeyen iller')}))]
   : provinces.value));
-const districtOptions = computed(() => [{value: '', label: 'Tüm ilçeler'}, ...districts.value.map((d) => ({value: d}))]);
+const districtOptions = computed(() => [{value: '', label: t('Tüm ilçeler')}, ...districts.value.map((d) => ({value: d}))]);
 
 function onProvince(value: string) {
   emit('place', value, '');
@@ -35,31 +37,31 @@ function onDistrict(value: string) {
 </script>
 
 <template>
-  <section class="strip v2-wrap" aria-label="Arama">
+  <section class="strip v2-wrap" :aria-label="t('Arama')">
     <form class="bar" role="search" @submit.prevent="emit('submit', text)">
       <Search :size="20" class="lead" aria-hidden="true"/>
-      <label class="sr-only" for="search-text">Ne arıyorsun?</label>
-      <input id="search-text" v-model="text" class="query" type="search" placeholder="Örn. Kadıköy’de BMW için boyasız göçük" autocomplete="off">
+      <label class="sr-only" for="search-text">{{ t('Ne arıyorsun?') }}</label>
+      <input id="search-text" v-model="text" class="query" type="search" :placeholder="t('Örn. Kadıköy’de BMW için boyasız göçük')" autocomplete="off">
       <span class="place">
         <MapPin :size="16" aria-hidden="true"/>
-        <V2Select :model-value="filters.il" :options="provinceOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" aria-label="İl" @change="onProvince"/>
+        <V2Select :model-value="filters.il" :options="provinceOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" :aria-label="t('İl')" @change="onProvince"/>
       </span>
       <span class="place">
         <MapPin :size="16" aria-hidden="true"/>
-        <V2Select :model-value="filters.ilce" :options="districtOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" aria-label="İlçe" @change="onDistrict"/>
+        <V2Select :model-value="filters.ilce" :options="districtOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" :aria-label="t('İlçe')" @change="onDistrict"/>
       </span>
-      <V2Button type="submit" arrow class="go">Servis bul</V2Button>
+      <V2Button type="submit" arrow class="go">{{ t('Servis bul') }}</V2Button>
     </form>
     <div v-if="chips.length" class="read">
-      <span class="t-mono-sm t-muted">Anladığımız</span>
+      <span class="t-mono-sm t-muted">{{ t('Anladığımız') }}</span>
       <ul class="chips">
         <li v-for="chip in chips" :key="chip.key">
-          <button type="button" class="read-chip t-label-sm" :aria-label="`Kaldır: ${chip.label}`" @click="emit('remove', chip.key)">
+          <button type="button" class="read-chip t-label-sm" :aria-label="t('Kaldır: {label}', {label: chip.label})" @click="emit('remove', chip.key)">
             {{ chip.label }}<X :size="13" aria-hidden="true"/>
           </button>
         </li>
       </ul>
-      <button type="button" class="fix t-label-sm" @click="emit('fix')">Yanlış anladıysak düzelt</button>
+      <button type="button" class="fix t-label-sm" @click="emit('fix')">{{ t('Yanlış anladıysak düzelt') }}</button>
     </div>
   </section>
 </template>

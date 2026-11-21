@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {ArrowRight} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {homeBusinessPanel} from '~/data/mock/home';
 import {portalUrl} from '~/lib/portal';
 
 // Figma 113:463 "İşletmeler için". Business screens live in the portal; without its origin the links stay on this section.
+// Panel texts and day abbreviations are Turkish source text, translated at render.
+const {t} = useLocale();
 const claimHref = portalUrl('claim') ?? '/#isletmeler';
 const newHref = portalUrl('newBusiness') ?? '/#isletmeler';
 </script>
@@ -15,31 +18,31 @@ const newHref = portalUrl('newBusiness') ?? '/#isletmeler';
       <img class="glow glow-left" src="/v2/home/glow-biz-left.svg" alt="" width="480" height="480" aria-hidden="true">
 
       <div class="text">
-        <p class="pill t-mono-sm"><span class="pill-dot" aria-hidden="true"/>İŞLETMELER İÇİN</p>
-        <h2 id="home-business-title" class="t-h2">İşletmen listede mi?</h2>
-        <p class="t-body-md lead">Profilini ücretsiz sahiplen; bilgilerini güncelle, yorumlara yanıt ver, teklif taleplerini tek kutuda topla.</p>
+        <p class="pill t-mono-sm"><span class="pill-dot" aria-hidden="true"/>{{ t('İŞLETMELER İÇİN') }}</p>
+        <h2 id="home-business-title" class="t-h2">{{ t('İşletmen listede mi?') }}</h2>
+        <p class="t-body-md lead">{{ t('Profilini ücretsiz sahiplen; bilgilerini güncelle, yorumlara yanıt ver, teklif taleplerini tek kutuda topla.') }}</p>
         <div class="cta">
-          <a :href="claimHref" class="btn btn-lime">Bu işletme benim<ArrowRight aria-hidden="true"/></a>
-          <a :href="newHref" class="btn btn-outline-dark">Yeni işletme ekle<ArrowRight aria-hidden="true"/></a>
+          <a :href="claimHref" class="btn btn-lime">{{ t('Bu işletme benim') }}<ArrowRight aria-hidden="true"/></a>
+          <a :href="newHref" class="btn btn-outline-dark">{{ t('Yeni işletme ekle') }}<ArrowRight aria-hidden="true"/></a>
         </div>
-        <p class="t-body-sm fine">Sahiplik rozeti yönetim yetkisini gösterir; hizmet kalitesi garantisi değildir.</p>
+        <p class="t-body-sm fine">{{ t('Sahiplik rozeti yönetim yetkisini gösterir; hizmet kalitesi garantisi değildir.') }}</p>
       </div>
 
-      <figure class="preview" aria-label="Örnek işletme paneli: bu hafta 128 profil görüntülenmesi">
-        <p class="t-mono-sm muted">BU HAFTA · ÖRNEK PANEL</p>
+      <figure class="preview" :aria-label="t('Örnek işletme paneli: bu hafta {count} profil görüntülenmesi', {count: homeBusinessPanel.views})">
+        <p class="t-mono-sm muted">{{ t('BU HAFTA · ÖRNEK PANEL') }}</p>
         <div class="stat">
           <span class="t-stat">{{ homeBusinessPanel.views }}</span>
-          <span class="change t-mono-sm">{{ homeBusinessPanel.change }}</span>
+          <span class="change t-mono-sm">{{ t('+%{value}', {value: homeBusinessPanel.changePercent}) }}</span>
         </div>
-        <p class="t-body-sm muted">profil görüntülenmesi</p>
+        <p class="t-body-sm muted">{{ t('profil görüntülenmesi') }}</p>
         <div class="bars" aria-hidden="true">
           <span v-for="(bar, i) in homeBusinessPanel.bars" :key="bar.day" class="bar-col">
             <span class="bar" :class="{peak: i === homeBusinessPanel.peak}" :style="{height: `${bar.height}px`}"/>
-            <span class="day">{{ bar.day }}</span>
+            <span class="day">{{ t(bar.day) }}</span>
           </span>
         </div>
         <ul class="stats">
-          <li v-for="s in homeBusinessPanel.stats" :key="s" class="chip chip-dark">{{ s }}</li>
+          <li v-for="s in homeBusinessPanel.stats" :key="s.label" class="chip chip-dark">{{ t(s.label, {count: s.count}) }}</li>
         </ul>
       </figure>
     </div>

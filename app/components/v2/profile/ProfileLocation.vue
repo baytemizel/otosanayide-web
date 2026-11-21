@@ -4,52 +4,60 @@ import {ArrowUpRight, Check, MapPin} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import ProfileMiniMap from './ProfileMiniMap.vue';
 import type {MockBusiness} from '~/data/mock/businesses';
-import type {ProfileView} from '~/lib/v2/profile';
+import {dayRangeLabel, type ProfileView} from '~/lib/v2/profile';
+import {useLocale} from '~/composables/useLocale';
 
 // "Konum ve saatler": map, coordinate status, address, opening hours and the report link.
 // Demo: the drawn mock map and a map modal. Live (`mapHref` set): the drawing only for a verified point,
 // and "Haritada aç" opens Google Maps (the point, or an address search when the point is not verified).
 const props = withDefaults(defineProps<{business: MockBusiness; profile: ProfileView; mapHref?: string | null}>(), {mapHref: null});
 const emit = defineEmits<{map: []; report: []}>();
+const {t, locale, localeTag} = useLocale();
 
 // "bugün" is resolved on the client so server and browser render the same markup.
 const today = ref<number | null>(null);
 onMounted(() => { today.value = new Date().getDay(); });
 // The base address ends with the district, which the second line already shows.
 const street = computed(() => props.business.address.replace(new RegExp(`,\\s*${props.business.district}$`), ''));
-const rows = computed(() => (props.profile.hours ?? []).map((row) => ({...row, today: today.value !== null && row.days.includes(today.value)})));
+// Turkish keeps the row as built; other languages name the days with Intl, translate "Kapalı" and write "08:30".
+const rows = computed(() => (props.profile.hours ?? []).map((row) => ({
+  ...row,
+  label: locale.value === 'tr' ? row.label : dayRangeLabel(row.days, localeTag.value),
+  time: locale.value === 'tr' ? row.time : t(row.time).replace(/(\d{2})\.(\d{2})/g, '$1:$2'),
+  today: today.value !== null && row.days.includes(today.value),
+})));
 const showMap = computed(() => !props.mapHref || props.profile.coordinateVerified);
 </script>
 
 <template>
   <section id="konum" class="profile-location" aria-labelledby="konum-baslik">
-    <h2 id="konum-baslik" class="t-h3">Konum ve saatler</h2>
+    <h2 id="konum-baslik" class="t-h3">{{ t('Konum ve saatler') }}</h2>
     <div class="card">
-      <ProfileMiniMap v-if="showMap" :label="mapHref ? `${business.name} konumu, temsilî harita` : `${business.name} konumu, örnek harita`" class="map"/>
+      <ProfileMiniMap v-if="showMap" :label="mapHref ? t('{name} konumu, temsilî harita', {name: business.name}) : t('{name} konumu, örnek harita', {name: business.name})" class="map"/>
       <div v-else class="map no-map">
         <MapPin :size="26" aria-hidden="true"/>
-        <p class="t-label-sm">Harita noktası doğrulanıyor</p>
-        <p class="t-body-sm t-muted">Doğrulanmış konum eklendiğinde harita burada görünür.</p>
+        <p class="t-label-sm">{{ t('Harita noktası doğrulanıyor') }}</p>
+        <p class="t-body-sm t-muted">{{ t('Doğrulanmış konum eklendiğinde harita burada görünür.') }}</p>
       </div>
       <div class="info">
-        <span v-if="profile.coordinateVerified" class="pill pill-lime"><Check :size="14" aria-hidden="true"/>Koordinat doğrulandı</span>
-        <span v-else class="pill pill-cream">Kesin konum doğrulanmadı · Adres araması</span>
+        <span v-if="profile.coordinateVerified" class="pill pill-lime"><Check :size="14" aria-hidden="true"/>{{ t('Koordinat doğrulandı') }}</span>
+        <span v-else class="pill pill-cream">{{ t('Kesin konum doğrulanmadı · Adres araması') }}</span>
         <address class="t-body-md">{{ street }}<br>{{ business.district }} / {{ business.city }}</address>
         <ul v-if="rows.length" class="hours t-body-sm">
           <li v-for="row in rows" :key="row.label" :class="{today: row.today}">
-            <span class="day">{{ row.label }}<template v-if="row.today"> · bugün</template></span>
+            <span class="day">{{ row.label }}<template v-if="row.today"> · {{ t('bugün') }}</template></span>
             <span class="time">{{ row.time }}</span>
           </li>
         </ul>
         <p v-else-if="profile.hoursNote" class="t-body-sm hours-note">{{ profile.hoursNote }}</p>
-        <p v-else class="t-body-sm t-muted unknown">Çalışma saati henüz eklenmedi. Açık olduğu varsayılmaz.</p>
-        <a v-if="mapHref" class="btn btn-outline" :href="mapHref" target="_blank" rel="noopener noreferrer">{{ profile.coordinateVerified ? 'Google Maps’te aç' : 'Adresi haritada ara' }}<ArrowUpRight aria-hidden="true"/></a>
-        <V2Button v-else variant="outline" arrow @click="emit('map')">Haritada aç</V2Button>
+        <p v-else class="t-body-sm t-muted unknown">{{ t('Çalışma saati henüz eklenmedi. Açık olduğu varsayılmaz.') }}</p>
+        <a v-if="mapHref" class="btn btn-outline" :href="mapHref" target="_blank" rel="noopener noreferrer">{{ profile.coordinateVerified ? t('Google Maps’te aç') : t('Adresi haritada ara') }}<ArrowUpRight aria-hidden="true"/></a>
+        <V2Button v-else variant="outline" arrow @click="emit('map')">{{ t('Haritada aç') }}</V2Button>
       </div>
     </div>
     <p class="foot">
-      <button type="button" class="t-label-sm report" aria-haspopup="dialog" @click="emit('report')">Yanlış bilgi bildir</button>
-      <span class="t-body-sm t-muted">Profil değişiklikleri eski ve yeni değerle, zamanıyla saklanır.</span>
+      <button type="button" class="t-label-sm report" aria-haspopup="dialog" @click="emit('report')">{{ t('Yanlış bilgi bildir') }}</button>
+      <span class="t-body-sm t-muted">{{ t('Profil değişiklikleri eski ve yeni değerle, zamanıyla saklanır.') }}</span>
     </p>
   </section>
 </template>

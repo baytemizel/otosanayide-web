@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {ArrowRight, CalendarCheck, Info, RotateCcw} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 import {formatMoney, type OfferCardView, type OfferStatus} from '~/lib/v2/requests';
 
 // "Ön teklif" card (W15): line items, estimated total, decision buttons.
@@ -14,51 +15,56 @@ const props = withDefaults(defineProps<{
   busy?: boolean;
   undoable?: boolean;
   bookingTo?: string | null;
+  /** Shown when the offer is rejected; empty: the demo sentence "Bu teklifi reddettin…". */
   rejectedText?: string;
-}>(), {highlighted: false, busy: false, undoable: true, bookingTo: undefined, rejectedText: 'Bu teklifi reddettin. İşletmeye bildirim gitti.'});
+}>(), {highlighted: false, busy: false, undoable: true, bookingTo: undefined, rejectedText: ''});
 const emit = defineEmits<{accept: []; reject: []; undo: []}>();
+const {t, localeTag} = useLocale();
 const appointment = computed(() => props.offer.kind === 'appointment');
-const total = computed(() => formatMoney(props.offer.lines.reduce((sum, line) => sum + line.amount, 0)));
+const total = computed(() => formatMoney(props.offer.lines.reduce((sum, line) => sum + line.amount, 0), localeTag.value));
+const rejected = computed(() => props.rejectedText || t('Bu teklifi reddettin. İşletmeye bildirim gitti.'));
+/** "Önerilen saat: {time} · Türkiye saati" split around {time}, so the time can be bold. */
+const slotParts = computed(() => t('Önerilen saat: {time} · Türkiye saati').split('{time}'));
 const booking = computed(() => (props.bookingTo === undefined ? `/randevu?servis=${props.offer.businessId}&teklif=${props.offer.id}` : props.bookingTo));
 </script>
 
 <template>
   <section class="quote" :class="{highlighted, rejected: status === 'rejected'}" aria-labelledby="quote-title">
     <div class="top">
-      <h2 id="quote-title" class="t-h4">Ön teklif</h2>
-      <p class="t-body-sm t-muted">Geçerlilik: {{ offer.validUntil }}</p>
+      <h2 id="quote-title" class="t-h4">{{ t('Ön teklif') }}</h2>
+      <p class="t-body-sm t-muted">{{ t('Geçerlilik: {date}', {date: offer.validUntil}) }}</p>
     </div>
-    <p v-if="appointment && offer.startsAtText" class="slot"><CalendarCheck :size="18" aria-hidden="true"/>Önerilen saat: <strong>{{ offer.startsAtText }}</strong> · Türkiye saati</p>
+    <p v-if="appointment && offer.startsAtText" class="slot"><CalendarCheck :size="18" aria-hidden="true"/>{{ slotParts[0] }}<strong>{{ offer.startsAtText }}</strong>{{ slotParts[1] }}</p>
     <table v-if="offer.lines.length" class="lines">
       <thead>
-        <tr class="t-mono-sm t-muted"><th scope="col" class="c-item">KALEM</th><th scope="col">AÇIKLAMA</th><th scope="col" class="c-amount">TUTAR</th></tr>
+        <tr class="t-mono-sm t-muted"><th scope="col" class="c-item">{{ t('KALEM') }}</th><th scope="col">{{ t('AÇIKLAMA') }}</th><th scope="col" class="c-amount">{{ t('TUTAR') }}</th></tr>
       </thead>
       <tbody>
         <tr v-for="line in offer.lines" :key="line.item">
           <th scope="row" class="c-item t-label-md">{{ line.item }}</th>
           <td class="t-body-sm desc">{{ line.description }}</td>
-          <td class="c-amount amount">{{ formatMoney(line.amount) }}</td>
+          <td class="c-amount amount">{{ formatMoney(line.amount, localeTag) }}</td>
         </tr>
       </tbody>
     </table>
     <div v-if="offer.lines.length" class="total">
-      <span class="t-label-md">Toplam (tahmini)</span>
+      <span class="t-label-md">{{ t('Toplam (tahmini)') }}</span>
       <strong class="total-value">{{ total }}</strong>
     </div>
     <p class="note"><Info :size="16" aria-hidden="true"/>{{ offer.note }}</p>
     <p v-for="line in offer.notes ?? []" :key="line" class="note extra">{{ line }}</p>
     <div class="actions">
       <template v-if="status === 'pending'">
-        <button type="button" class="btn btn-primary" :disabled="busy || offer.expired" @click="emit('accept')">{{ appointment ? 'Saati kabul et' : bookingTo === null ? 'Teklifi kabul et' : 'Kabul et, randevu al' }}<ArrowRight aria-hidden="true"/></button>
-        <button type="button" class="btn btn-outline" :disabled="busy" @click="emit('reject')">Reddet</button>
+        <button type="button" class="btn btn-primary" :disabled="busy || offer.expired" @click="emit('accept')">{{ appointment ? t('Saati kabul et') : bookingTo === null ? t('Teklifi kabul et') : t('Kabul et, randevu al') }}<ArrowRight aria-hidden="true"/></button>
+        <button type="button" class="btn btn-outline" :disabled="busy" @click="emit('reject')">{{ t('Reddet') }}</button>
       </template>
       <template v-else-if="status === 'accepted'">
-        <NuxtLink v-if="booking && !appointment" :to="booking" class="btn btn-primary">Randevu zamanı seç<ArrowRight aria-hidden="true"/></NuxtLink>
-        <p v-else class="t-body-sm t-muted">{{ appointment ? 'Randevun kesinleşti. Bu ekranda ödeme alınmaz.' : 'Teklifi kabul ettin. İşletme seninle bu talep üzerinden iletişime geçer.' }}</p>
+        <NuxtLink v-if="booking && !appointment" :to="booking" class="btn btn-primary">{{ t('Randevu zamanı seç') }}<ArrowRight aria-hidden="true"/></NuxtLink>
+        <p v-else class="t-body-sm t-muted">{{ appointment ? t('Randevun kesinleşti. Bu ekranda ödeme alınmaz.') : t('Teklifi kabul ettin. İşletme seninle bu talep üzerinden iletişime geçer.') }}</p>
       </template>
       <template v-else>
-        <p class="t-body-sm t-muted">{{ rejectedText }}</p>
-        <button v-if="undoable" type="button" class="btn btn-outline btn-sm" @click="emit('undo')"><RotateCcw aria-hidden="true"/>Geri al</button>
+        <p class="t-body-sm t-muted">{{ rejected }}</p>
+        <button v-if="undoable" type="button" class="btn btn-outline btn-sm" @click="emit('undo')"><RotateCcw aria-hidden="true"/>{{ t('Geri al') }}</button>
       </template>
     </div>
   </section>

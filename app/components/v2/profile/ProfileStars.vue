@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import {Star} from '@lucide/vue';
+import {useLocale} from '~/composables/useLocale';
 
 // Read-only row of five stars (filled orange, rest cream-200).
 withDefaults(defineProps<{value: number; size?: number; label?: string}>(), {size: 16, label: undefined});
+const {t} = useLocale();
 </script>
 
 <template>
-  <span class="profile-stars" role="img" :aria-label="label ?? `5 üzerinden ${value}`">
+  <span class="profile-stars" role="img" :aria-label="label ?? t('5 üzerinden {value}', {value})">
     <Star v-for="n in 5" :key="n" :size="size" :class="{off: n > Math.round(value)}" aria-hidden="true"/>
   </span>
 </template>

@@ -272,3 +272,46 @@ test('v2 availability: free and full 30-minute slots; full ones are kept as take
   assert.throws(() => decodeAvailability({timezone: 'Europe/Istanbul', slotMinutes: 45, days: []}));
   assert.throws(() => decodeAvailability({timezone: 'Europe/Istanbul', slotMinutes: 30, days: [{date: '2026-11-24', slots: [{time: '09:15', state: 'free'}]}]}));
 });
+
+/* ------------------------------------------------------------------ English (K223) */
+
+test('with an English translate and the en-GB tag the request views, calendar and errors read English', async () => {
+  const {translateText} = await import('../app/lib/i18n');
+  const {readdirSync, readFileSync} = await import('node:fs');
+  const {join} = await import('node:path');
+  const dir = join(import.meta.dirname, '..', 'app', 'locales');
+  const own: Record<string, string> = Object.assign({}, ...readdirSync(dir).filter(n => n.endsWith('.json')).map(n => JSON.parse(readFileSync(join(dir, n), 'utf8'))));
+  const t = (source: string, params?: Record<string, string | number>) => translateText('en', source, params, own);
+  const tag = 'en-GB';
+
+  const [item] = decodeRequestPage({items: [waitingV2], next: null}).items;
+  const view = requestView(item!, NOW, t, tag);
+  assert.equal(view.statusLabel, 'Awaiting reply');
+  assert.equal(view.kindText, 'Quote request');
+  assert.equal(view.createdText, '18 November 2026 · 3 h');
+  assert.match(view.respondByText, /Friday 20 November · 09:00/);
+  assert.equal(view.contactText, 'Phone');
+  assert.equal(view.windowText, 'This week');
+  assert.equal(view.service, 'Arıza tespiti', 'the member\'s own service text stays as sent');
+
+  const quote = requestView(decodeRequestPage({items: [offered], next: null}).items[0]!, NOW, t, tag);
+  assert.deepEqual(quote.offer!.lines.map(l => l.item), ['Labour', 'VAT']);
+  assert.ok(quote.offer!.notes!.includes('Not included: Boya ayrıca fiyatlanır.'));
+  assert.equal(quote.offer!.validUntil, '23 November 2026');
+
+  const expired = requestView(decodeRequestPage({items: [{...waitingV2, status: 'expired', version: 2, respondByMs: undefined}], next: null}).items[0]!, NOW, t, tag);
+  assert.equal(expired.resolution, 'The response time expired.');
+
+  assert.equal(relativeTime(NOW - DAY, NOW, t, tag), 'Yesterday');
+  assert.equal(relativeTime(NOW - 3 * DAY, NOW, t, tag), '3 days');
+  assert.equal(dayLongText('2026-11-25', 'en-GB'), 'Wednesday 25 November');
+  assert.equal(calendarDays('2026-11-21', [], 1, 'en-GB')[0]!.short, 'SAT');
+  assert.equal(slotLabel('09:00', 'en-GB'), '09:00');
+  assert.equal(slotLabel('09.30', 'en-GB'), '09:30');
+  assert.equal(slotLabel('09.30'), '09.30');
+  assert.equal(cancelProblem('', '', t), 'Choose a reason.');
+  assert.equal(requestDraftProblem({service: '', vehicle: '', message: ''}, t), 'Choose a service.');
+  assert.equal(liveErrorMessage(new ApiError(429, ''), undefined, {}, t), 'Too many requests. Try again a little later.');
+  assert.equal(liveErrorMessage(new Error('request_page'), undefined, {}, t), 'Could not complete the action. Try again.');
+  assert.equal(notificationView({id: 'n', requestId: 'tl', status: 'offered', createdAtMs: NOW - 5 * 60_000, read: false}, NOW, t, tag).title, 'You have a reply');
+});

@@ -4,10 +4,12 @@ import {MessageSquare, Star} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
 import AccountPageLayout from '~/components/v2/account/AccountPageLayout.vue';
+import {useLocale} from '~/composables/useLocale';
 import {useMemberPage} from '~/composables/useMemberPage';
 import {useOwnReviews} from '~/composables/v2/useAccountData';
 import {mockOwnReviews, reviewStatusLabel, type MockOwnReview} from '~/data/mock/account';
 import {demoMode} from '~/lib/env';
+import {isoDay} from '~/lib/v2/account';
 import {ownReviewMeta} from '~/lib/v2/profile';
 import type {OwnReviewRow} from '~/lib/v2/requests';
 
@@ -18,14 +20,15 @@ import type {OwnReviewRow} from '~/lib/v2/requests';
 // opens it in edit mode). With v=2 the visit month and service are shown in the meta line.
 useMemberPage();
 const demo = demoMode();
-useSeoMeta({title: 'Yorumlarım', robots: 'noindex, nofollow'});
+const {t, localeTag} = useLocale();
+useSeoMeta({title: () => t('Yorumlarım'), robots: 'noindex, nofollow'});
 
 const reviews = useState<MockOwnReview[]>('v2-own-reviews', () => mockOwnReviews.map((review) => ({...review})));
 const remove = (id: string) => { reviews.value = reviews.value.filter((review) => review.id !== id); };
 const tagClass = (status: MockOwnReview['status']) => (status === 'yayinda' ? 'tag-lime' : status === 'incelemede' ? 'tag-orange' : 'tag-cream');
 
 const live = useOwnReviews();
-const liveMeta = computed(() => new Map(live.items.value.map((item) => [item.review.id, ownReviewMeta(item.review)])));
+const liveMeta = computed(() => new Map(live.items.value.map((item) => [item.review.id, ownReviewMeta(item.review, t, localeTag.value)])));
 const count = computed(() => (demo ? reviews.value.length : live.rows.value.length));
 const withdrawing = ref<OwnReviewRow | null>(null);
 async function confirmWithdraw() {
@@ -37,51 +40,51 @@ async function confirmWithdraw() {
 </script>
 
 <template>
-  <AccountPageLayout active="yorumlarim" title="Yorumlarım">
+  <AccountPageLayout active="yorumlarim" :title="t('Yorumlarım')">
     <template v-if="demo">
-      <p class="t-body-md t-muted">{{ count }} yorum. Yorumların incelendikten sonra işletme profilinde görünür.</p>
+      <p class="t-body-md t-muted">{{ t('{count} yorum. Yorumların incelendikten sonra işletme profilinde görünür.', {count}) }}</p>
       <ul v-if="count" class="list">
         <li v-for="review in reviews" :key="review.id" class="surface item">
           <div class="top">
             <NuxtLink :to="`/servis/${review.businessId}`" class="t-h4">{{ review.business }}</NuxtLink>
-            <span class="tag" :class="tagClass(review.status)">{{ reviewStatusLabel[review.status] }}</span>
+            <span class="tag" :class="tagClass(review.status)">{{ t(reviewStatusLabel[review.status]) }}</span>
           </div>
           <div class="meta">
             <span class="stars" :aria-label="`${review.rating} / 5`"><Star v-for="n in 5" :key="n" :size="16" :class="{off: n > review.rating}" aria-hidden="true"/></span>
-            <span class="t-body-sm t-muted">{{ review.date }}</span>
+            <span class="t-body-sm t-muted">{{ isoDay(review.date, localeTag) }}</span>
           </div>
           <p class="t-body-md">{{ review.text }}</p>
           <div v-if="review.reply" class="reply">
-            <p class="t-mono-sm t-muted">İşletme yanıtı</p>
+            <p class="t-mono-sm t-muted">{{ t('İşletme yanıtı') }}</p>
             <p class="t-body-sm">{{ review.reply }}</p>
           </div>
           <div class="actions">
-            <V2Button variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=1`">Düzenle</V2Button>
-            <V2Button variant="ghost" size="sm" @click="remove(review.id)">Sil</V2Button>
+            <V2Button variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=1`">{{ t('Düzenle') }}</V2Button>
+            <V2Button variant="ghost" size="sm" @click="remove(review.id)">{{ t('Sil') }}</V2Button>
           </div>
         </li>
       </ul>
       <div v-else class="surface empty">
         <MessageSquare :size="24" aria-hidden="true"/>
-        <p class="t-label-md">Henüz yorumun yok.</p>
-        <V2Button variant="dark" to="/ara" arrow>Servis bul</V2Button>
+        <p class="t-label-md">{{ t('Henüz yorumun yok.') }}</p>
+        <V2Button variant="dark" to="/ara" arrow>{{ t('Servis bul') }}</V2Button>
       </div>
     </template>
 
     <template v-else>
-      <p v-if="live.loading.value && !count" class="t-body-md t-muted" role="status">Yorumların yükleniyor…</p>
+      <p v-if="live.loading.value && !count" class="t-body-md t-muted" role="status">{{ t('Yorumların yükleniyor…') }}</p>
       <div v-else-if="live.error.value" class="surface empty" role="alert">
-        <p class="t-label-md">Yorumlar yüklenemedi.</p>
+        <p class="t-label-md">{{ t('Yorumlar yüklenemedi.') }}</p>
         <p class="t-body-sm">{{ live.error.value }}</p>
-        <V2Button variant="outline" size="sm" @click="live.load()">Tekrar dene</V2Button>
+        <V2Button variant="outline" size="sm" @click="live.load()">{{ t('Tekrar dene') }}</V2Button>
       </div>
       <template v-else>
-        <p class="t-body-md t-muted">{{ count }}{{ live.next.value ? '+' : '' }} yorum. Yorumların incelendikten sonra işletme profilinde görünür.</p>
+        <p class="t-body-md t-muted">{{ live.next.value ? t('{count}+ yorum. Yorumların incelendikten sonra işletme profilinde görünür.', {count}) : t('{count} yorum. Yorumların incelendikten sonra işletme profilinde görünür.', {count}) }}</p>
         <ul v-if="count" class="list">
           <li v-for="review in live.rows.value" :key="review.id" class="surface item">
             <div class="top">
               <NuxtLink v-if="review.available" :to="`/servis/${review.businessId}`" class="t-h4">{{ review.business }}</NuxtLink>
-              <span v-else class="t-h4">{{ review.business }} <span class="tag tag-cream">Yayında değil</span></span>
+              <span v-else class="t-h4">{{ review.business }} <span class="tag tag-cream">{{ t('Yayında değil') }}</span></span>
               <span class="tag" :class="`tag-${review.tone}`">{{ review.label }}</span>
             </div>
             <div class="meta">
@@ -91,29 +94,29 @@ async function confirmWithdraw() {
             </div>
             <p class="t-body-md">{{ review.text }}</p>
             <div v-if="review.reason" class="reply">
-              <p class="t-mono-sm t-muted">İnceleme notu</p>
+              <p class="t-mono-sm t-muted">{{ t('İnceleme notu') }}</p>
               <p class="t-body-sm">{{ review.reason }}</p>
             </div>
             <div v-if="(review.canEdit && review.available) || review.canWithdraw" class="actions">
-              <V2Button v-if="review.canEdit && review.available" variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=duzenle`">Düzenle</V2Button>
-              <V2Button v-if="review.canWithdraw" variant="ghost" size="sm" :disabled="!!live.busy.value" @click="withdrawing = review">{{ live.busy.value === review.id ? 'Geri çekiliyor…' : 'Geri çek' }}</V2Button>
+              <V2Button v-if="review.canEdit && review.available" variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=duzenle`">{{ t('Düzenle') }}</V2Button>
+              <V2Button v-if="review.canWithdraw" variant="ghost" size="sm" :disabled="!!live.busy.value" @click="withdrawing = review">{{ live.busy.value === review.id ? t('Geri çekiliyor…') : t('Geri çek') }}</V2Button>
             </div>
           </li>
         </ul>
         <div v-else class="surface empty">
           <MessageSquare :size="24" aria-hidden="true"/>
-          <p class="t-label-md">Henüz yorumun yok.</p>
-          <V2Button variant="dark" to="/ara" arrow>Servis bul</V2Button>
+          <p class="t-label-md">{{ t('Henüz yorumun yok.') }}</p>
+          <V2Button variant="dark" to="/ara" arrow>{{ t('Servis bul') }}</V2Button>
         </div>
-        <V2Button v-if="live.next.value" variant="outline" size="sm" class="more" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">Daha fazla yorum</V2Button>
+        <V2Button v-if="live.next.value" variant="outline" size="sm" class="more" :disabled="live.loading.value" @click="live.load(live.next.value ?? '')">{{ t('Daha fazla yorum') }}</V2Button>
       </template>
     </template>
 
-    <V2Modal :open="!!withdrawing" title="Yorumu geri çek" subtitle="Yorumun profilde görünmez; puanı ortalamadan çıkar. Daha sonra düzenleyip yeniden incelemeye gönderebilirsin." :width="520" @close="withdrawing = null">
+    <V2Modal :open="!!withdrawing" :title="t('Yorumu geri çek')" :subtitle="t('Yorumun profilde görünmez; puanı ortalamadan çıkar. Daha sonra düzenleyip yeniden incelemeye gönderebilirsin.')" :width="520" @close="withdrawing = null">
       <p class="t-body-md">{{ withdrawing?.business }}</p>
       <template #footer>
-        <V2Button variant="outline" :disabled="!!live.busy.value" @click="withdrawing = null">Vazgeç</V2Button>
-        <V2Button variant="dark" :disabled="!!live.busy.value" @click="confirmWithdraw">{{ live.busy.value ? 'Gönderiliyor…' : 'Geri çek' }}</V2Button>
+        <V2Button variant="outline" :disabled="!!live.busy.value" @click="withdrawing = null">{{ t('Vazgeç') }}</V2Button>
+        <V2Button variant="dark" :disabled="!!live.busy.value" @click="confirmWithdraw">{{ live.busy.value ? t('Gönderiliyor…') : t('Geri çek') }}</V2Button>
       </template>
     </V2Modal>
   </AccountPageLayout>

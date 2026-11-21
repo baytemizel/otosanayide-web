@@ -3,6 +3,7 @@ import {
   type Maintenance, type Reminder, type Vehicle, type maintenanceDocumentKinds, type maintenanceTypes, type reminderTopics,
 } from '@otosanayide/core';
 import {AccountRequestError} from '@otosanayide/core/account-client';
+import {turkish, type Translate} from '~/lib/i18n';
 import type {MockRecord, MockRecordIcon, MockVehicle} from '~/data/mock/garage';
 
 /**
@@ -10,6 +11,10 @@ import type {MockRecord, MockRecordIcon, MockVehicle} from '~/data/mock/garage';
  * MockVehicle / MockRecord shape; live records from GET /api/me?v=2 are mapped here, including the
  * v2-02 fields (plate, transmission, record type / provider / document label, reminder on/off, topic
  * and several notice days). The account model has no "hide plate" flag; that option stays demo-only.
+ *
+ * Text (K223): option labels stay Turkish source text that the components translate with `t`. Builders
+ * of display text take `t` (default: Turkish passthrough) and a locale tag for dates and numbers
+ * (default 'tr-TR'), so the unit tests keep reading Turkish.
  */
 export type GarageVehicle = MockVehicle & {source?: Vehicle; inspectionDueDate?: string};
 export type GarageRecord = MockRecord & {source?: Maintenance};
@@ -105,7 +110,7 @@ const topicEyebrow: Partial<Record<ReminderTopic, string>> = {periodic: 'Sonraki
 /** At most three notice days per reminder (API advanceDaysList: 1–3 of 0, 1, 3, 7). */
 export const MAX_NOTICE_DAYS = 3;
 
-/** Plate as the API stores it ("34abc123" → "34 ABC 123"), or an error text. Empty input = no plate. */
+/** Plate as the API stores it ("34abc123" → "34 ABC 123"), or an error text (Turkish source). Empty input = no plate. */
 export function checkPlate(input: string): {plate: string | null; error: string} {
   if (!input.trim()) return {plate: null, error: ''};
   const plate = normalizeGaragePlate(input);
@@ -129,11 +134,11 @@ export function addDays(date: string, days: number) {
 }
 
 /** "14 gün", "3 ay", "Bugün", "2 gün geçti" (same rule as the mock screens). */
-export function remainingText(days: number) {
-  if (days < 0) return `${-days} gün geçti`;
-  if (days === 0) return 'Bugün';
-  if (days <= 60) return `${days} gün`;
-  return `${Math.round(days / 30.4)} ay`;
+export function remainingText(days: number, t: Translate = turkish) {
+  if (days < 0) return t('{count} gün geçti', {count: -days});
+  if (days === 0) return t('Bugün');
+  if (days <= 60) return t('{count} gün', {count: days});
+  return t('{count} ay', {count: Math.round(days / 30.4)});
 }
 
 /** Share of a window that has passed, 0.04..1 (the ring never looks empty while it runs). */
@@ -142,14 +147,14 @@ export function ringProgress(left: number, window: number) {
   return Math.min(1, Math.max(0.04, 1 - left / window));
 }
 
-/** "₺7.850", "₺1.250,5" (kuruş only when there are any). */
-export const formatTry = (value: number) => `₺${value.toLocaleString('tr-TR', {maximumFractionDigits: 2})}`;
-export const formatKm = (value: number) => `${value.toLocaleString('tr-TR')} km`;
+/** "₺7.850", "₺1.250,5" (kuruş only when there are any). `tag`: the locale tag for the number format. */
+export const formatTry = (value: number, tag = 'tr-TR') => `₺${value.toLocaleString(tag, {maximumFractionDigits: 2})}`;
+export const formatKm = (value: number, tag = 'tr-TR') => `${value.toLocaleString(tag)} km`;
 /** "1 Aralık 2026" for a yyyy-mm-dd date (noon Türkiye time, so no day shift). */
-export const formatDay = (date: string) => new Date(`${date}T12:00:00+03:00`).toLocaleDateString('tr-TR', {timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric'});
+export const formatDay = (date: string, tag = 'tr-TR') => new Date(`${date}T12:00:00+03:00`).toLocaleDateString(tag, {timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long', year: 'numeric'});
 
-export function notifyText(values: readonly number[]) {
-  return notifyOptions.filter((o) => values.includes(o.value)).map((o) => o.label).join(', ');
+export function notifyText(values: readonly number[], t: Translate = turkish) {
+  return notifyOptions.filter((o) => values.includes(o.value)).map((o) => t(o.label)).join(', ');
 }
 
 export function liveVehicle(v: Vehicle): GarageVehicle {
@@ -167,15 +172,16 @@ export function liveVehicle(v: Vehicle): GarageVehicle {
   };
 }
 
-export function liveRecord(m: Maintenance): GarageRecord {
-  const type = recordTypes.find((t) => t.value === m.type);
+/** `document` stays a Turkish source label ("Fatura"); the history row translates it. */
+export function liveRecord(m: Maintenance, t: Translate = turkish, tag = 'tr-TR'): GarageRecord {
+  const type = recordTypes.find((r) => r.value === m.type);
   // The API returns no business name for businessId; a record linked only to a listed business says so.
-  const provider = m.providerName ?? (m.businessId ? 'Kayıtlı servis' : '');
+  const provider = m.providerName ?? (m.businessId ? t('Kayıtlı servis') : '');
   return {
     id: m.id,
     vehicleId: m.vehicleId,
     title: m.title,
-    detail: [provider, m.note, formatKm(m.mileage)].filter(Boolean).join(' · '),
+    detail: [provider, m.note, formatKm(m.mileage, tag)].filter(Boolean).join(' · '),
     kind: type?.kind ?? 'bakim',
     icon: type?.icon ?? 'wrench',
     document: m.documentKind ? documentTag[m.documentKind] : m.attachmentIds?.length ? 'Belge' : null,
@@ -185,8 +191,11 @@ export function liveRecord(m: Maintenance): GarageRecord {
   };
 }
 
-/** A stored reminder as shown on W11. `vehicle` gives the last recorded mileage for km targets. */
-export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | undefined, today: string): GarageReminderView {
+/**
+ * A stored reminder as shown on W11. `vehicle` gives the last recorded mileage for km targets.
+ * The title is the topic label picked in W12, so it is translated too (an unknown title stays as written).
+ */
+export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | undefined, today: string, t: Translate = turkish, tag = 'tr-TR'): GarageReminderView {
   // Switch = enabled (v2). A reminder marked completed (old web toggle, mobile) also counts as off.
   const active = r.enabled !== false && !r.completed;
   const status = vehicle ? reminderStatus(r, vehicle as Vehicle, today) : {overdue: false, remainingKm: undefined};
@@ -194,10 +203,10 @@ export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | un
   const base = {
     id: r.id,
     vehicleId: r.vehicleId,
-    topic: r.title,
-    label: (r.topic && topicEyebrow[r.topic]) || r.title,
-    notifyText: notifyText(r.advanceDaysList ?? [r.advanceDays ?? 1]),
-    offText: r.completed ? 'Tamamlandı' : 'Kapalı',
+    topic: t(r.title),
+    label: t((r.topic && topicEyebrow[r.topic]) || r.title),
+    notifyText: notifyText(r.advanceDaysList ?? [r.advanceDays ?? 1], t),
+    offText: r.completed ? t('Tamamlandı') : t('Kapalı', {ctx: 'switch'}),
     push: channels.includes('push'),
     email: channels.includes('email'),
     active,
@@ -208,21 +217,21 @@ export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | un
     const near = status.overdue || days <= 30;
     return {
       ...base,
-      dateText: formatDay(r.dueDate) + (r.dueKm !== undefined ? ` · ${formatKm(r.dueKm)}` : ''),
-      whenText: formatDay(r.dueDate),
-      remaining: remainingText(days),
+      dateText: formatDay(r.dueDate, tag) + (r.dueKm !== undefined ? ` · ${formatKm(r.dueKm, tag)}` : ''),
+      whenText: formatDay(r.dueDate, tag),
+      remaining: remainingText(days, t),
       progress: ringProgress(days, DATE_WINDOW_DAYS),
       tone: !active ? 'muted' : near ? 'orange' : 'green',
       sort: days,
     };
   }
   const left = status.remainingKm ?? 0;
-  const target = formatKm(r.dueKm ?? 0);
+  const target = formatKm(r.dueKm ?? 0, tag);
   return {
     ...base,
-    dateText: `Hedef ${target}`,
-    whenText: `Hedef ${target}`,
-    remaining: status.remainingKm === undefined ? target : left <= 0 ? 'Eşik geldi' : formatKm(left),
+    dateText: t('Hedef {target}', {target}),
+    whenText: t('Hedef {target}', {target}),
+    remaining: status.remainingKm === undefined ? target : left <= 0 ? t('Eşik geldi') : formatKm(left, tag),
     progress: status.remainingKm === undefined ? 0.04 : ringProgress(left, KM_WINDOW),
     tone: !active ? 'muted' : status.overdue || left <= 1000 ? 'orange' : 'green',
     sort: 1_000_000 + left,
@@ -230,18 +239,18 @@ export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | un
 }
 
 /** The vehicle's inspection date as a read-only summary card ("Muayene"), if one is set. */
-export function inspectionView(v: GarageVehicle, today: string): GarageReminderView | null {
+export function inspectionView(v: GarageVehicle, today: string, t: Translate = turkish, tag = 'tr-TR'): GarageReminderView | null {
   if (!v.inspectionDueDate) return null;
   const days = daysBetween(today, v.inspectionDueDate);
   return {
     id: `muayene-${v.id}`,
     vehicleId: v.id,
-    topic: 'Araç muayenesi',
-    label: 'Muayene',
-    dateText: formatDay(v.inspectionDueDate),
-    whenText: formatDay(v.inspectionDueDate),
+    topic: t('Araç muayenesi'),
+    label: t('Muayene'),
+    dateText: formatDay(v.inspectionDueDate, tag),
+    whenText: formatDay(v.inspectionDueDate, tag),
     notifyText: '',
-    remaining: remainingText(days),
+    remaining: remainingText(days, t),
     offText: '',
     progress: ringProgress(days, 365),
     tone: days <= 30 ? 'orange' : 'green',
@@ -367,7 +376,7 @@ export function maskEmail(email: string) {
   return domain ? `${user.charAt(0)}***@${domain}` : '';
 }
 
-/** Readable message for a failed garage write (app.save / app.update). */
+/** Readable message for a failed garage write (app.save / app.update): Turkish source text the component translates. */
 export function garageErrorMessage(error: unknown) {
   if (error instanceof AccountRequestError) {
     if (error.status === 401) return 'Oturum süresi doldu. Yeniden giriş yap.';
