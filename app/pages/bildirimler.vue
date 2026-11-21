@@ -11,11 +11,13 @@ import {useMemberPage} from '~/composables/useMemberPage';
 import {useNotices} from '~/composables/v2/useAccountData';
 import {mockNotifications, notificationFilters, type MockNotification} from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
+import {unreadBadge} from '~/lib/v2/account';
 import {notificationView} from '~/lib/v2/requests';
 
 // W17 · Bildirimler (Figma 127:813). Filter chips, mark one / all as read, "Tercihler" modal.
 // Demo: mock list. Live: GET /api/notifications (?kind=request|reminder), PATCH one as read,
 // POST /api/notifications/read-all. The API has no review notifications, so "Yorumlar" is passive.
+// The unread count is the API's `unreadCount` (?v=2, whole inbox, any filter); ?v=2 also sends expired/no_show.
 useMemberPage();
 const demo = demoMode();
 
@@ -29,7 +31,7 @@ const now = ref(Date.now());
 
 const items = computed(() => (demo ? mockItems.value : live.items.value.map((notice) => notificationView(notice, now.value))));
 const visible = computed(() => (demo ? items.value.filter((item) => filter.value === 'tumu' || item.kind === filter.value) : items.value));
-const unreadCount = computed(() => items.value.filter((item) => item.unread).length);
+const unreadCount = computed(() => (demo ? items.value.filter((item) => item.unread).length : live.unreadCount.value ?? items.value.filter((item) => item.unread).length));
 const chipLabel = (id: string, label: string) => (id === 'tumu' && (demo || filter.value === 'tumu') ? `${label} · ${items.value.length}${!demo && live.next.value ? '+' : ''}` : label);
 const passive = (id: string) => !demo && id === 'yorum';
 
@@ -58,10 +60,10 @@ function markAll() {
       <header class="head">
         <div class="titles">
           <p class="t-mono-md t-eyebrow">HESABIM</p>
-          <h1 class="t-h2">Bildirimler</h1>
+          <h1 class="t-h2">Bildirimler<span v-if="!demo && unreadCount" class="tag tag-orange unread-tag">{{ unreadBadge(unreadCount) }} okunmamış</span></h1>
         </div>
         <div class="head-actions">
-          <V2Button variant="outline" :disabled="demo ? !unreadCount : live.markingAll.value || live.loading.value" @click="markAll">{{ live.markingAll.value ? 'İşleniyor…' : 'Tümünü okundu yap' }}</V2Button>
+          <V2Button variant="outline" :disabled="demo ? !unreadCount : live.markingAll.value || live.loading.value || live.unreadCount.value === 0" @click="markAll">{{ live.markingAll.value ? 'İşleniyor…' : 'Tümünü okundu yap' }}</V2Button>
           <button type="button" class="prefs-btn" aria-haspopup="dialog" @click="prefsOpen = true"><SlidersVertical :size="16" aria-hidden="true"/>Tercihler</button>
         </div>
       </header>
@@ -125,6 +127,7 @@ function markAll() {
 .empty .t-label-md{color:var(--ink-900);margin-top:6px}
 .more{align-self:flex-start}
 .passive{opacity:.45;cursor:not-allowed}
+.unread-tag{margin-left:12px;vertical-align:middle}
 @media (max-width:1000px){
   .account{flex-direction:column;align-items:stretch;gap:24px;padding-top:24px}
 }

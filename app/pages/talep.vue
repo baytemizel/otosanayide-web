@@ -7,19 +7,20 @@ import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vu
 import RequestStepper from '~/components/v2/requests/RequestStepper.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
 import {useMemberPage} from '~/composables/useMemberPage';
-import {memberToken, requestSendError, sendRequest, useRequestBusiness} from '~/composables/v2/useRequests';
+import {memberToken, requestKeyKeeper, requestSendError, sendRequest, useRequestBusiness} from '~/composables/v2/useRequests';
 import {
   DEFAULT_REQUEST_BUSINESS_ID, REQUEST_DESCRIPTION_MAX, requestBusiness, requestContactOptions, requestMockAnswers,
   requestServices, requestTimeOptions, requestVehicles, responseHoursFor,
 } from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
-import {istanbulToday, longDate, otherVehicleText, requestDraftProblem, vehicleOptions} from '~/lib/v2/requests';
+import {contactParam, otherVehicleText, requestDraftProblem, vehicleOptions, windowParam} from '~/lib/v2/requests';
 
 // W14 · Teklif iste (Figma 126:524). Four-step wizard; step 3 "Sorunu anlat" is the Figma frame.
 // Demo: ?adim=1..4 opens a step (later steps come pre-filled with mock answers), ?servis=<id> picks
 // the mock business. Live: ?servis=<id> is read from the API; the request is sent with
-// POST /api/requests only when the business offers quotes. Photos and the contact preference have
-// no API field, so they are not shown in live mode; the preferred time is an optional date.
+// POST /api/requests only when the business offers quotes, with the v2-01 fields: the "Tercih edilen
+// zaman" chips (preferredWindow), the contact preference and, for a garage vehicle, its vehicleId.
+// Photos have no API field, so they are not shown in live mode.
 const app = useMemberPage();
 const demo = demoMode();
 
@@ -64,7 +65,6 @@ const form = reactive({
   photos: (initialStep >= 3 ? requestMockAnswers.photos.map((src, index) => ({src, name: `Fotoğraf ${index + 1}`, local: false})) : []) as Photo[],
   timeId: requestMockAnswers.timeId,
   contactId: requestMockAnswers.contactId,
-  preferredDate: '',
   consent: false,
 });
 
@@ -73,7 +73,6 @@ const serviceOptions = computed(() => (demo || !live.services.value.length
   ? requestServices
   : live.services.value.map((label) => ({id: label, label, hint: ''}))));
 const vehicles = computed(() => (demo ? requestVehicles.map((item) => ({...item, text: item.label})) : vehicleOptions(app.data.vehicles)));
-const today = istanbulToday();
 
 const service = computed(() => serviceOptions.value.find((item) => item.id === form.serviceId));
 const vehicleLabel = computed(() => {
@@ -86,21 +85,19 @@ const vehicleLabel = computed(() => {
 const vehicleText = computed(() => (form.vehicleId === 'diger'
   ? otherVehicleText(form.otherBrand, form.otherModel, form.otherYear)
   : vehicles.value.find((item) => item.id === form.vehicleId)?.text ?? ''));
-const timeLabel = computed(() => (demo
-  ? requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? ''
-  : form.preferredDate ? longDate(Date.parse(`${form.preferredDate}T12:00:00+03:00`)) : 'Belirtilmedi'));
+const timeLabel = computed(() => requestTimeOptions.find((item) => item.id === form.timeId)?.label ?? '');
 const contactLabel = computed(() => requestContactOptions.find((item) => item.id === form.contactId)?.label ?? '');
 
 const stepValid = computed(() => {
   if (step.value === 1) return Boolean(form.serviceId);
   if (step.value === 2) return form.vehicleId === 'diger' ? Boolean(form.otherBrand.trim() && form.otherModel.trim()) : Boolean(form.vehicleId);
-  if (step.value === 3) return form.description.trim().length >= 10 && (demo || !form.preferredDate || form.preferredDate >= today);
+  if (step.value === 3) return form.description.trim().length >= 10;
   return form.consent;
 });
 const stepHint = computed(() => [
   'Devam etmek için bir hizmet seç.',
   'Devam etmek için bir araç seç ya da marka ve modeli yaz.',
-  form.description.trim().length >= 10 ? 'Tercih ettiğin tarih bugünden önce olamaz.' : 'Açıklama en az 10 karakter olmalı.',
+  'Açıklama en az 10 karakter olmalı.',
   'Göndermek için onay kutusunu işaretle.',
 ][step.value - 1]);
 const tried = ref(false);
@@ -124,7 +121,7 @@ function next() {
 const token = memberToken();
 const sending = ref(false);
 const sendError = ref('');
-let requestKey = '';
+const requestKey = requestKeyKeeper();
 async function submit() {
   if (demo) {
     submitted.value = true;
@@ -134,15 +131,15 @@ async function submit() {
   if (sending.value || !business.value) return;
   const draft = {
     businessId: business.value.id, kind: 'quotes' as const, service: service.value?.label ?? '', vehicle: vehicleText.value,
-    message: form.description.trim(), preferredDate: form.preferredDate || undefined,
+    message: form.description.trim(), preferredWindow: windowParam[form.timeId], contactPreference: contactParam[form.contactId],
+    ...(form.vehicleId && form.vehicleId !== 'diger' ? {vehicleId: form.vehicleId} : {}),
   };
   sendError.value = requestDraftProblem(draft);
   if (sendError.value) return;
   sending.value = true;
-  requestKey ||= crypto.randomUUID();
   try {
-    await sendRequest(token, draft, requestKey);
-    requestKey = '';
+    await sendRequest(token, draft, requestKey.for(draft));
+    requestKey.clear();
     submitted.value = true;
     if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
   } catch (error) {
@@ -285,23 +282,19 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
             <p class="t-body-sm t-muted small">Konum bilgisi (EXIF) yükleme sırasında temizlenir.</p>
           </div>
 
-          <label v-if="!demo" class="field date-field">
-            <span class="field-label">Tercih ettiğin tarih (isteğe bağlı)</span>
-            <input v-model="form.preferredDate" type="date" class="input" :min="today">
-            <span class="t-body-sm t-muted">Bir istektir; işletme yanıtında sana uygun zamanı yazar.</span>
-          </label>
-          <div v-if="demo" class="group">
+          <div class="group">
             <p id="talep-zaman" class="field-label">Tercih edilen zaman</p>
             <div class="chips" role="group" aria-labelledby="talep-zaman">
               <V2Chip v-for="item in requestTimeOptions" :key="item.id" as="button" :variant="form.timeId === item.id ? 'active' : 'default'" :pressed="form.timeId === item.id" @click="form.timeId = item.id">{{ item.label }}</V2Chip>
             </div>
           </div>
 
-          <div v-if="demo" class="group">
+          <div class="group">
             <p id="talep-iletisim" class="field-label">İletişim tercihi</p>
             <div class="chips" role="group" aria-labelledby="talep-iletisim">
               <V2Chip v-for="item in requestContactOptions" :key="item.id" as="button" :variant="form.contactId === item.id ? 'active' : 'default'" :pressed="form.contactId === item.id" @click="form.contactId = item.id">{{ item.label }}</V2Chip>
             </div>
+            <p v-if="!demo" class="t-body-sm t-muted small">Tercihin işletmeye iletilir. Telefon numaran ve e-posta adresin işletmeyle paylaşılmaz; yazışma Taleplerim sayfasından sürer.</p>
           </div>
         </template>
 
@@ -320,7 +313,7 @@ const nextLabel = computed(() => (step.value < 4 ? `Devam: ${steps[step.value]}`
               <button type="button" class="edit" @click="go(3)">Düzenle</button>
             </div>
             <div class="review-row"><dt>Tercih edilen zaman</dt><dd>{{ timeLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
-            <div v-if="demo" class="review-row"><dt>İletişim tercihi</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
+            <div class="review-row"><dt>İletişim tercihi</dt><dd>{{ contactLabel }}</dd><button type="button" class="edit" @click="go(3)">Düzenle</button></div>
           </dl>
           <label class="consent">
             <input v-model="form.consent" type="checkbox" class="checkbox">
@@ -406,7 +399,6 @@ fieldset.group legend{padding:0;margin-bottom:10px}
 .error{color:var(--red-500);font-weight:600;margin-top:-8px}
 .state{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:32px}
 .state-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
-.date-field{max-width:320px}
 .link{color:var(--orange-600);font-weight:600}
 .actions{display:flex;align-items:center}
 .spacer{flex:1}

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import {computed, reactive, ref, watch} from 'vue';
-import {ArrowRight, Bell, Calendar, ChevronDown, Lock, Mail, Smartphone} from '@lucide/vue';
+import {ArrowRight, Bell, Calendar, Lock, Mail, Smartphone} from '@lucide/vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import {mockReminderTopics, mockNotifyOptions, vehicleTitle, type MockVehicle} from '~/data/mock/garage';
 import {mockMember} from '~/data/mock/session';
-import {addDays, maskEmail, parseWhole, type ReminderDraft} from '~/lib/v2/garage';
+import {MAX_NOTICE_DAYS, addDays, liveReminderTopics, maskEmail, parseWhole, type ReminderDraft} from '~/lib/v2/garage';
 
 // W12 · Hatırlatma oluştur (Figma 125:277). Demo: saves into the in-memory reminder list and builds a
-// simple .ics in the browser. Live (reminderSchema): one notice day (advanceDays), push / e-mail
-// preference (channels), a date and/or a km target; the .ics comes from packages/core/calendar via
-// `calendar`. Saving a preference is not delivery: the delivery service is not switched on yet (K036).
+// simple .ics in the browser. Live (reminderSchema, API v2): topic, up to three notice days
+// (advanceDaysList), push / e-mail preference (channels), a date and/or a km target; the .ics comes from
+// packages/core/calendar via `calendar`. Saving a preference is not delivery: the delivery service is
+// not switched on yet (K036).
 const props = withDefaults(defineProps<{
   open: boolean;
   vehicles: MockVehicle[];
@@ -31,6 +33,9 @@ const form = reactive({vehicleId: '', topic: mockReminderTopics[0]!, date: '2026
 const dateError = ref('');
 const kmError = ref('');
 const icsMessage = ref('');
+const notifyMessage = ref('');
+/** Live topics add "Yağ değişimi" (API topic oil); demo keeps its own list. */
+const topics = computed(() => (props.live ? liveReminderTopics.map((t) => t.label) : mockReminderTopics));
 
 watch(() => props.open, (open) => {
   if (!open) return;
@@ -38,12 +43,13 @@ watch(() => props.open, (open) => {
   form.topic = mockReminderTopics[0]!;
   form.date = defaultDate();
   form.km = '';
-  form.notify = props.live ? [1] : [0, 1, 7];
+  form.notify = [0, 1, 7];
   form.push = true;
   form.email = props.live ? props.emailVerified : true;
   dateError.value = '';
   kmError.value = '';
   icsMessage.value = '';
+  notifyMessage.value = '';
 }, {immediate: true});
 
 const maskedEmail = computed(() => maskEmail(props.live ? props.email : mockMember.email));
@@ -53,10 +59,15 @@ const emailSub = computed(() => {
 });
 
 function toggleNotify(value: number) {
-  // Live: the account model keeps one notice day, so the chips work as a single choice.
+  // Live: the API keeps one to three notice days per reminder.
   if (props.live) {
-    form.notify = [value];
-    return;
+    notifyMessage.value = '';
+    if (form.notify.includes(value)) {
+      if (form.notify.length === 1) { notifyMessage.value = 'En az bir gün seçili kalmalı.'; return; }
+    } else if (form.notify.length >= MAX_NOTICE_DAYS) {
+      notifyMessage.value = `En çok ${MAX_NOTICE_DAYS} gün seçilebilir. Önce birini kaldır.`;
+      return;
+    }
   }
   form.notify = form.notify.includes(value) ? form.notify.filter((v) => v !== value) : [...form.notify, value].sort((a, b) => a - b);
 }
@@ -122,21 +133,11 @@ function save() {
       <div class="two">
         <div class="field">
           <label class="field-label" for="rem-vehicle">Araç</label>
-          <div class="select-wrap">
-            <select id="rem-vehicle" v-model="form.vehicleId" class="select">
-              <option v-for="v in vehicles" :key="v.id" :value="v.id">{{ vehicleTitle(v) }}</option>
-            </select>
-            <ChevronDown :size="16" class="chev" aria-hidden="true"/>
-          </div>
+          <V2Select id="rem-vehicle" v-model="form.vehicleId" :options="vehicles.map((v) => ({value: v.id, label: vehicleTitle(v)}))" placeholder="Araç seç"/>
         </div>
         <div class="field">
           <label class="field-label" for="rem-topic">Konu</label>
-          <div class="select-wrap">
-            <select id="rem-topic" v-model="form.topic" class="select">
-              <option v-for="t in mockReminderTopics" :key="t" :value="t">{{ t }}</option>
-            </select>
-            <ChevronDown :size="16" class="chev" aria-hidden="true"/>
-          </div>
+          <V2Select id="rem-topic" v-model="form.topic" :options="topics" placeholder="Konu seç"/>
         </div>
       </div>
 
@@ -158,10 +159,11 @@ function save() {
 
       <fieldset class="group">
         <legend class="field-label">Ne zaman haber verelim?</legend>
-        <div class="chips" :role="live ? 'radiogroup' : undefined">
-          <button v-for="o in mockNotifyOptions" :key="o.value" type="button" class="chip" :class="form.notify.includes(o.value) ? 'chip-active' : 'chip-default'" :role="live ? 'radio' : undefined" :aria-checked="live ? form.notify.includes(o.value) : undefined" :aria-pressed="live ? undefined : form.notify.includes(o.value)" @click="toggleNotify(o.value)">{{ o.label }}</button>
+        <div class="chips">
+          <button v-for="o in mockNotifyOptions" :key="o.value" type="button" class="chip" :class="form.notify.includes(o.value) ? 'chip-active' : 'chip-default'" :aria-pressed="form.notify.includes(o.value)" @click="toggleNotify(o.value)">{{ o.label }}</button>
         </div>
-        <p class="note">Gönderim saati: Türkiye saati 09.00{{ live ? ' · Bir gün seçilebilir.' : '' }}</p>
+        <p v-if="notifyMessage" class="err" role="alert">{{ notifyMessage }}</p>
+        <p class="note">Gönderim saati: Türkiye saati 09.00{{ live ? ` · En çok ${MAX_NOTICE_DAYS} gün seçilebilir.` : '' }}</p>
       </fieldset>
 
       <fieldset class="group">
@@ -205,9 +207,8 @@ function save() {
 .body{display:flex;flex-direction:column;gap:22px;min-width:0}
 .body :is(input,select){min-width:0}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
-.select-wrap,.date-wrap{position:relative}
-.select{appearance:none;-webkit-appearance:none;padding-right:44px;border-radius:16px;cursor:pointer}
-.chev{position:absolute;right:17px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-900)}
+.date-wrap{position:relative}
+.two :deep(.v2-select-field){border-radius:16px}
 .date-wrap .input{padding-left:44px;border-radius:16px;min-height:54px}
 .date-wrap.invalid .input{border-color:var(--red-500)}
 .cal{position:absolute;left:17px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-900)}

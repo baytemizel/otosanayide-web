@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import {computed} from 'vue';
 import {ArrowRight, Check, Navigation, Phone, ShieldCheck, Star} from '@lucide/vue';
 import HomeCounterStrip from '~/components/v2/home/HomeCounterStrip.vue';
 import HomeSmartSearch from '~/components/v2/home/HomeSmartSearch.vue';
 import {formatKm, formatRating, mockBusiness} from '~/data/mock/businesses';
 import {homeHeroTrust} from '~/data/mock/home';
+import {useCoverage} from '~/composables/v2/useSearch';
+import {demoMode} from '~/lib/env';
 
 // Figma 108:42 (without the shared navbar): glows, hero 108:78, smart search 108:148, counter strip 108:235.
 const live = mockBusiness('ornek-teknik-garaj')!;
+// Live: province and category counts from GET /api/coverage (bundled list until it answers); demo keeps the design copy.
+const demo = demoMode();
+const coverage = useCoverage();
+const cityCount = computed(() => (demo ? 41 : coverage.value.cityCount));
+const categoryCount = computed(() => (demo ? 20 : coverage.value.categoryCount));
 </script>
 
 <template>
@@ -19,10 +27,10 @@ const live = mockBusiness('ornek-teknik-garaj')!;
         <div class="text">
           <p class="pill">
             <img src="/v2/home/eyebrow-dot.svg" alt="" width="20" height="20">
-            <span class="t-mono-sm">ÜYELİK GEREKMEZ · ŞİMDİLİK 41 İLDE</span>
+            <span class="t-mono-sm">ÜYELİK GEREKMEZ · ŞİMDİLİK {{ cityCount }} İLDE</span>
           </p>
           <h1 id="home-hero-title" class="t-hero">Aracına iyi<br>bakacak ustayı<br><em>ilk seferde</em> bul.</h1>
-          <p class="t-body-lg t-muted lead">Mekanikten oto kuaföre 20 kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.</p>
+          <p class="t-body-lg t-muted lead">Mekanikten oto kuaföre {{ categoryCount }} kategoride servisleri karşılaştır, gerçek yorumları oku; tek dokunuşla ara ya da yol tarifi al.</p>
           <ul class="trust">
             <li v-for="item in homeHeroTrust" :key="item" class="t-label-sm">
               <span class="tick" aria-hidden="true"><Check :size="12" :stroke-width="2.5"/></span>{{ item }}

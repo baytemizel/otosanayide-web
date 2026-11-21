@@ -386,3 +386,41 @@ test('email change and MFA status call their proposed endpoints with the bearer 
   assert.deepEqual(await service.mfaStatus(), {totp: {enabled: true, enabledAtMs: 1}});
   assert.deepEqual(seen.slice(1), [['/api/auth/email/change', 'POST', 'Bearer t1'], ['/api/auth/mfa', 'GET', 'Bearer t1']]);
 });
+
+test('register sends name and consents only when given (v2-04); without them the body is unchanged', async () => {
+  const bodies: unknown[] = [];
+  const {service} = tab((path, init) => {
+    bodies.push([path, bodyOf(init)]);
+    return json({ok: true}, 202);
+  });
+  await service.register('a@example.test', 'password-123');
+  await service.register('b@example.test', 'password-123', {name: '  Deniz Kaya ', consents: {marketing: false}});
+  await service.register('c@example.test', 'password-123', {name: '   ', consents: {}});
+  assert.deepEqual(bodies, [
+    ['/api/auth/register', {email: 'a@example.test', password: 'password-123'}],
+    ['/api/auth/register', {email: 'b@example.test', password: 'password-123', name: 'Deniz Kaya', consents: {marketing: false}}],
+    ['/api/auth/register', {email: 'c@example.test', password: 'password-123'}],
+  ]);
+});
+
+test('password reset by code: forgot {method:"code"} answers the masked address, verify-code the reset token', async () => {
+  const bodies: unknown[] = [];
+  const {service} = tab((path, init) => {
+    bodies.push([path, bodyOf(init)]);
+    if (path === '/api/auth/password/forgot') return bodyOf(init).method === 'code' ? json({ok: true, maskedEmail: 'd***@example.test'}, 202) : new Response(null, {status: 202});
+    if (path === '/api/auth/password/verify-code') return bodyOf(init).code === '042917' ? json({resetToken: 'rt-1'}) : json({error: 'x'}, 400);
+    return json({ok: true});
+  });
+  assert.deepEqual(await service.forgotPassword('deniz@example.test'), {maskedEmail: null}, 'link flow: empty 202 is fine');
+  assert.deepEqual(await service.forgotPassword('deniz@example.test', 'code'), {maskedEmail: 'd***@example.test'});
+  assert.equal(await service.verifyResetCode('deniz@example.test', '042917'), 'rt-1');
+  await assert.rejects(service.verifyResetCode('deniz@example.test', '000000'), (e: unknown) => e instanceof SessionRequestError && e.status === 400);
+  await service.resetPassword('rt-1', 'new-password-1');
+  assert.deepEqual(bodies, [
+    ['/api/auth/password/forgot', {email: 'deniz@example.test'}],
+    ['/api/auth/password/forgot', {email: 'deniz@example.test', method: 'code'}],
+    ['/api/auth/password/verify-code', {email: 'deniz@example.test', code: '042917'}],
+    ['/api/auth/password/verify-code', {email: 'deniz@example.test', code: '000000'}],
+    ['/api/auth/password/reset', {token: 'rt-1', password: 'new-password-1'}],
+  ]);
+});

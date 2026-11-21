@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
 import {ArrowRight, Heart, Info, LoaderCircle} from '@lucide/vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import V2ServiceCard from '~/components/v2/V2ServiceCard.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import SavedListModal from '~/components/v2/garage/SavedListModal.vue';
@@ -95,10 +96,7 @@ async function deleteList() {
   if (await page.deleteList(activeChip.value.id)) pick('all');
 }
 
-function addTo(event: Event, businessId: string) {
-  const select = event.target as HTMLSelectElement;
-  const chipId = select.value;
-  select.value = '';
+function addTo(chipId: string, businessId: string) {
   if (chipId) void page.addTo(chipId, businessId);
 }
 const listsWithout = (businessId: string) => page.chips.value.filter((c) => !c.ids.includes(businessId));
@@ -149,10 +147,9 @@ const listsWithout = (businessId: string) => page.chips.value.filter((c) => !c.i
                 <button v-if="activeChip" type="button" class="btn btn-ghost btn-sm" :disabled="page.busy.value" @click="page.removeFrom(activeChip.id, item.id)">Listeden çıkar</button>
                 <template v-else>
                   <label class="sr-only" :for="`add-${item.id}`">{{ item.entry.card.name }} için liste seç</label>
-                  <select :id="`add-${item.id}`" class="select add-select" :disabled="page.busy.value" @change="addTo($event, item.id)">
-                    <option value="">Listeye ekle…</option>
-                    <option v-for="c in listsWithout(item.id)" :key="c.id" :value="c.id">{{ c.name }}</option>
-                  </select>
+                  <V2Select
+                    :id="`add-${item.id}`" :model-value="null" :options="listsWithout(item.id).map((c) => ({value: c.id, label: c.name}))"
+                    placeholder="Listeye ekle…" class="add-select" :match-width="false" :disabled="page.busy.value" @change="addTo($event, item.id)"/>
                 </template>
               </div>
             </template>
@@ -205,7 +202,8 @@ const listsWithout = (businessId: string) => page.chips.value.filter((c) => !c.i
 .list-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-8px}
 .cards{display:flex;flex-direction:column;gap:24px}
 .card-tools{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
-.add-select{width:auto;min-width:200px;padding-top:8px;padding-bottom:8px;border-radius:999px;font-size:14px}
+.card-tools :deep(.add-select){width:auto;min-width:200px;padding-top:8px;padding-bottom:8px;border-radius:999px;font-size:14px}
+.card-tools :deep(.add-select.placeholder .v2-select-value){color:var(--ink-800)}
 .placeholder{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:20px 24px;background:var(--white);border:1px dashed var(--cream-200);border-radius:28px}
 .state{display:flex;align-items:center;gap:10px;padding:24px 0}
 .spin{animation:spin 1s linear infinite;color:var(--ink-500)}

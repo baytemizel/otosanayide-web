@@ -1,31 +1,40 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, reactive, ref, watch} from 'vue';
-import {Check, ChevronDown, ImagePlus, Info, X} from '@lucide/vue';
+import {Check, ImagePlus, Info, X} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Chip from '~/components/v2/V2Chip.vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import ProfileReviewItem from './ProfileReviewItem.vue';
 import ProfileStarInput from './ProfileStarInput.vue';
 import type {MockBusiness} from '~/data/mock/businesses';
 import {mockMember} from '~/data/mock/session';
 import {ratingWords, resolvedOptions, reviewDimensions, visitMonths} from '~/data/mock/profile';
-import {reviewScoreLabels, reviewTextLimits, type ProfileReviewView, type ProfileView, type ReviewAnswers, type ReviewScoreKey} from '~/lib/v2/profile';
+import type {OwnReviewView} from '@otosanayide/core/review-author-client';
+import {
+  answersFromOwn, monthLabel, reviewScoreLabels, reviewTextLimits, visitMonthOptions,
+  type ProfileReviewView, type ProfileView, type ReviewAnswers, type ReviewScoreKey,
+} from '~/lib/v2/profile';
 
 // W07 "Yorum yaz" modal: 1 Puan → 2 Deneyim (Figma 122:958) → 3 Fotoğraf → 4 Önizleme → success.
-// Demo: everything local (mock). Live (`submit` set): only the fields of POST /api/reviews (core
-// reviewSchema): overall rating, quality / payment / cleanliness (+ WC cleanliness), resolved, WC, text.
-// The mock-only parts (İletişim, Fiyat şeffaflığı, Hizmet, Ziyaret ayı, draft note) are not shown, and
-// the photo step is left out: review photos are added to an existing review, not sent with it.
-// A guest (`signInHref`) is asked to sign in; a member who already reviewed sees that review's status.
+// Demo: everything local (mock). Live (`submit` set): the fields of POST /api/reviews (core reviewSchema):
+// overall rating, quality / communication / price transparency / payment / cleanliness (+ WC cleanliness),
+// resolved, WC, service (the profile's services), visit month (this month … 24 months back) and text.
+// The photo step and the draft note stay demo-only: review photos are added to an existing review, not sent
+// with it, and the API keeps no drafts. A guest (`signInHref`) is asked to sign in; a member who already
+// reviewed sees that review's status and, when the API allows it (`canEdit`), edits it here (`edit`,
+// PATCH /api/reviews/mine action edit; `startEdit` opens the form directly, e.g. from Yorumlarım).
 const props = withDefaults(defineProps<{
   open: boolean;
   business: MockBusiness;
   profile: ProfileView;
   demo?: boolean;
   submit?: (answers: ReviewAnswers) => Promise<{id: string; status: string}>;
+  edit?: (answers: ReviewAnswers) => Promise<{id: string; status: string}>;
   signInHref?: string | null;
-  existing?: {status: string} | null;
-}>(), {demo: false, submit: undefined, signInHref: null, existing: null});
+  existing?: OwnReviewView | null;
+  startEdit?: boolean;
+}>(), {demo: false, submit: undefined, edit: undefined, signInHref: null, existing: null, startEdit: false});
 const emit = defineEmits<{close: []}>();
 
 const live = computed(() => !!props.submit);
@@ -33,12 +42,27 @@ const steps = computed(() => (live.value ? ['Puan', 'Deneyim', 'Önizleme'] as c
 const maxText = computed(() => (live.value ? reviewTextLimits.max : 2000));
 const minText = computed(() => (live.value ? reviewTextLimits.min : 20));
 const maxPhotos = 5;
-const liveScoreKeys = computed<ReviewScoreKey[]>(() => (form.wc === 'yes' ? ['quality', 'payment', 'cleanliness', 'wcCleanliness'] : ['quality', 'payment', 'cleanliness']));
+const liveScoreKeys = computed<ReviewScoreKey[]>(() => {
+  const keys: ReviewScoreKey[] = ['quality', 'communication', 'priceTransparency', 'payment', 'cleanliness'];
+  return form.wc === 'yes' ? [...keys, 'wcCleanliness'] : keys;
+});
+// Live pickers: '' = not given (the field is left out of the body). The month list is rebuilt on every open.
+const liveMonths = ref(visitMonthOptions());
+const liveMonthOptions = computed(() => [{value: '', label: 'Belirtilmedi'}, ...liveMonths.value]);
+const liveServiceOptions = computed(() => {
+  const services = [...props.profile.services];
+  // An edited review keeps its service even if the business no longer lists it.
+  if (editing.value && props.existing?.service && !services.includes(props.existing.service)) services.unshift(props.existing.service);
+  return [{value: '', label: 'Belirtilmedi'}, ...services.filter((s) => s.length <= 120).map((s) => ({value: s, label: s}))];
+});
 const wcOptions = [{value: 'yes', label: 'Evet'}, {value: 'no', label: 'Hayır'}, {value: 'unknown', label: 'Bilmiyorum'}] as const;
 const ownStatus: Record<string, string> = {pending: 'İncelemede', approved: 'Yayında', rejected: 'Reddedildi', hidden: 'Gizlendi', withdrawn: 'Geri çekildi'};
 const sending = ref(false);
 const sendError = ref('');
-const gate = computed(() => (live.value && !done.value ? (props.signInHref ? 'guest' : props.existing ? 'existing' : null) : null));
+const editing = ref(false);
+const droppedMonth = ref(false);
+const gate = computed(() => (live.value && !done.value ? (props.signInHref ? 'guest' : props.existing && !editing.value ? 'existing' : null) : null));
+const canEditExisting = computed(() => !!props.edit && !!props.existing?.canEdit);
 
 const step = ref(1);
 const done = ref(false);
@@ -50,6 +74,7 @@ const form = reactive({
   wc: 'unknown' as ReviewAnswers['wc'],
   service: '',
   month: visitMonths[0]!,
+  visitMonth: '',
   text: '',
   consent: false,
 });
@@ -59,9 +84,23 @@ let photoSeq = 0;
 function reset() {
   step.value = 1;
   done.value = false;
-  Object.assign(form, {rating: 0, dims: reviewDimensions.map(() => 0), resolved: '', scores: {}, wc: 'unknown', service: props.profile.services[0] ?? '', month: visitMonths[0]!, text: '', consent: false});
+  editing.value = false;
+  droppedMonth.value = false;
+  Object.assign(form, {rating: 0, dims: reviewDimensions.map(() => 0), resolved: '', scores: {}, wc: 'unknown', service: live.value ? '' : props.profile.services[0] ?? '', month: visitMonths[0]!, visitMonth: '', text: '', consent: false});
   sendError.value = '';
   clearPhotos();
+}
+
+/** Fills the form with the member's own review; the API rewrites the whole review on save. */
+function startEditing() {
+  if (!props.existing || !canEditExisting.value) return;
+  const {answers, droppedMonth: dropped} = answersFromOwn(props.existing);
+  liveMonths.value = visitMonthOptions();
+  Object.assign(form, {rating: answers.rating, scores: {...answers.scores}, resolved: answers.resolved, wc: answers.wc, service: answers.service ?? '', visitMonth: answers.visitMonth ?? '', text: answers.text, consent: false});
+  droppedMonth.value = dropped;
+  sendError.value = '';
+  editing.value = true;
+  step.value = 2;
 }
 
 function fillDemo() {
@@ -73,9 +112,14 @@ function fillDemo() {
 watch(() => props.open, (open) => {
   if (!open) return;
   if (done.value) reset();
-  if (!form.service) form.service = props.profile.services[0] ?? '';
+  if (!live.value && !form.service) form.service = props.profile.services[0] ?? '';
+  if (live.value) liveMonths.value = visitMonthOptions();
   sendError.value = '';
   if (props.demo) fillDemo();
+}, {immediate: true});
+// "Düzenle" on Yorumlarım opens the form at once, as soon as the own review has loaded.
+watch(() => [props.open, props.startEdit, props.existing] as const, ([open, start, existing]) => {
+  if (open && start && existing && !editing.value && !done.value) startEditing();
 }, {immediate: true});
 
 const dirty = computed(() => form.rating > 0 || form.text.length > 0);
@@ -88,16 +132,18 @@ const canContinue = computed(() => {
 const primaryLabel = computed(() => {
   if (step.value < steps.value.length) return `Devam: ${steps.value[step.value]}`;
   if (!live.value) return 'Yorumu gönder';
-  return sending.value ? 'Gönderiliyor…' : 'İncelemeye gönder';
+  if (sending.value) return 'Gönderiliyor…';
+  return editing.value ? 'Güncelle ve incelemeye gönder' : 'İncelemeye gönder';
 });
 const textHint = computed(() => (form.text.trim().length > 0 && form.text.trim().length < minText.value ? `En az ${minText.value} karakter yazın.` : 'Plaka, telefon veya fatura kimlik bilgisi yazmayın.'));
 
 async function send() {
-  if (!props.submit) return;
+  const action = editing.value ? props.edit : props.submit;
+  if (!action) return;
   sending.value = true;
   sendError.value = '';
   try {
-    await props.submit({rating: form.rating, scores: {...form.scores}, resolved: form.resolved, wc: form.wc, text: form.text});
+    await action({rating: form.rating, scores: {...form.scores}, resolved: form.resolved, wc: form.wc, text: form.text, service: form.service, visitMonth: form.visitMonth});
     done.value = true;
   } catch (error) {
     // A Zod issue list starts with "["; the API's own message is readable Turkish.
@@ -115,6 +161,7 @@ function next() {
 function back() {
   if (sending.value) return;
   if (step.value > 1) step.value -= 1;
+  else if (editing.value) editing.value = false;
   else emit('close');
 }
 function close() {
@@ -145,12 +192,12 @@ onBeforeUnmount(clearPhotos);
 
 const previewReview = computed<ProfileReviewView>(() => (live.value
   ? {
-    // Public reviews carry no author name; the preview shows what visitors will see.
+    // The short account name is added by the API on publication; the preview stays anonymous.
     id: 'onizleme',
     author: '',
     initials: '',
     avatarColor: 'var(--cream-100)',
-    meta: '',
+    meta: [form.visitMonth ? monthLabel(form.visitMonth) : '', form.service].filter(Boolean).join(' · '),
     rating: form.rating,
     text: form.text.trim(),
     resolved: form.resolved || 'Henüz belli değil',
@@ -181,8 +228,9 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
   <V2Modal :open="open" title="Deneyimini paylaş" :subtitle="business.name" :width="760" @close="close">
     <div v-if="done" class="success" role="status">
       <span class="success-icon"><Check :size="30" aria-hidden="true"/></span>
-      <p class="t-h3">Teşekkürler, yorumun alındı</p>
-      <p v-if="live" class="t-body-md t-muted">Yorumun incelemeye alındı. Onaylandığında {{ business.name }} profilinde yayınlanır; durumunu Yorumlarım sayfasından takip edebilirsin.</p>
+      <p class="t-h3">{{ editing ? 'Yorumun güncellendi' : 'Teşekkürler, yorumun alındı' }}</p>
+      <p v-if="live && editing" class="t-body-md t-muted">Güncel hali yeniden incelemeye alındı. Onaylanana kadar {{ business.name }} profilinde görünmez; durumunu Yorumlarım sayfasından takip edebilirsin.</p>
+      <p v-else-if="live" class="t-body-md t-muted">Yorumun incelemeye alındı. Onaylandığında {{ business.name }} profilinde yayınlanır; durumunu Yorumlarım sayfasından takip edebilirsin.</p>
       <p v-else class="t-body-md t-muted">Yorumun incelendikten sonra {{ business.name }} profilinde yayınlanır. İşletme yanıt verdiğinde sana haber vereceğiz.</p>
     </div>
 
@@ -193,7 +241,8 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
 
     <div v-else-if="gate === 'existing'" class="success" role="status">
       <p class="t-h3">Bu işletme için yorumun var</p>
-      <p class="t-body-md t-muted">İşletme başına bir değerlendirme alınır. Yorumunun durumu: <strong>{{ ownStatus[existing?.status ?? ''] ?? existing?.status }}</strong>. Düzenleme ve geri çekme Yorumlarım sayfasında.</p>
+      <p class="t-body-md t-muted">İşletme başına bir değerlendirme alınır. Yorumunun durumu: <strong>{{ ownStatus[existing?.status ?? ''] ?? existing?.status }}</strong>.</p>
+      <p class="t-body-sm t-muted">{{ canEditExisting ? 'Düzenlediğin yorum yeniden incelenir; onaylanana kadar profilde görünmez. Geri çekme Yorumlarım sayfasında.' : 'Bu yorum şu anda düzenlenemiyor. Geri çekme Yorumlarım sayfasında.' }}</p>
     </div>
 
     <div v-else class="body">
@@ -251,24 +300,25 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
             <V2Chip v-for="option in wcOptions" :key="option.value" as="button" :variant="form.wc === option.value ? 'active' : 'default'" :pressed="form.wc === option.value" @click="form.wc = option.value">{{ option.label }}</V2Chip>
           </div>
         </fieldset>
+        <div v-if="live" class="two">
+          <div v-if="liveServiceOptions.length > 1" class="field">
+            <span id="yorum-hizmet" class="field-label">Hizmet</span>
+            <V2Select v-model="form.service" :options="liveServiceOptions" placeholder="Hizmet seç" aria-labelledby="yorum-hizmet"/>
+          </div>
+          <div class="field">
+            <span id="yorum-ay" class="field-label">Ziyaret ayı</span>
+            <V2Select v-model="form.visitMonth" :options="liveMonthOptions" placeholder="Ay seç" aria-labelledby="yorum-ay"/>
+            <span v-if="droppedMonth && !form.visitMonth" class="t-body-sm t-muted">Önceki ziyaret ayı 24 aydan eski olduğu için kaldırıldı; istersen yeni bir ay seç.</span>
+          </div>
+        </div>
         <div v-else class="two">
           <label class="field">
             <span class="field-label">Hizmet</span>
-            <span class="select-wrap">
-              <select v-model="form.service" class="select">
-                <option v-for="service in profile.services" :key="service" :value="service">{{ service }}</option>
-              </select>
-              <ChevronDown :size="16" aria-hidden="true"/>
-            </span>
+            <V2Select v-model="form.service" :options="profile.services" placeholder="Hizmet seç" aria-label="Hizmet"/>
           </label>
           <label class="field">
             <span class="field-label">Ziyaret ayı</span>
-            <span class="select-wrap">
-              <select v-model="form.month" class="select">
-                <option v-for="month in visitMonths" :key="month" :value="month">{{ month }}</option>
-              </select>
-              <ChevronDown :size="16" aria-hidden="true"/>
-            </span>
+            <V2Select v-model="form.month" :options="visitMonths" placeholder="Ay seç" aria-label="Ziyaret ayı"/>
           </label>
         </div>
         <label class="field">
@@ -309,7 +359,7 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
         <ul v-if="!live && form.dims.some((d) => d > 0)" class="dim-summary t-body-sm">
           <li v-for="(dim, i) in reviewDimensions" v-show="form.dims[i]" :key="dim"><span class="t-muted">{{ dim }}</span> <strong>{{ form.dims[i] }}/5</strong></li>
         </ul>
-        <p class="hint"><Info aria-hidden="true"/>{{ live ? 'Yorumun incelendikten sonra yayınlanır. İşletme başına bir değerlendirme alınır; yorumlar profilde isimsiz görünür.' : 'Yorumun incelendikten sonra yayınlanır. İşletme yanıt verebilir; yanıtı yorumunun altında görünür.' }}</p>
+        <p class="hint"><Info aria-hidden="true"/>{{ live ? 'Yorumun incelendikten sonra yayınlanır. İşletme başına bir değerlendirme alınır. Hesabında adın varsa profilde kısaltılmış hali (ör. “Selin A.”) görünür; yoksa yorum isimsiz görünür.' : 'Yorumun incelendikten sonra yayınlanır. İşletme yanıt verebilir; yanıtı yorumunun altında görünür.' }}</p>
         <p v-if="sendError" class="send-error t-body-sm" role="alert">{{ sendError }}</p>
       </section>
     </div>
@@ -324,7 +374,8 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
       </template>
       <template v-else-if="gate === 'existing'">
         <V2Button variant="outline" @click="close">Kapat</V2Button>
-        <V2Button to="/yorumlarim" arrow>Yorumlarım</V2Button>
+        <V2Button v-if="canEditExisting" arrow @click="startEditing">Düzenle</V2Button>
+        <V2Button v-else to="/yorumlarim" arrow>Yorumlarım</V2Button>
       </template>
       <template v-else>
         <p v-if="dirty && !live" class="draft t-body-sm"><Check :size="16" aria-hidden="true"/>Taslak otomatik kaydedildi</p>
@@ -358,9 +409,6 @@ const previewReview = computed<ProfileReviewView>(() => (live.value
 .group legend{padding:0;margin-bottom:10px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.select-wrap{position:relative;display:block}
-.select-wrap .select{appearance:none;-webkit-appearance:none;padding:14px 42px 14px 16px;border-radius:16px;cursor:pointer}
-.select-wrap :deep(svg){position:absolute;right:16px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink-900)}
 .review-text{height:120px;min-height:120px}
 .counter-row{display:flex;justify-content:space-between;gap:12px;font-size:13px;line-height:1.45;color:var(--ink-500)}
 .counter{flex:none}

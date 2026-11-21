@@ -4,9 +4,11 @@ import type {Business} from '@otosanayide/core';
 import {parsePublicReviews} from '@otosanayide/core/public-reviews-client';
 import type {OpeningHours} from '../app/lib/opening-hours';
 import {decodeBusiness} from '../app/lib/search-response';
+import {fetchOwnReviews} from '../app/lib/own-reviews';
 import {
-  addressLine, contactTargets, hoursRows, liveFacts, liveProfile, liveReportReasons, profileSeo, requestActions,
-  reviewBody, reviewCreated, reviewView,
+  addressLine, answersFromOwn, aspectDimensions, contactTargets, hoursRows, liveFacts, liveProfile, liveReportReasons, monthLabel, nameInitials,
+  ownReviewMeta, profileSeo, requestActions, reviewBody, reviewCreated, reviewEditBody, reviewReportBody, reviewReportReasons, reviewView,
+  visitMonthAllowed, visitMonthOptions,
 } from '../app/lib/v2/profile';
 
 const record = (extra: Record<string, unknown> = {}) => ({
@@ -39,7 +41,7 @@ test('live profile data: catalog vs owner records, unknown hours stay unknown, f
   assert.equal(unclaimed.hours, null);
   assert.equal(unclaimed.hoursNote, null);
   assert.equal(unclaimed.coordinateVerified, false);
-  assert.deepEqual(unclaimed.dimensions, [], 'the API has no dimension averages');
+  assert.deepEqual(unclaimed.dimensions, [], 'no aspects without reviewSummary.aspects');
   assert.deepEqual(unclaimed.reviews, []);
   assert.deepEqual(unclaimed.photos, []);
 
@@ -120,4 +122,123 @@ test('S08 reasons, SEO text and the header address line', () => {
   assert.match(seo.description, /Hizmetler: Periyodik bakım, Fren sistemi\./);
   assert.equal(addressLine('Örnek Sokak No 1, Kadıköy', 'Kadıköy'), 'Örnek Sokak No 1, Kadıköy');
   assert.equal(addressLine('Örnek Sokak No 1', 'Kadıköy'), 'Örnek Sokak No 1, Kadıköy');
+});
+
+const NOW = new Date('2026-11-21T09:00:00Z');
+
+test('v2 public reviews: short author name with initials, visit month · service line, publish date, extra score chips', () => {
+  const page = parsePublicReviews({
+    reviews: [
+      {id: 'r1', rating: 5, text: 'Fren balatalarını aynı gün değiştirdiler.', resolved: 'yes', wc: 'unknown', quality: 5, communication: 4, priceTransparency: 3,
+        author: {displayName: 'Selin A.'}, service: 'Periyodik bakım', visitMonth: '2026-10', publishedAtMs: Date.UTC(2026, 10, 14, 9)},
+      {id: 'r2', rating: 3, text: 'İş uzun sürdü ama sonuç iyi.', resolved: 'unknown', wc: 'unknown', author: null, service: null, visitMonth: null, publishedAtMs: null},
+    ],
+    nextCursor: null, count: 2, average: 4,
+  });
+  const [named, anonymous] = page.reviews.map((r) => reviewView(r, () => ''));
+  assert.equal(named!.author, 'Selin A.');
+  assert.equal(named!.initials, 'SA');
+  assert.match(named!.avatarColor, /^var\(--/);
+  assert.equal(named!.meta, 'Ekim 2026 · Periyodik bakım');
+  assert.deepEqual(named!.published, {iso: '2026-11-14T09:00:00.000Z', label: '14 Kasım 2026'});
+  assert.deepEqual(named!.chips, ['Hizmet kalitesi 5/5', 'İletişim 4/5', 'Fiyat şeffaflığı 3/5']);
+  assert.equal(anonymous!.author, '', 'null author keeps the anonymous label');
+  assert.equal(anonymous!.initials, '');
+  assert.equal(anonymous!.meta, '');
+  assert.equal(anonymous!.published, null);
+  // Unknown or malformed v2 fields still fail the strict page parser.
+  assert.throws(() => parsePublicReviews({reviews: [{id: 'r', rating: 4, text: 'Yeterince uzun metin.', resolved: 'yes', wc: 'no', author: {displayName: 'A', email: 'x'}}], nextCursor: null, count: 1, average: 4}));
+  assert.throws(() => parsePublicReviews({reviews: [{id: 'r', rating: 4, text: 'Yeterince uzun metin.', resolved: 'yes', wc: 'no', visitMonth: '2026-13'}], nextCursor: null, count: 1, average: 4}));
+  assert.equal(nameInitials('Selin'), 'SE');
+  assert.equal(nameInitials('ilker A.'), 'İA');
+});
+
+test('aspect averages from the business record become the rating bars; an unscored aspect is null ("—")', () => {
+  const aspects = {quality: {average: 4.5, count: 12}, payment: {average: 4.1, count: 9}, cleanliness: {average: 3.9, count: 7}, communication: {average: 4.8, count: 3}, priceTransparency: {average: null, count: 0}};
+  assert.deepEqual(aspectDimensions(aspects), [
+    {label: 'Hizmet kalitesi', score: 4.5, count: 12},
+    {label: 'İletişim', score: 4.8, count: 3},
+    {label: 'Fiyat şeffaflığı', score: null, count: 0},
+    {label: 'Ödeme kolaylığı', score: 4.1, count: 9},
+    {label: 'Temizlik', score: 3.9, count: 7},
+  ]);
+  const none = Object.fromEntries(Object.keys(aspects).map((k) => [k, {average: null, count: 0}]));
+  assert.deepEqual(aspectDimensions(none), [], 'nothing scored: no bars');
+  assert.deepEqual(aspectDimensions(undefined), []);
+  // The detail endpoint's reviewSummary keeps its aspects through the shared business parser.
+  const decoded = decodeBusiness({...record(), reviewSummary: {count: 12, average: 4.4, aspects}}, 'live');
+  assert.equal(decoded.extras.reviewSummary?.count, 12);
+  assert.equal(liveProfile(decoded.business, decoded.extras).dimensions[0]?.score, 4.5);
+  assert.equal(decodeBusiness({...record(), reviewSummary: {count: 1, average: 4, aspects: {quality: {average: 4, count: 0}}}}, 'live').extras.reviewSummary, undefined, 'contradictory aspect is rejected');
+});
+
+test('visit month choices: this Istanbul month back to 24 months; the same rule guards the body', () => {
+  const options = visitMonthOptions(NOW);
+  assert.equal(options.length, 25);
+  assert.deepEqual(options[0], {value: '2026-11', label: 'Kasım 2026'});
+  assert.deepEqual(options.at(-1), {value: '2024-11', label: 'Kasım 2024'});
+  assert.equal(visitMonthOptions(new Date('2026-11-30T22:30:00Z'))[0]?.value, '2026-12', 'Istanbul is already in December');
+  assert.equal(visitMonthAllowed('2026-11', NOW), true);
+  assert.equal(visitMonthAllowed('2024-11', NOW), true);
+  assert.equal(visitMonthAllowed('2024-10', NOW), false);
+  assert.equal(visitMonthAllowed('2026-12', NOW), false);
+  assert.equal(visitMonthAllowed('2026-1', NOW), false);
+  assert.equal(monthLabel('2026-01'), 'Ocak 2026');
+});
+
+test('W07 v2 answers: new scores, service and visit month go into POST and the PATCH edit body', () => {
+  const answers = {rating: 5, scores: {quality: 5, communication: 4, priceTransparency: 3}, resolved: 'Evet' as const, wc: 'unknown' as const, text: 'Fiyatı işe başlamadan söylediler.', service: ' Periyodik bakım ', visitMonth: '2026-10'};
+  assert.deepEqual(reviewBody('ornek-garaj', answers, NOW), {
+    businessId: 'ornek-garaj', rating: 5, quality: 5, communication: 4, priceTransparency: 3, resolved: 'yes', wc: 'unknown',
+    text: 'Fiyatı işe başlamadan söylediler.', service: 'Periyodik bakım', visitMonth: '2026-10',
+  });
+  const plain = reviewBody('ornek-garaj', {...answers, scores: {}, service: '', visitMonth: ''}, NOW);
+  assert.equal('service' in plain, false);
+  assert.equal('visitMonth' in plain, false);
+  assert.throws(() => reviewBody('ornek-garaj', {...answers, visitMonth: '2026-12'}, NOW), /gelecekte/);
+  assert.throws(() => reviewBody('ornek-garaj', {...answers, visitMonth: '2024-10'}, NOW));
+  assert.throws(() => reviewBody('ornek-garaj', {...answers, service: 'x'.repeat(121)}, NOW));
+  const edit = reviewEditBody('ornek-garaj', 3, answers, NOW);
+  assert.equal(edit.action, 'edit');
+  assert.equal(edit.action === 'edit' && edit.expectedVersion, 3);
+  assert.equal(edit.action === 'edit' && edit.review.visitMonth, '2026-10');
+});
+
+test('the own review fills the edit form; a visit month now older than 24 months is dropped', () => {
+  const own = {id: 'rv-1', text: 'Fren işi temiz yapıldı.', rating: 4, status: 'approved' as const, version: 2, reason: '', resolved: 'partial' as const, wc: 'yes' as const,
+    quality: 5, wcCleanliness: 3, communication: 4, service: 'Fren sistemi', visitMonth: '2026-09', canEdit: true, canWithdraw: true};
+  assert.deepEqual(answersFromOwn(own, NOW), {
+    answers: {rating: 4, scores: {quality: 5, communication: 4, wcCleanliness: 3}, resolved: 'Kısmen', wc: 'yes', text: 'Fren işi temiz yapıldı.', service: 'Fren sistemi', visitMonth: '2026-09'},
+    droppedMonth: false,
+  });
+  const old = answersFromOwn({...own, visitMonth: '2024-01', service: null, resolved: 'unknown'}, NOW);
+  assert.equal(old.answers.visitMonth, '');
+  assert.equal(old.answers.service, '');
+  assert.equal(old.answers.resolved, '');
+  assert.equal(old.droppedMonth, true);
+  assert.equal(answersFromOwn({...own, visitMonth: null}, NOW).droppedMonth, false);
+});
+
+test('review report: a reason, the text only when written; "Diğer" needs 10+ characters', () => {
+  assert.deepEqual(reviewReportReasons.map((r) => r.value), ['fake', 'offensive', 'personal_data', 'not_customer', 'spam', 'other']);
+  assert.deepEqual(reviewReportBody('rv-1', 'fake'), {reviewId: 'rv-1', kind: 'report', reason: 'fake'});
+  assert.deepEqual(reviewReportBody('rv-1', 'spam', '  Sürekli aynı reklam metni.  '), {reviewId: 'rv-1', kind: 'report', reason: 'spam', text: 'Sürekli aynı reklam metni.'});
+  assert.throws(() => reviewReportBody('rv-1', 'other'));
+  assert.throws(() => reviewReportBody('rv-1', 'other', 'kısa'));
+  assert.throws(() => reviewReportBody('rv-1', 'fake', 'kısa'), 'a written text still needs 10 characters');
+  assert.deepEqual(reviewReportBody('rv-1', 'other', 'Bu işletmeyle ilgili değil.').text, 'Bu işletmeyle ilgili değil.');
+});
+
+test('own review list asks for v=2, falls back to v1 on 400 and keeps the v2 fields for the meta line', async () => {
+  const review = {id: 'r1', text: 'İyi hizmet aldım, teşekkürler.', rating: 5, version: 1, status: 'approved', reason: '', resolved: 'yes', wc: 'unknown', canEdit: true, canWithdraw: true, service: 'Periyodik bakım', visitMonth: '2026-10'};
+  const paths: string[] = [];
+  const request = (async (path: string) => {
+    paths.push(path);
+    return path.includes('v=2') ? new Response('{"error":"Geçersiz istek."}', {status: 400}) : Response.json({items: [{businessId: 'b1', businessName: 'Sentetik', review}], next: null});
+  }) as never;
+  const page = await fetchOwnReviews(async () => 't', '', request);
+  assert.deepEqual(paths, ['/api/reviews/mine/all?v=2', '/api/reviews/mine/all']);
+  assert.equal(ownReviewMeta(page.items[0]!.review), 'Ziyaret: Ekim 2026 · Periyodik bakım');
+  assert.equal(ownReviewMeta({service: null, visitMonth: null}), '');
+  assert.equal(ownReviewMeta({service: 'Fren', visitMonth: null}), 'Fren');
 });

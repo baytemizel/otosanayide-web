@@ -2,33 +2,40 @@
 import {computed, ref} from 'vue';
 import {Check, Flag, User} from '@lucide/vue';
 import ProfileStars from './ProfileStars.vue';
-import type {ProfileReviewView} from '~/lib/v2/profile';
+import {reviewReportReasons, type ProfileReviewView, type ReviewReportReason} from '~/lib/v2/profile';
 
 // One review on the profile (W04 "Yorum" card): author, stars, text, resolved tag, owner reply, helpful/report.
-// Live (`live`): reviews are anonymous, "Faydalı" is not in the API (web-15 rejected) and stays disabled,
-// "Bildir" sends a review case (POST /api/review-cases) through `report`; a guest gets a sign-in link.
+// Live (`live`): the author's short name when the account has one (else the anonymous label), the
+// "Ekim 2026 · Hizmet" line and the publish date (GET /api/reviews?v=2). "Faydalı" is not in the API
+// (web-15 rejected) and stays disabled; "Bildir" sends a review case with a reason (POST /api/review-cases)
+// through `report`, the text is needed only for "Diğer"; a guest gets a sign-in link.
 const props = withDefaults(defineProps<{
   review: ProfileReviewView;
   preview?: boolean;
   live?: boolean;
-  report?: (id: string, text: string) => Promise<void>;
+  report?: (id: string, reason: ReviewReportReason, text: string) => Promise<void>;
   signInHref?: string | null;
 }>(), {preview: false, live: false, report: undefined, signInHref: null});
 const helpful = ref(false);
 const reported = ref(false);
 
 const reporting = ref(false);
+const reportReason = ref<ReviewReportReason | ''>('');
 const reportText = ref('');
 const sending = ref(false);
 const reportError = ref('');
-const reportValid = computed(() => reportText.value.trim().length >= 10);
+const textRequired = computed(() => reportReason.value === 'other');
+const reportValid = computed(() => {
+  const length = reportText.value.trim().length;
+  return !!reportReason.value && (length >= 10 || (!textRequired.value && length === 0));
+});
 
 async function sendReport() {
-  if (!props.report || !reportValid.value || sending.value) return;
+  if (!props.report || !reportReason.value || !reportValid.value || sending.value) return;
   sending.value = true;
   reportError.value = '';
   try {
-    await props.report(props.review.id, reportText.value.trim());
+    await props.report(props.review.id, reportReason.value, reportText.value.trim());
     reported.value = true;
     reporting.value = false;
   } catch (error) {
@@ -48,7 +55,10 @@ async function sendReport() {
         <span class="t-label-md">{{ review.author || 'Hizmet deneyimi' }}</span>
         <span v-if="review.meta" class="t-body-sm t-muted">{{ review.meta }}</span>
       </span>
-      <ProfileStars :value="review.rating" :size="16"/>
+      <span class="rating">
+        <ProfileStars :value="review.rating" :size="16"/>
+        <time v-if="review.published" class="t-body-sm t-muted" :datetime="review.published.iso">{{ review.published.label }}</time>
+      </span>
     </header>
     <p class="text t-body-md">{{ review.text }}</p>
     <div class="tags">
@@ -78,9 +88,16 @@ async function sendReport() {
       <button v-else-if="!reporting && report" type="button" class="report" @click="reporting = true"><Flag :size="12" aria-hidden="true"/>Bildir</button>
     </div>
     <form v-if="live && reporting && !reported" class="report-form" @submit.prevent="sendReport">
+      <fieldset class="reasons" :disabled="sending">
+        <legend class="field-label">Bu yorumu neden bildiriyorsun?</legend>
+        <label v-for="option in reviewReportReasons" :key="option.value" class="reason t-body-sm">
+          <input v-model="reportReason" type="radio" :name="`yorum-bildir-${review.id}`" class="radio" :value="option.value">
+          {{ option.label }}
+        </label>
+      </fieldset>
       <label class="field">
-        <span class="field-label">Bu yorumu neden bildiriyorsun?</span>
-        <textarea v-model="reportText" class="textarea" minlength="10" maxlength="2000" required :disabled="sending" placeholder="Örneğin: yorum bu işletmeyle ilgili değil."/>
+        <span class="field-label">{{ textRequired ? 'Açıklama (en az 10 karakter)' : 'Açıklama (isteğe bağlı, yazarsan en az 10 karakter)' }}</span>
+        <textarea v-model="reportText" class="textarea" maxlength="2000" :required="textRequired" :disabled="sending" placeholder="Örneğin: yorum bu işletmeyle ilgili değil."/>
       </label>
       <p v-if="reportError" class="t-body-sm error" role="alert">{{ reportError }}</p>
       <div class="report-actions">
@@ -114,8 +131,12 @@ async function sendReport() {
 .photos img{display:block;width:96px;height:72px;object-fit:cover;border-radius:12px;background:var(--cream-100)}
 .report-form{display:flex;flex-direction:column;gap:10px}
 .report-form .textarea{height:84px}
+.reasons{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.reasons legend{padding:0;margin-bottom:8px}
+.reason{display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--ink-800)}
+.rating{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
 .report-actions{display:flex;gap:8px;justify-content:flex-end}
 .error{color:var(--red-500)}
 .helpful:not(:disabled):hover,.report:not(:disabled):hover{text-decoration:underline;text-underline-offset:3px}
-@media (max-width:480px){.profile-review{padding:20px}.who{flex-wrap:wrap}}
+@media (max-width:480px){.profile-review{padding:20px}.who{flex-wrap:wrap}.rating{align-items:flex-start;width:100%}}
 </style>

@@ -1,6 +1,9 @@
 // Requests and account area (W14–W18, /yorumlarim, /basvurularim). Synthetic, in-memory.
-// Fakes: GET /api/businesses/:id for three "Örnek Talep" businesses, availability (60-minute slots,
-// Sunday closed), POST/GET/PATCH /api/requests (+ v=2 offer lines), request messages,
+// Fakes: GET /api/businesses/:id for three "Örnek Talep" businesses, availability (PDR: 30-minute
+// slots, garage: 60-minute; Sunday closed; v=2 lists full slots with state free/full), POST/GET/PATCH
+// /api/requests (+ v=2 offer lines and v2-01 fields: reference, createdAtMs, respondByMs, seen,
+// contactPreference, preferredWindow, vehicleId, resolutionCode, expired/no_show, cancel reasonCode,
+// kind/status filters), request messages,
 // notifications (+ read-all, kind filter), preferences, data-export requests, privacy (deletion)
 // requests, own reviews (list + withdraw/edit), ownership claims (list + reply).
 // Not faked: the 428 "recent sign-in" rule, e-mail delivery, business-side offers (seeded instead).
@@ -41,32 +44,43 @@ export default (api) => {
   /* ---------------------------------------------------------------- availability */
   const booked = new Set(); // `${businessId}|${date}|${slot}`
   const HOURS = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
-  function slotsFor(businessId, date) {
+  const HALF_HOURS = HOURS.flatMap((h) => [h, h.replace(':00', ':30')]);
+  const slotMinutesOf = (businessId) => (businessId === 'ornek-talep-pdr' ? 30 : 60);
+  /** Every slot of the day with its state (a synthetic pattern of full slots, plus booked ones). */
+  function slotStates(businessId, date) {
     const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (weekday === 0) return [];
     const seed = Number(date.slice(8, 10));
-    const hours = weekday === 6 ? HOURS.slice(0, 4) : HOURS;
-    return hours.filter((h, i) => (i * 3 + seed) % 7 !== 0 && !booked.has(`${businessId}|${date}|${h}`));
+    const all = slotMinutesOf(businessId) === 30 ? HALF_HOURS : HOURS;
+    const times = weekday === 6 ? all.slice(0, all.length / 2) : all;
+    return times.map((h, i) => ({time: h, state: (i * 3 + seed) % 7 === 0 || booked.has(`${businessId}|${date}|${h}`) ? 'full' : 'free'}));
   }
+  const slotsFor = (businessId, date) => slotStates(businessId, date).filter((s) => s.state === 'free').map((s) => s.time);
   api.get('/api/businesses/:id/availability', ({params, query}, reply) => {
     const b = findBusiness(params.id);
     if (!b) return reply.error(404, 'İşletme bulunamadı.');
     const from = query.get('from') ?? '';
     const days = Number(query.get('days') ?? '7');
     const today = istanbulDate(now());
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || from < today || from > addDays(today, 90) || !Number.isInteger(days) || days < 1 || days > 14) return reply.error(400, 'Geçersiz istek.');
-    if (!b.features?.appointments) return reply.json({timezone: TZ, slotMinutes: null, days: []});
-    return reply.json({timezone: TZ, slotMinutes: 60, days: Array.from({length: days}, (_, i) => {
+    const v = query.get('v');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || from < today || from > addDays(today, 90) || !Number.isInteger(days) || days < 1 || days > 14 || (v !== null && v !== '2')) return reply.error(400, 'Geçersiz istek.');
+    const v2 = v === '2';
+    if (!b.features?.appointments) return reply.json({timezone: TZ, slotMinutes: null, days: [], ...(v2 ? {capacity: null} : {})});
+    const clock = new Date(now()).toLocaleTimeString('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
+    return reply.json({timezone: TZ, slotMinutes: slotMinutesOf(b.id), days: Array.from({length: days}, (_, i) => {
       const date = addDays(from, i);
-      const slots = date === today ? slotsFor(b.id, date).filter((s) => s > new Date(now()).toLocaleTimeString('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})) : slotsFor(b.id, date);
-      return {date, slots};
-    })});
+      const states = slotStates(b.id, date).filter((s) => date !== today || s.time > clock); // past times are not listed
+      return {date, slots: v2 ? states : states.filter((s) => s.state === 'free').map((s) => s.time)};
+    }), ...(v2 ? {capacity: 1} : {})});
   });
 
   /* ---------------------------------------------------------------- requests */
   const requests = new Map(); // uid -> [{...item, createdAtMs, ownerUid, requestKey}]
   const messages = new Map(); // requestId -> [{id, author, text, createdAtMs, operationId}]
   const reqId = () => 'tl' + api.uuid().replace(/-/g, '').slice(0, 14);
+  let referenceCounter = 0;
+  const nextReference = (ms) => `R-${istanbulDate(ms).slice(0, 4)}-${String(++referenceCounter).padStart(6, '0')}`;
+  const RESPOND_WITHIN_MS = 48 * 3_600_000;
   function seedRequests() {
     const t = now();
     const offered = {
@@ -85,12 +99,25 @@ export default (api) => {
     const waiting = {
       id: 'tl-ornek-0425', businessId: 'ornek-talep-garaj', businessName: 'Örnek Talep Teknik Garaj', kind: 'quotes', service: 'Arıza tespiti', vehicle: 'BMW 320i 2019',
       message: 'Klima soğutmuyor, arada bir tıkırtı geliyor.', status: 'requested', version: 1, createdAtMs: t - 3 * 3_600_000,
+      seenByBusinessAtMs: t - 40 * 60_000, contactPreference: 'phone', preferredWindow: 'this_week', vehicleId: '11111111-1111-4111-8111-111111111111',
+    };
+    const expired = {
+      id: 'tl-ornek-0396', businessId: 'ornek-talep-garaj', businessName: 'Örnek Talep Teknik Garaj', kind: 'quotes', service: 'Fren', vehicle: 'Togg T10X 2024',
+      message: 'Frende hafif titreme var, balata kontrolü istiyorum.', status: 'expired', version: 2, createdAtMs: t - 9 * DAY, resolution: 'Yanıt süresi doldu.',
+    };
+    const noShowStart = new Date(Date.parse(`${addDays(istanbulDate(t), -12)}T14:30:00+03:00`)).toISOString();
+    const noShow = {
+      id: 'tl-ornek-0371', businessId: 'ornek-talep-pdr', businessName: 'Örnek Talep PDR Noktası', kind: 'appointments', service: 'Dolu hasarı', vehicle: 'BMW 320i 2019',
+      message: 'Tavanda dolu izleri var, bakılması için saat istiyorum.', preferredDate: addDays(istanbulDate(t), -12), status: 'no_show', version: 4, createdAtMs: t - 16 * DAY,
+      preferredStartsAt: noShowStart, offer: {text: 'İşletme seçtiğin saati onayladı.', startsAt: noShowStart, expiresAtMs: Date.parse(noShowStart)}, resolution: 'Müşteri randevuya gelmedi.',
     };
     const cancelled = {
       id: 'tl-ornek-0390', businessId: 'ornek-talep-pdr', businessName: 'Örnek Talep PDR Noktası', kind: 'quotes', service: 'Kaporta', vehicle: 'BMW 320i 2019',
       message: 'Ön tamponda çizik var, boya gerekiyor mu?', status: 'cancelled', version: 2, createdAtMs: t - 20 * DAY, resolution: 'Başka bir servisle anlaştım, teşekkürler.',
+      resolutionCode: 'found_other',
     };
-    requests.set(SEED_UID, [offered, confirmed, waiting, cancelled].map((r) => ({...r, ownerUid: SEED_UID})));
+    const seeds = [cancelled, noShow, expired, confirmed, offered, waiting].sort((a, b) => a.createdAtMs - b.createdAtMs);
+    requests.set(SEED_UID, seeds.map((r) => ({contactPreference: 'app_message', seenByBusinessAtMs: r.status === 'requested' ? null : r.createdAtMs + 3_600_000, ...r, reference: nextReference(r.createdAtMs), ownerUid: SEED_UID})));
     messages.set(offered.id, [
       {id: api.uuid(), author: 'business', text: 'Fotoğrafa göre boyasız düzeltilebilir. Cuma 10.00 uygun mu?', createdAtMs: t - DAY - 3_600_000},
       {id: api.uuid(), author: 'customer', text: 'Cuma olur. Kartla ödeyebilir miyim?', createdAtMs: t - DAY - 3_000_000},
@@ -115,19 +142,38 @@ export default (api) => {
       ...(r.offer ? {offer: v2 ? r.offer : Object.fromEntries(Object.entries(r.offer).filter(([k]) => !V2_OFFER_KEYS.includes(k)))} : {}),
       ...(r.resolution ? {resolution: r.resolution} : {})};
     if (v2 && r.preferredStartsAt) out.preferredStartsAt = r.preferredStartsAt;
+    if (!v2) {
+      // v1 clients know six statuses: the new ones map like the real API.
+      if (r.status === 'expired') Object.assign(out, {status: 'declined', resolution: r.resolution ?? 'Yanıt süresi doldu.'});
+      if (r.status === 'no_show') Object.assign(out, {status: 'cancelled', resolution: r.resolution ?? 'Müşteri randevuya gelmedi.'});
+      return out;
+    }
+    Object.assign(out, {createdAtMs: r.createdAtMs, reference: r.reference ?? null});
+    if (r.status === 'requested') out.respondByMs = r.createdAtMs + RESPOND_WITHIN_MS;
+    out.seenByBusinessAtMs = r.seenByBusinessAtMs ?? null;
+    out.contactPreference = r.contactPreference ?? 'app_message';
+    if (r.preferredWindow) out.preferredWindow = r.preferredWindow;
+    if (r.vehicleId) out.vehicleId = r.vehicleId;
+    if (r.resolutionCode) out.resolutionCode = r.resolutionCode;
     return out;
   }
+  const STATUSES = ['requested', 'offered', 'confirmed', 'declined', 'cancelled', 'completed', 'expired', 'no_show'];
   const findRequest = (uid, id) => (requests.get(uid) ?? []).find((r) => r.id === id);
 
   api.get('/api/requests', ({req, query}, reply) => {
     const user = guard(req, reply);
     if (!user) return;
     if (query.get('businessId')) return reply.error(403, 'Bu işletmenin taleplerini göremezsin.');
-    const all = [...listOf(requests, user.uid)].sort((a, b) => b.createdAtMs - a.createdAtMs);
+    const v2 = query.get('v') === '2';
+    const kind = query.get('kind');
+    const statuses = query.get('status')?.split(',');
+    if ((kind !== null || statuses) && !v2) return reply.error(400, 'Geçersiz istek.');
+    if ((kind !== null && !['quotes', 'appointments'].includes(kind)) || (statuses && (statuses.length > 8 || statuses.some((x) => !STATUSES.includes(x))))) return reply.error(400, 'Geçersiz istek.');
+    const all = [...listOf(requests, user.uid)].filter((r) => (!kind || r.kind === kind) && (!statuses || statuses.includes(r.status))).sort((a, b) => b.createdAtMs - a.createdAtMs);
     const after = query.get('after');
     const start = after ? all.findIndex((r) => r.id === after) + 1 : 0;
     const page = all.slice(start, start + 20);
-    return reply.json({items: page.map((r) => view(r, query.get('v') === '2')), next: page.length === 20 && all.length > start + 20 ? page.at(-1).id : null});
+    return reply.json({items: page.map((r) => view(r, v2)), next: page.length === 20 && all.length > start + 20 ? page.at(-1).id : null});
   });
 
   const text = (v, min, max) => typeof v === 'string' && v.trim().length >= min && v.trim().length <= max;
@@ -136,17 +182,25 @@ export default (api) => {
     if (!user) return;
     if (!user.emailVerified) return reply.error(403, 'E-posta doğrulaması gerekli.');
     const b = body ?? {};
-    const allowed = ['businessId', 'kind', 'service', 'vehicle', 'message', 'preferredDate', 'preferredSlot', 'requestKey'];
+    const allowed = ['businessId', 'kind', 'service', 'vehicle', 'message', 'preferredDate', 'preferredSlot', 'requestKey', 'contactPreference', 'preferredWindow', 'vehicleId'];
     if (Object.keys(b).some((k) => !allowed.includes(k)) || !['quotes', 'appointments'].includes(b.kind) || !text(b.service, 2, 120) || !text(b.vehicle, 2, 120) || !text(b.message, 10, 2000)
-      || typeof b.requestKey !== 'string' || (b.preferredDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(b.preferredDate))) return reply.error(400, 'Bilgileri kontrol edin.');
+      || typeof b.requestKey !== 'string' || (b.preferredDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(b.preferredDate))
+      || (b.contactPreference !== undefined && !['app_message', 'phone', 'email'].includes(b.contactPreference))
+      || (b.preferredWindow !== undefined && (!['today', 'this_week', 'next_week', 'any'].includes(b.preferredWindow) || b.kind !== 'quotes'))
+      || (b.vehicleId !== undefined && (typeof b.vehicleId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(b.vehicleId)))) return reply.error(400, 'Bilgileri kontrol edin.');
     const list = listOf(requests, user.uid);
+    const fields = {contactPreference: b.contactPreference ?? 'app_message', preferredWindow: b.preferredWindow ?? null, vehicleId: b.vehicleId ?? null};
     const same = list.find((r) => r.requestKey === b.requestKey);
-    if (same) return reply.json({id: same.id, status: same.status});
+    if (same) {
+      if ((same.contactPreference ?? 'app_message') !== fields.contactPreference || (same.preferredWindow ?? null) !== fields.preferredWindow || (same.vehicleId ?? null) !== fields.vehicleId) return reply.error(409, 'Talep anahtarı farklı içerikte kullanılmış.');
+      return reply.json({id: same.id, status: same.status});
+    }
+    if (fields.vehicleId !== null && !api.account(user.uid).vehicles.some((v) => v.id === fields.vehicleId && !v.archived)) return reply.error(400, 'Seçilen araç garajında bulunamadı.');
     const target = findBusiness(b.businessId);
     if (!target || !target.features?.[b.kind] || target.ownership !== 'verified') return reply.error(409, 'Bu işletme şu anda bu talep türünü kabul etmiyor.');
     let preferredStartsAt;
     if (b.preferredSlot !== undefined) {
-      if (b.kind !== 'appointments' || !b.preferredDate || !/^([01]\d|2[0-3]):00$/.test(b.preferredSlot)) return reply.error(400, 'Bilgileri kontrol edin.');
+      if (b.kind !== 'appointments' || !b.preferredDate || !/^([01]\d|2[0-3]):(00|30)$/.test(b.preferredSlot)) return reply.error(400, 'Bilgileri kontrol edin.');
       if (!slotsFor(target.id, b.preferredDate).includes(b.preferredSlot)) return reply.error(409, 'Seçtiğin saat artık uygun değil.');
       booked.add(`${target.id}|${b.preferredDate}|${b.preferredSlot}`);
       preferredStartsAt = new Date(Date.parse(`${b.preferredDate}T${b.preferredSlot}:00+03:00`)).toISOString();
@@ -155,6 +209,8 @@ export default (api) => {
       id: reqId(), businessId: target.id, businessName: target.name, kind: b.kind, service: b.service.trim(), vehicle: b.vehicle.trim(), message: b.message.trim(),
       ...(b.preferredDate ? {preferredDate: b.preferredDate} : {}), ...(preferredStartsAt ? {preferredStartsAt} : {}),
       status: 'requested', version: 1, createdAtMs: now(), ownerUid: user.uid, requestKey: b.requestKey,
+      reference: nextReference(now()), seenByBusinessAtMs: null, contactPreference: fields.contactPreference,
+      ...(fields.preferredWindow ? {preferredWindow: fields.preferredWindow} : {}), ...(fields.vehicleId ? {vehicleId: fields.vehicleId} : {}),
     };
     list.push(item);
     return reply.json({id: item.id, status: item.status}, 201);
@@ -173,8 +229,14 @@ export default (api) => {
       return reply.json({ok: true});
     }
     if (body.action === 'cancel' && ['requested', 'offered', 'confirmed'].includes(r.status)) {
-      if (!text(body.text, 10, 1000)) return reply.error(400, 'İptal veya ret gerekçesi gerekli.');
-      Object.assign(r, {status: 'cancelled', version: r.version + 1, resolution: body.text.trim()});
+      const reasons = {found_other: 'Müşteri başka bir işletmeyle anlaştı.', price: 'Müşteri fiyat nedeniyle vazgeçti.', timing: 'Müşteri için zamanlama uygun değil.', other: null};
+      const allCodes = [...Object.keys(reasons), 'no_capacity', 'service_not_offered', 'parts_unavailable', 'outside_area'];
+      if (body.reasonCode !== undefined && !allCodes.includes(body.reasonCode)) return reply.error(400, 'Bilgileri kontrol edin.');
+      if (body.reasonCode !== undefined && !(body.reasonCode in reasons)) return reply.error(400, 'Bu gerekçe kodu bu işlemde kullanılamaz.');
+      if (body.text !== undefined && !text(body.text, 10, 1000)) return reply.error(400, 'Bilgileri kontrol edin.');
+      const resolution = body.text ? body.text.trim() : body.reasonCode ? reasons[body.reasonCode] : null;
+      if (!resolution) return reply.error(409, 'İptal veya ret gerekçesi gerekli.');
+      Object.assign(r, {status: 'cancelled', version: r.version + 1, resolution, ...(body.reasonCode ? {resolutionCode: body.reasonCode} : {})});
       return reply.json({ok: true});
     }
     return reply.error(409, 'Bu talep için işlem kullanılamıyor.');

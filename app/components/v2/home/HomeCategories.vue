@@ -2,18 +2,23 @@
 import {ArrowRight, ArrowUpRight, Bike, Brush, LifeBuoy, Sparkles, Wrench, Zap} from '@lucide/vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
 import {homeCategories, homeFeaturedCategory, homeMoreCategories, type HomeCategoryIcon} from '~/data/mock/home';
+import {useCoverage} from '~/composables/v2/useSearch';
+import {demoMode} from '~/lib/env';
 
 // Figma 109:30 "Kategoriler · bento". Cards lift and turn orange on hover (the Figma "Kaporta & Boya" card shows that state).
 const icons: Record<HomeCategoryIcon, unknown> = {wrench: Wrench, sparkles: Sparkles, brush: Brush, tyre: LifeBuoy, zap: Zap, bike: Bike};
 const categoryLink = (name: string) => ({path: '/ara', query: {kategori: name}});
 const [first, second, ...rest] = homeCategories;
 const topRow = [first, second].filter((c) => c !== undefined);
+// Live: the category count from GET /api/coverage (bundled catalogue until it answers).
+const demo = demoMode();
+const coverage = useCoverage();
 </script>
 
 <template>
   <section class="home-categories v2-wrap" aria-labelledby="home-categories-title">
     <HomeSectionHead eyebrow="KATEGORİLER" title="Aracın neye ihtiyaç duyuyor?" heading-id="home-categories-title">
-      <NuxtLink to="/ara" class="btn btn-outline">Tüm 20 kategori<ArrowRight aria-hidden="true"/></NuxtLink>
+      <NuxtLink to="/ara" class="btn btn-outline">Tüm {{ demo ? 20 : coverage.categoryCount }} kategori<ArrowRight aria-hidden="true"/></NuxtLink>
     </HomeSectionHead>
 
     <div class="grid">

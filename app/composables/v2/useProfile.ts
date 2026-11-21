@@ -3,20 +3,23 @@ import {z} from 'zod';
 import {publicBusinessPhotos} from '@otosanayide/core/business-photos';
 import {parsePublicReviews} from '@otosanayide/core/public-reviews-client';
 import {ownReviewView, type OwnReviewView} from '@otosanayide/core/review-author-client';
-import {caseInput} from '@otosanayide/core/review-cases';
 import {useApp} from '~/composables/useApp';
 import {apiUrl} from '~/lib/api';
-import {callApi} from '~/lib/api-read';
+import {callApi, errorStatus} from '~/lib/api-read';
 import {ReportError, submitBusinessReport, type ReportReason} from '~/lib/business-report';
 import {demoMode, publicEnv} from '~/lib/env';
-import {reviewBody, reviewCreated, reviewView, type ProfilePhotoView, type ProfileReviewView, type ReviewAnswers, type ReviewSummaryView} from '~/lib/v2/profile';
+import {
+  reviewBody, reviewCreated, reviewEditBody, reviewReportBody, reviewView,
+  type ProfilePhotoView, type ProfileReviewView, type ReviewAnswers, type ReviewReportReason, type ReviewSummaryView,
+} from '~/lib/v2/profile';
 
 /**
- * Browser-side data of a live profile (/servis/[id]): reviews (GET /api/reviews), the member's own
- * review (GET /api/reviews/mine), writing a review (POST /api/reviews), reporting a review
- * (POST /api/review-cases), reporting wrong data (POST /api/businesses/{id}/reports) and public
- * photos (GET /api/businesses/photos/public, only with NUXT_PUBLIC_BUSINESS_PHOTOS_ENABLED).
- * Nothing here runs in demo mode or during SSR.
+ * Browser-side data of a live profile (/servis/[id]): reviews (GET /api/reviews?v=2), the member's own
+ * review (GET /api/reviews/mine?v=2), writing a review (POST /api/reviews), editing it (PATCH
+ * /api/reviews/mine, action edit), reporting a review with a reason (POST /api/review-cases), reporting
+ * wrong data (POST /api/businesses/{id}/reports) and public photos (GET /api/businesses/photos/public,
+ * only with NUXT_PUBLIC_BUSINESS_PHOTOS_ENABLED). Nothing here runs in demo mode or during SSR.
+ * An API without v2-03 answers `v=2` with 400; the reads then fall back to the v1 shape once.
  */
 export function useProfileLive(businessId: string, initialSummary: ReviewSummaryView) {
   const app = useApp();
@@ -30,6 +33,18 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
   const next = ref<string | null>(null);
   const loadingMore = ref(false);
 
+  let v2 = true;
+  async function readV2<T>(path: string, token: string | undefined, decode: (raw: unknown) => T): Promise<T> {
+    const join = path.includes('?') ? '&' : '?';
+    try {
+      return await callApi(v2 ? `${path}${join}v=2` : path, token ? {token} : {}, decode);
+    } catch (e) {
+      if (!v2 || errorStatus(e) !== 400) throw e;
+      v2 = false;
+      return callApi(path, token ? {token} : {}, decode);
+    }
+  }
+
   const reviewMedia = (id: string, thumbnail: boolean) => apiUrl(`/api/review-photos/media?id=${encodeURIComponent(id)}${thumbnail ? '&size=thumbnail' : ''}`);
 
   async function loadReviews(after?: string) {
@@ -40,7 +55,7 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
     try {
       const query = new URLSearchParams({businessId});
       if (after) query.set('after', after);
-      const page = await callApi(`/api/reviews?${query}`, {}, parsePublicReviews);
+      const page = await readV2(`/api/reviews?${query}`, undefined, parsePublicReviews);
       const items = page.reviews.map((item) => reviewView(item, reviewMedia));
       reviews.value = after ? [...reviews.value, ...items.filter((r) => !reviews.value.some((x) => x.id === r.id))] : items;
       next.value = page.nextCursor;
@@ -70,7 +85,7 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
     }
     ownState.value = 'loading';
     try {
-      const result = await callApi(`/api/reviews/mine?businessId=${encodeURIComponent(businessId)}`, {token: await user.getIdToken()}, (raw) => z.object({review: ownReviewView.nullable()}).strict().parse(raw));
+      const result = await readV2(`/api/reviews/mine?businessId=${encodeURIComponent(businessId)}`, await user.getIdToken(), (raw) => z.object({review: ownReviewView.nullable()}).strict().parse(raw));
       if (app.user?.uid !== user.uid) return;
       own.value = result.review;
       ownState.value = 'ready';
@@ -93,8 +108,26 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
     return created;
   }
 
-  async function reportReview(reviewId: string, text: string) {
-    const body = caseInput.parse({reviewId, kind: 'report', text});
+  /** Edit of the member's own review; the API puts it back into moderation. A stale version is a 409. */
+  async function editReview(answers: ReviewAnswers) {
+    const current = own.value;
+    if (!current) throw Error('Yorumun bulunamadı. Sayfayı yenileyip tekrar dene.');
+    const body = reviewEditBody(businessId, current.version, answers);
+    try {
+      await callApi('/api/reviews/mine', {method: 'PATCH', body, token: await token()}, (raw) => z.object({ok: z.literal(true), status: z.literal('pending')}).strict().parse(raw));
+    } catch (e) {
+      if (errorStatus(e) === 409) {
+        await loadOwn();
+        throw Error('Yorumun başka bir yerde değişti. Güncel hali yüklendi; tekrar dene.');
+      }
+      throw e;
+    }
+    await loadOwn();
+    return {id: current.id, status: 'pending'};
+  }
+
+  async function reportReview(reviewId: string, reason: ReviewReportReason, text: string) {
+    const body = reviewReportBody(reviewId, reason, text);
     await callApi('/api/review-cases', {method: 'POST', body, token: await token()}, (raw) => z.object({ok: z.literal(true)}).strict().parse(raw));
   }
 
@@ -161,6 +194,7 @@ export function useProfileLive(businessId: string, initialSummary: ReviewSummary
     own,
     ownState,
     submitReview,
+    editReview,
     reportReview,
     reportBusiness,
     newReportOperation,

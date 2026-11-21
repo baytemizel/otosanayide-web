@@ -1,20 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {reminderCalendar} from '@otosanayide/core/calendar';
-import type {Reminder, Vehicle} from '@otosanayide/core';
-import {AccountRequestError} from '@otosanayide/core/account-client';
+import type {Maintenance, Reminder, Vehicle} from '@otosanayide/core';
+import {AccountRequestError, parseAccountData} from '@otosanayide/core/account-client';
+import {accountUpdateSchema} from '@otosanayide/core/account-update';
 import {ApiError} from '../app/lib/api-read';
 import {SessionRequestError} from '../app/lib/session';
 import {authErrorMessage, credentialErrors, returnPath} from '../app/lib/v2/auth';
 import {
-  addDays, daysBetween, formatDay, garageErrorMessage, inspectionView, istanbulToday, liveRecord, liveReminder, liveVehicle, maintenanceInput,
-  maskEmail, notifyText, parseAmount, parseWhole, reminderInput, reminderPayload, remainingText, ringProgress, vehicleInput,
+  addDays, checkPlate, daysBetween, formatDay, garageErrorMessage, inspectionView, istanbulToday, liveRecord, liveReminder, liveVehicle, maintenanceInput,
+  maskEmail, notifyText, parseAmount, parseWhole, reminderInput, reminderPayload, reminderToggle, reminderTopicFor, remainingText, ringProgress, vehicleInput,
 } from '../app/lib/v2/garage';
 import {accusative, eachLimited, listErrorMessage, listNameError, liveChips, replaceList} from '../app/lib/v2/saved';
 
 const bmw: Vehicle = {id: 'v1', brand: 'BMW', model: '320i', year: 2019, fuel: 'Benzin', mileage: 86400, inspectionDueDate: '2027-03-12'};
 
-test('live vehicle maps to the W11 card without plate or transmission', () => {
+test('v1 vehicle maps to the W11 card without plate or transmission', () => {
   const view = liveVehicle(bmw);
   assert.equal(view.model, 'BMW 320i');
   assert.equal(view.km, 86400);
@@ -106,25 +107,112 @@ test('amount and whole-number parsing', () => {
   assert.equal(parseWhole('8,6'), null);
 });
 
-test('form drafts become strict account-model values', () => {
-  const vehicle = vehicleInput({brand: 'Renault', model: 'Clio', year: 2020, km: 72500, fuel: 'Dizel', transmission: 'Manuel', plate: '34 ÖRN 1', plateHidden: true, inspectionDueDate: ''}, {...bmw, photoId: '0d3c6a2e-8b5b-4b9e-9f63-8c1b0a3c1f10'});
-  assert.deepEqual(vehicle, {brand: 'Renault', model: 'Clio', year: 2020, fuel: 'Dizel', mileage: 72500, photoId: '0d3c6a2e-8b5b-4b9e-9f63-8c1b0a3c1f10'});
-  assert.throws(() => vehicleInput({brand: 'Renault', model: 'Clio', year: 2020, km: 1, fuel: 'Elektrik', transmission: '', plate: null, plateHidden: false, inspectionDueDate: ''}));
+const draftVehicle = {brand: 'Renault', model: 'Clio', year: 2020, km: 72500, fuel: 'Dizel', transmission: '', plate: null, plateHidden: false, inspectionDueDate: ''};
 
-  const record = maintenanceInput({vehicleId: 'v1', title: 'Yağ değişimi', place: 'Örnek Garaj', kind: 'bakim', amount: 1200.5, date: '2026-11-01', document: 'Fatura', mileage: 86000});
-  assert.deepEqual(record, {vehicleId: 'v1', title: 'Yağ değişimi', date: '2026-11-01', mileage: 86000, amount: 1200.5, note: 'Örnek Garaj'});
+test('form drafts become strict account-model values', () => {
+  const photoId = '0d3c6a2e-8b5b-4b9e-9f63-8c1b0a3c1f10';
+  // A demo transmission label is not an API value and is not sent.
+  const vehicle = vehicleInput({...draftVehicle, transmission: 'Manuel'}, {...bmw, photoId});
+  assert.deepEqual(vehicle, {brand: 'Renault', model: 'Clio', year: 2020, fuel: 'Dizel', mileage: 72500, photoId});
+  assert.throws(() => vehicleInput({...draftVehicle, km: 1, fuel: 'Elektrik'}));
+
+  const record = maintenanceInput({vehicleId: 'v1', title: 'Yağ değişimi', place: 'Örnek Garaj', kind: 'bakim', amount: 1200.5, date: '2026-11-01', document: 'Fatura', mileage: 86000, type: 'oil', documentKind: 'invoice', note: 'Filtre'});
+  assert.deepEqual(record, {vehicleId: 'v1', title: 'Yağ değişimi', date: '2026-11-01', mileage: 86000, amount: 1200.5, note: 'Filtre', type: 'oil', providerName: 'Örnek Garaj', documentKind: 'invoice'});
   assert.throws(() => maintenanceInput({vehicleId: 'v1', title: 'Gelecek', place: '', kind: 'bakim', amount: 1, date: '2999-01-01', document: '', mileage: 1}));
 
   const reminder = reminderInput({vehicleId: 'v1', topic: 'Araç muayenesi', date: '2027-01-10', dueKm: null, notify: [3], push: true, email: false});
-  assert.deepEqual(reminder, {vehicleId: 'v1', title: 'Araç muayenesi', completed: false, dueDate: '2027-01-10', channels: ['push'], advanceDays: 3});
+  assert.deepEqual(reminder, {vehicleId: 'v1', title: 'Araç muayenesi', completed: false, enabled: true, topic: 'inspection', dueDate: '2027-01-10', channels: ['push'], advanceDays: 3, advanceDaysList: [3]});
   const kmOnly = reminderInput({vehicleId: 'v1', topic: 'Yağ değişimi', date: '', dueKm: 95000, notify: [], push: false, email: true});
-  assert.deepEqual(kmOnly, {vehicleId: 'v1', title: 'Yağ değişimi', completed: false, dueKm: 95000, channels: ['email'], advanceDays: 0});
+  assert.deepEqual(kmOnly, {vehicleId: 'v1', title: 'Yağ değişimi', completed: false, enabled: true, topic: 'oil', dueKm: 95000, channels: ['email'], advanceDays: 0, advanceDaysList: [0]});
   assert.throws(() => reminderInput({vehicleId: 'v1', topic: 'Boş', date: '', dueKm: null, notify: [1], push: false, email: false}));
 });
 
-test('completed toggle sends the stored reminder fields only', () => {
-  const stored: Reminder = {id: 'r1', vehicleId: 'v1', title: 'Muayene', dueDate: '2026-12-01', channels: ['email'], advanceDays: 7};
-  assert.deepEqual({...reminderPayload(stored), completed: true}, {vehicleId: 'v1', title: 'Muayene', dueDate: '2026-12-01', dueKm: undefined, channels: ['email'], advanceDays: 7, completed: true});
+test('v2 vehicle: plate is normalised, transmission sent as the API value, cleared plate becomes null', () => {
+  assert.deepEqual(checkPlate(' 34abc123 '), {plate: '34 ABC 123', error: ''});
+  assert.deepEqual(checkPlate(''), {plate: null, error: ''});
+  assert.equal(checkPlate('34 ÖRN 1').error, 'Plakayı 34 ABC 123 biçiminde yaz.');
+  assert.equal(checkPlate('99 AB 123').error, 'Plakayı 34 ABC 123 biçiminde yaz.');
+  const created = vehicleInput({...draftVehicle, transmission: 'semi_automatic', plate: '06 ab 4567'});
+  assert.equal(created.plate, '06 AB 4567');
+  assert.equal(created.transmission, 'semi_automatic');
+  // Edit without plate/transmission while the stored vehicle has them: null clears them (PATCH).
+  const stored: Vehicle = {...bmw, plate: '34 ABC 123', transmission: 'automatic', vin: 'WBA8E9G50GNU12345'};
+  const cleared = vehicleInput(draftVehicle, stored);
+  assert.equal(cleared.plate, null);
+  assert.equal(cleared.transmission, null);
+  assert.equal('vin' in cleared, false, 'VIN has no web field: left out, so the API keeps it');
+  assert.ok(accountUpdateSchema.safeParse({resource: 'vehicles', id: 'v1', value: cleared}).success);
+  // A new vehicle never sends null.
+  assert.equal('plate' in vehicleInput(draftVehicle), false);
+});
+
+test('v2 vehicle and record map to the W11 plate, transmission, kind, icon and document', () => {
+  const view = liveVehicle({...bmw, plate: '34 ABC 123', transmission: 'automatic'});
+  assert.equal(view.plate, '34 ABC 123');
+  assert.equal(view.transmission, 'Otomatik');
+  assert.equal(view.plateHidden, false);
+  const base: Maintenance = {id: 'm1', vehicleId: 'v1', title: 'Trafik sigortası', date: '2026-02-18', mileage: 79000, amount: 750, note: 'Poliçe yenileme'};
+  const insurance = liveRecord({...base, type: 'insurance', documentKind: 'policy', providerName: 'Örnek Sigorta'});
+  assert.deepEqual([insurance.kind, insurance.icon, insurance.document, insurance.detail], ['gider', 'shield', 'Poliçe', 'Örnek Sigorta · Poliçe yenileme · 79.000 km']);
+  const oil = liveRecord({...base, type: 'oil', documentKind: 'other', note: ''});
+  assert.deepEqual([oil.kind, oil.icon, oil.document, oil.detail], ['bakim', 'droplet', 'Belge', '79.000 km']);
+  assert.equal(liveRecord({...base, note: '', businessId: 'ornek-isletme'}).detail, 'Kayıtlı servis · 79.000 km');
+  assert.equal(liveRecord({...base, type: 'tyre'}).icon, 'tyre');
+});
+
+test('v2 record edit sends the whole record; cleared provider and document become null, businessId is kept by omission', () => {
+  const stored: Maintenance = {id: 'm1', vehicleId: 'v1', title: 'Bakım', date: '2026-10-12', mileage: 84000, amount: 7850, note: '', type: 'periodic', providerName: 'Örnek Garaj', documentKind: 'invoice', businessId: 'ornek-isletme'};
+  const value = maintenanceInput({id: 'm1', vehicleId: 'v1', title: 'Bakım', place: '', kind: 'bakim', amount: 7900, date: '2026-10-12', document: '', mileage: 84000, type: 'repair', documentKind: '', note: 'Düzeltildi'}, stored);
+  assert.deepEqual(value, {vehicleId: 'v1', title: 'Bakım', date: '2026-10-12', mileage: 84000, amount: 7900, note: 'Düzeltildi', type: 'repair', providerName: null, documentKind: null});
+  const parsed = accountUpdateSchema.parse({resource: 'maintenance', id: 'm1', value, expectedGarageRevision: 3});
+  assert.equal(parsed.resource, 'maintenance');
+  assert.equal(accountUpdateSchema.safeParse({resource: 'maintenance', id: 'm1', value: {...value, title: null}}).success, false);
+  assert.equal(accountUpdateSchema.safeParse({resource: 'maintenance', id: 'm1', value: {...value, date: '2999-01-01'}}).success, false);
+});
+
+test('v2 reminder: several notice days, topic and on/off', () => {
+  const r: Reminder = {id: 'r1', vehicleId: 'v1', title: 'Araç muayenesi', dueDate: '2026-12-01', channels: ['email'], advanceDays: 7, advanceDaysList: [0, 1, 7], topic: 'inspection', enabled: true};
+  const view = liveReminder(r, bmw, '2026-11-18');
+  assert.equal(view.notifyText, 'Hedef gün, 1 gün önce, 7 gün önce');
+  assert.equal(view.label, 'Muayene');
+  assert.equal(view.active, true);
+  const off = liveReminder({...r, enabled: false}, bmw, '2026-11-18');
+  assert.deepEqual([off.active, off.offText, off.tone], [false, 'Kapalı', 'muted']);
+  assert.equal(liveReminder({...r, completed: true}, bmw, '2026-11-18').offText, 'Tamamlandı');
+  assert.equal(liveReminder({...r, topic: 'insurance', title: 'Kasko'}, bmw, '2026-11-18').label, 'Kasko');
+
+  const days = reminderInput({vehicleId: 'v1', topic: 'Kasko', date: '2027-01-10', dueKm: null, notify: [7, 0, 1, 3], push: false, email: true});
+  assert.deepEqual([days.advanceDaysList, days.advanceDays, days.topic], [[0, 1, 3], 3, 'insurance']);
+  assert.equal(reminderTopicFor('Bilinmeyen'), 'other');
+});
+
+test('reminder switch: off sends enabled false, on also clears completed; stored v2 fields go along', () => {
+  const stored: Reminder = {id: 'r1', vehicleId: 'v1', title: 'Muayene', dueDate: '2026-12-01', channels: ['email'], advanceDays: 7, advanceDaysList: [1, 7], topic: 'inspection', completed: true};
+  assert.deepEqual(reminderToggle(stored, false), {vehicleId: 'v1', title: 'Muayene', dueDate: '2026-12-01', dueKm: undefined, channels: ['email'], advanceDays: 7, completed: true, enabled: false, topic: 'inspection', advanceDaysList: [1, 7]});
+  const on = reminderToggle(stored, true);
+  assert.deepEqual([on.enabled, on.completed], [true, false]);
+  assert.ok(accountUpdateSchema.safeParse({resource: 'reminders', id: 'r1', value: on}).success);
+  // An old reminder without v2 fields: enabled defaults to true, nothing else is invented.
+  const old = reminderPayload({id: 'r2', vehicleId: 'v1', title: 'Yağ', dueKm: 90000});
+  assert.deepEqual([old.enabled, old.topic, old.advanceDaysList], [true, undefined, undefined]);
+});
+
+test('GET /api/me?v=2 data passes the strict core parser; unknown fields still fail', () => {
+  const data = {
+    vehicles: [{id: 'v1', brand: 'BMW', model: '320i', year: 2019, fuel: 'Benzin', mileage: 86400, plate: '34 ABC 123', transmission: 'automatic', vin: 'WBA8E9G50GNU12345'}],
+    maintenance: [{id: 'm1', vehicleId: 'v1', title: 'Bakım', date: '2026-10-12', mileage: 84000, amount: 7850, note: '', type: 'periodic', businessId: 'ornek-isletme', providerName: 'Örnek', documentKind: 'invoice'}],
+    reminders: [{id: 'r1', vehicleId: 'v1', title: 'Muayene', dueDate: '2026-12-01', advanceDays: 7, enabled: false, topic: 'inspection', advanceDaysList: [0, 7], nextCheckAtMs: 1, createdAt: {_seconds: 1, _nanoseconds: 0}}],
+    favorites: [],
+    garageShared: false,
+    garageRevision: null,
+  };
+  const parsed = parseAccountData(data);
+  assert.equal(parsed.vehicles[0]!.plate, '34 ABC 123');
+  assert.equal(parsed.maintenance[0]!.documentKind, 'invoice');
+  assert.deepEqual([parsed.reminders[0]!.enabled, parsed.reminders[0]!.advanceDaysList], [false, [0, 7]]);
+  assert.throws(() => parseAccountData({...data, vehicles: [{...data.vehicles[0], plateHidden: true}]}));
+  assert.throws(() => parseAccountData({...data, maintenance: [{...data.maintenance[0], type: 'wash'}]}));
+  assert.throws(() => parseAccountData({...data, reminders: [{...data.reminders[0], advanceDaysList: [0, 1, 3, 7]}]}));
 });
 
 test('.ics from the core calendar for a live draft', () => {

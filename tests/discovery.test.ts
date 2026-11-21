@@ -62,6 +62,23 @@ test('a profile with extensions decodes; one without them is unchanged', () => {
   assert.deepEqual(decodeBusiness(live('p2'), 'live').extras, {});
 });
 
+test('an invalid contact value is left out instead of hiding the business', () => {
+  // A real imported website: "www.7" is not a valid host, so new URL() rejects it.
+  const bad = decodeBusiness(live('c1', {website: 'http://www.7/24otoankara.com', phone: 'yok', contactEmail: 'not-an-email'}), 'live').business;
+  assert.equal(bad.id, 'c1');
+  assert.equal(bad.website, undefined);
+  assert.equal(bad.phone, undefined);
+  assert.equal(bad.contactEmail, undefined);
+  const good = decodeBusiness(live('c2', {website: 'https://usta.example', phone: '+902161234567'}), 'live').business;
+  assert.equal(good.website, 'https://usta.example');
+  assert.equal(good.phone, '+902161234567');
+  assert.equal(decodeBusiness(live('c3', {website: 'javascript:alert(1)'}), 'live').business.website, undefined, 'a non-http link is dropped');
+  const page = decodeSearchPage({items: [live('c4', {website: 'http://www.7/x'}), live('c5')], districts: [], mode: 'live'}, 'live');
+  assert.deepEqual(page.items.map(b => b.id), ['c4', 'c5']);
+  assert.equal(page.dropped, 0);
+  assert.throws(() => decodeBusiness(live('c6', {city: 'Atlantis'}), 'live'), 'required fields stay strict');
+});
+
 test('open state uses Istanbul time, split intervals and exceptions; unknown is never open', () => {
   // 2026-11-09 is a Monday. 07:30 UTC is 10:30 in Istanbul.
   assert.deepEqual(istanbulClock(new Date('2026-11-09T07:30:00Z')), {day: 1, date: '2026-11-09', time: '10:30'});

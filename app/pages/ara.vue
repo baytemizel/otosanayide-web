@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {computed, nextTick, reactive, ref, watch} from 'vue';
 import type {LocationQuery} from 'vue-router';
-import {ChevronDown, Info, ListFilter, MapPin, Search, SlidersHorizontal, X} from '@lucide/vue';
+import {Info, ListFilter, MapPin, Search, SlidersHorizontal, X} from '@lucide/vue';
 import {cities} from '@otosanayide/core';
-import {coverageCount, type AreaPoint} from '@otosanayide/core/coverage';
+import type {AreaPoint} from '@otosanayide/core/coverage';
 import V2Button from '~/components/v2/V2Button.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import V2ServiceCard from '~/components/v2/V2ServiceCard.vue';
 import SearchCompareBar from '~/components/v2/search/SearchCompareBar.vue';
 import SearchFilters from '~/components/v2/search/SearchFilters.vue';
@@ -16,7 +17,7 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {useMockCompare} from '~/composables/useMockCompare';
 import {useMockSaved} from '~/composables/useMockSaved';
-import {useLiveSearch, useSearchCards} from '~/composables/v2/useSearch';
+import {useCoverage, useLiveSearch, useSearchCards} from '~/composables/v2/useSearch';
 import {
   allBrands, demoFilters, distanceSteps, emptyFilters, locative, matchesFilters, nearbyProvince, paymentLabels, readQuery, sameText,
   searchBusiness, searchBusinesses, sortBusinesses, sortLabels, trLower,
@@ -39,6 +40,8 @@ useSeoMeta({title: 'Arama sonuçları'});
 const demo = demoMode();
 const app = useApp();
 const searchCards = useSearchCards();
+// Live: provinces in service, districts and their centres from GET /api/coverage (bundled list until it answers).
+const coverage = useCoverage();
 
 type View = 'liste' | 'harita';
 const route = useRoute();
@@ -50,7 +53,7 @@ const saved = useMockSaved();
 const one = (value: LocationQuery[string]) => (Array.isArray(value) ? value[0] ?? '' : value ?? '').trim();
 const list = (value: LocationQuery[string]) => one(value).split(',').map((item) => item.trim()).filter(Boolean);
 const filterKeys = ['q', 'kategori', 'belirti', 'il', 'ilce', 'marka', 'hizmet', 'odeme', 'mesafe', 'alan', 'acik', 'haftasonu', 'dogrulanmis', 'siralama', 'metin'];
-const read = demo ? readQuery : readLiveQuery;
+const read = demo ? readQuery : (text: string, base: Filters) => readLiveQuery(text, base, coverage.value);
 
 function fromQuery(query: LocationQuery): Filters {
   if (!demo) return liveFromQuery(query);
@@ -78,9 +81,9 @@ function fromQuery(query: LocationQuery): Filters {
 
 /** Live: the same URL keys, folded to what the API takes (one service, one brand, "kart", no open/weekend). */
 function liveFromQuery(query: LocationQuery): Filters {
-  let f = emptyFilters(coveredName(one(query.il) || 'İstanbul'));
-  if (one(query.q)) f = readLiveQuery(one(query.q), f);
-  if (one(query.il)) f.il = coveredName(one(query.il));
+  let f = emptyFilters(coveredName(one(query.il) || 'İstanbul', coverage.value));
+  if (one(query.q)) f = readLiveQuery(one(query.q), f, coverage.value);
+  if (one(query.il)) f.il = coveredName(one(query.il), coverage.value);
   if (query.ilce !== undefined) f.ilce = one(query.ilce);
   const area = one(query.alan);
   f.area = area === 'cevre' || area === 'konum' ? area : one(query.yakinimda) === '1' ? 'konum' : 'ilce';
@@ -147,8 +150,12 @@ function clearFilters() {
 }
 
 // ---- Results --------------------------------------------------------------------------------------
+const sortOptions = computed(() => (Object.keys(sortLabels) as SearchSort[]).map((value) => {
+  const off = !demo && value === 'yakin' && filters.area === 'ilce';
+  return {value, label: sortLabels[value], disabled: off, hint: off ? 'Çevre ya da konum seç' : undefined};
+}));
 const demoResults = computed(() => (demo ? sortBusinesses(searchBusinesses.filter((b) => matchesFilters(b, filters)), filters.sort) : []));
-const outOfScope = computed(() => (demo ? !cities.some((city) => sameText(city, filters.il)) : !isCovered(filters.il)));
+const outOfScope = computed(() => (demo ? !cities.some((city) => sameText(city, filters.il)) : !isCovered(filters.il, coverage.value)));
 const place2 = computed(() => filters.ilce || filters.il);
 
 // Live: the device point for "Konumumu kullan" (asked once per choice; never stored).
@@ -178,7 +185,7 @@ useClientEffect(() => [filters.area], () => {
 const live = useLiveSearch(() => {
   if (demo || outOfScope.value || (filters.area === 'konum' && !device.value)) return null;
   const f: Filters = {...filters, services: [...filters.services], brands: [...filters.brands], payments: [...filters.payments]};
-  return {filters: f, center: searchCenter(f, device.value)};
+  return {filters: f, center: searchCenter(f, device.value, coverage.value)};
 });
 const liveCards = computed(() => placeOnMap(live.cards.value));
 const results = computed(() => (demo ? demoResults.value : liveCards.value));
@@ -187,7 +194,7 @@ const noResults = computed(() => (demo ? !results.value.length : live.loaded.val
 const resultLine = computed(() => (demo ? `${results.value.length} işletme` : resultCount(live.total.value, live.cards.value.length)));
 const mapTotal = computed(() => (demo ? results.value.length : live.total.value?.exact ? live.total.value.value : live.cards.value.length));
 const liveFilterOptions = {services: liveServices, primaryServices: livePrimaryServices, brands: liveBrands, primaryBrands: livePrimaryBrands};
-const districtOptions = computed(() => (demo ? undefined : liveDistricts(filters.il, live.districts.value)));
+const districtOptions = computed(() => (demo ? undefined : liveDistricts(filters.il, live.districts.value, coverage.value)));
 
 const counts = computed(() => {
   if (!demo) return null;
@@ -203,7 +210,7 @@ const counts = computed(() => {
   };
 });
 
-const coveredList = demo ? undefined : cities;
+const coveredList = computed(() => (demo ? undefined : coverage.value.cities));
 const title = computed(() => `${place2.value} · ${filters.services.join(', ') || filters.symptom || filters.text || 'Tüm hizmetler'}`);
 const scope = computed(() => {
   if (!demo && filters.area === 'cevre') return `${place2.value} çevresi ${filters.km} km, il sınırı olmadan`;
@@ -289,7 +296,7 @@ function showResults() {
 // ---- S02 / S03 actions --------------------------------------------------------------------------------
 const notified = ref(false);
 watch(() => filters.il, () => { notified.value = false; waitMessage.value = null; });
-const nearby = computed(() => (demo ? nearbyProvince[trLower(filters.il)] ?? 'İstanbul' : nearbyCovered(filters.il)));
+const nearby = computed(() => (demo ? nearbyProvince[trLower(filters.il)] ?? 'İstanbul' : nearbyCovered(filters.il, coverage.value)));
 function widen() {
   if (filters.ilce) patch({ilce: '', area: 'ilce'});
   else patch({area: demo ? (sameText(filters.il, 'İstanbul') ? 'cevre' : 'ilce') : 'cevre', km: 200});
@@ -362,7 +369,7 @@ async function leaveWaitlist() {
 <template>
   <div class="search-page">
     <SearchState v-if="outOfScope" :icon="MapPin" eyebrow="Kapsam dışı" title="Bu ilde henüz yokuz."
-                 :text="`Şimdilik ${coverageCount} ilde hizmet veriyoruz. Seçtiğin il kapsama girdiğinde sana haber verebiliriz.`">
+                 :text="`Şimdilik ${coverage.cityCount} ilde hizmet veriyoruz. Seçtiğin il kapsama girdiğinde sana haber verebiliriz.`">
       <V2Button size="lg" arrow @click="patch({il: nearby, ilce: '', area: 'ilce'})">Yakındaki ili gör</V2Button>
       <V2Button v-if="demo" variant="outline" :disabled="notified" @click="notifyMe">{{ notified ? 'Haber vereceğiz' : 'Haber ver' }}</V2Button>
       <template v-else-if="joined">
@@ -413,11 +420,7 @@ async function leaveWaitlist() {
               </button>
               <span class="sort">
                 <SlidersHorizontal :size="16" aria-hidden="true"/>
-                <span class="t-label-sm">{{ sortLabels[filters.sort] }}</span>
-                <ChevronDown :size="16" aria-hidden="true"/>
-                <select :value="filters.sort" aria-label="Sıralama" @change="patch({sort: ($event.target as HTMLSelectElement).value as SearchSort})">
-                  <option v-for="(label, value) in sortLabels" :key="value" :value="value" :disabled="!demo && value === 'yakin' && filters.area === 'ilce'">{{ label }}{{ !demo && value === 'yakin' && filters.area === 'ilce' ? ' (çevre ya da konum seç)' : '' }}</option>
-                </select>
+                <V2Select :model-value="filters.sort" :options="sortOptions" variant="bare" anchor=".sort" stretch :match-width="false" class="t-label-sm" aria-label="Sıralama" @change="patch({sort: $event})"/>
               </span>
               <SearchViewToggle :view="view" @change="view = $event"/>
             </div>
@@ -465,7 +468,6 @@ async function leaveWaitlist() {
 .heading{display:flex;flex-direction:column;gap:6px;min-width:0}
 .tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .sort,.filter-toggle{position:relative;display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:var(--white);border:1px solid var(--cream-200);border-radius:999px;color:var(--ink-800)}
-.sort select{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;font-size:16px}
 .sort:focus-within{border-color:var(--ink-900)}
 .filter-toggle{display:none}
 .filters{scroll-margin-top:110px}

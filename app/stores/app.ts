@@ -10,6 +10,10 @@ import {browserSession} from '../lib/session-instance';
 import type {SessionService, SessionUser} from '../lib/session';
 
 const empty = (): AccountData => ({vehicles: [], maintenance: [], reminders: [], favorites: []});
+/** `?v=2` returns the v2-02 garage fields (plate, record type, reminder topic…); without it the API answers in the v1 shape. */
+const ME = '/api/me?v=2';
+/** Drops null values (PATCH "clear this field"), as the API does before storing. */
+const withoutNulls = (value: object) => Object.fromEntries(Object.entries(value).filter(([, v]) => v !== null));
 const unavailableStorage = 'Yerel kayıt okunamadı. Mevcut veriler değiştirilmedi.';
 const sessionChanged = 'Oturum değişti. Yeniden giriş yap.';
 
@@ -101,7 +105,7 @@ export const useAppStore = defineStore('app', () => {
       demoMember.value = saved.member;
       return;
     }
-    const result = await request('/api/me');
+    const result = await request(ME);
     result.check();
     const next = parseAccountData(result.value);
     if (!readGate.accept(ticket, latest, next)) return;
@@ -205,7 +209,7 @@ export const useAppStore = defineStore('app', () => {
       let saved: unknown = {...value, id: crypto.randomUUID()};
       let version = {};
       if (!demo.value) {
-        const result = await request('/api/me', {
+        const result = await request(ME, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({resource: kind, value, ...(kind !== 'reminders' && latest.garageShared ? {expectedGarageRevision: latest.garageRevision} : {})}),
@@ -223,27 +227,50 @@ export const useAppStore = defineStore('app', () => {
     });
   }
 
-  async function update(resource: 'vehicles' | 'reminders', id: string, value: unknown) {
+  /** PATCH /api/me with the whole record. v2 fields: absent = kept, null = cleared. */
+  async function update(resource: 'vehicles' | 'maintenance' | 'reminders', id: string, value: unknown) {
     await exclusive(async () => {
       const check = guardOrNoop();
       const input = accountUpdateSchema.parse({
         resource,
         id,
         value,
-        ...(resource === 'vehicles' && latest.garageShared ? {expectedGarageRevision: latest.garageRevision} : {}),
+        ...(resource !== 'reminders' && latest.garageShared ? {expectedGarageRevision: latest.garageRevision} : {}),
       });
       const existing = (latest[resource] as Array<{id: string; vehicleId?: string}>).find(r => r.id === id);
       if (!existing) throw Error('Kayıt bulunamadı.');
-      if (input.resource === 'reminders' && 'vehicleId' in existing && existing.vehicleId !== input.value.vehicleId) throw Error('Hatırlatmanın aracı değiştirilemez.');
-      let saved: unknown = {...existing, ...input.value, id};
+      if (input.resource === 'reminders' && existing.vehicleId !== input.value.vehicleId) throw Error('Hatırlatmanın aracı değiştirilemez.');
+      if (input.resource === 'maintenance' && existing.vehicleId !== input.value.vehicleId) throw Error('Bakım kaydının bağlı olduğu araç değiştirilemez.');
+      let saved: unknown = withoutNulls({...existing, ...input.value, id});
       let version = {};
       if (!demo.value) {
-        const result = await request('/api/me', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(input)});
+        const result = await request(ME, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(input)});
         saved = result.value;
         version = revision(result.revision);
       }
       check();
-      commit(parseAccountData({...latest, ...version, [resource]: (latest[resource] as Array<{id: string}>).map(r => (r.id === id ? saved : r))} as AccountData));
+      const next = {...latest, ...version, [resource]: (latest[resource] as Array<{id: string}>).map(r => (r.id === id ? saved : r))} as AccountData;
+      if (input.resource === 'maintenance' && latest.garageShared) {
+        // Same rule as save(): the shared garage raises the vehicle's mileage to the record's.
+        next.vehicles = latest.vehicles.map(v => (v.id === input.value.vehicleId ? {...v, mileage: Math.max(v.mileage, input.value.mileage)} : v));
+      }
+      commit(parseAccountData(next));
+    });
+  }
+
+  /** DELETE /api/me?resource=maintenance&id=… (204; a shared garage needs and returns the garage revision). */
+  async function remove(resource: 'maintenance', id: string) {
+    await exclusive(async () => {
+      const check = guardOrNoop();
+      if (!latest[resource].some(r => r.id === id)) throw Error('Kayıt bulunamadı.');
+      let version = {};
+      if (!demo.value) {
+        const query = new URLSearchParams({resource, id, ...(latest.garageShared && latest.garageRevision ? {expectedGarageRevision: String(latest.garageRevision)} : {})});
+        const result = await request(`/api/me?${query}`, {method: 'DELETE'});
+        version = revision(result.revision);
+      }
+      check();
+      commit(parseAccountData({...latest, ...version, [resource]: latest[resource].filter(r => r.id !== id)}));
     });
   }
 
@@ -290,5 +317,5 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  return {data, ready, member, user, demo, notice, notify, start, stop, loginDemo, logout, refresh, accountGuard, save, update, toggleFavorite};
+  return {data, ready, member, user, demo, notice, notify, start, stop, loginDemo, logout, refresh, accountGuard, save, update, remove, toggleFavorite};
 });

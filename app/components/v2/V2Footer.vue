@@ -3,17 +3,20 @@ import {computed} from 'vue';
 import {Globe} from '@lucide/vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
 import {useLocale} from '~/composables/useLocale';
+import {useCoverage} from '~/composables/v2/useSearch';
 import {legalPath} from '~/lib/legal';
 import {portalUrl} from '~/lib/portal';
 
 // V2/Footer (Figma 118:498). Links without a live target yet render as plain text.
 const {locale, setLocale} = useLocale();
+// Province count: live GET /api/coverage, bundled list in demo, during SSR and on failure.
+const coverage = useCoverage();
 
 type FooterLink = {label: string; to?: string | null; href?: string | null};
 const columns = computed<{title: string; links: FooterLink[]}[]>(() => [
   {title: 'Keşfet', links: [
     {label: 'Hizmetler', to: '/ara'},
-    {label: '41 il', to: '/ara'},
+    {label: `${coverage.value.cityCount} il`, to: '/ara'},
     {label: 'Belirti Bulucu', to: '/#belirti-bulucu'},
     {label: 'Rehber', to: '/#rehber'},
     {label: 'Yardım'},
@@ -44,7 +47,7 @@ const columns = computed<{title: string; links: FooterLink[]}[]>(() => [
     <div class="top">
       <div class="about">
         <V2Logo dark/>
-        <p class="t-body-md">Aracına iyi bakacak ustayı ilk seferde bul. Şimdilik 41 ilde.</p>
+        <p class="t-body-md">Aracına iyi bakacak ustayı ilk seferde bul. Şimdilik {{ coverage.cityCount }} ilde.</p>
         <button type="button" class="lang" @click="setLocale(locale === 'tr' ? 'en' : 'tr')">
           <Globe :size="16" aria-hidden="true"/>{{ locale === 'tr' ? 'Türkçe' : 'English' }}
         </button>

@@ -1,6 +1,6 @@
 import {computed, ref} from 'vue';
 import {reminderCalendar} from '@otosanayide/core/calendar';
-import type {Reminder, Vehicle} from '@otosanayide/core';
+import type {Maintenance, Reminder, Vehicle} from '@otosanayide/core';
 import {useApp} from '~/composables/useApp';
 import {demoMode} from '~/lib/env';
 import {
@@ -8,7 +8,7 @@ import {
   type MockNotifyOffset, type MockReminder,
 } from '~/data/mock/garage';
 import {
-  garageErrorMessage, inspectionView, istanbulToday, liveRecord, liveReminder, liveVehicle, maintenanceInput, reminderInput, reminderPayload, vehicleInput,
+  garageErrorMessage, inspectionView, istanbulToday, liveRecord, liveReminder, liveVehicle, maintenanceInput, reminderInput, reminderToggle, vehicleInput,
   type GarageRecord, type GarageReminderView, type GarageVehicle, type RecordDraft, type ReminderDraft, type VehicleDraft,
 } from '~/lib/v2/garage';
 
@@ -37,8 +37,8 @@ function mockReminderView(r: MockReminder): GarageReminderView {
 
 /**
  * Data for /araclarim (W11) and the W12 reminder modal.
- * Live: vehicles, maintenance and reminders from the app store (GET /api/me); writes go through
- * app.save / app.update (POST / PATCH /api/me). Demo: the in-memory mock garage, unchanged.
+ * Live: vehicles, maintenance and reminders from the app store (GET /api/me?v=2); writes go through
+ * app.save / app.update / app.remove (POST / PATCH / DELETE /api/me). Demo: the in-memory mock garage, unchanged.
  */
 export function useGarage() {
   const app = useApp();
@@ -118,7 +118,22 @@ export function useGarage() {
       }];
       return;
     }
+    if (draft.id) {
+      const existing = app.data.maintenance.find((m) => m.id === draft.id);
+      if (!existing) throw Error('Kayıt bulunamadı. Sayfayı yenile.');
+      await app.update('maintenance', draft.id, maintenanceInput(draft, existing as Maintenance));
+      return;
+    }
     await app.save('maintenance', maintenanceInput(draft));
+  }
+
+  /** Live: DELETE /api/me (single maintenance record). The demo screens offer no delete. */
+  async function deleteRecord(id: string) {
+    if (!live) {
+      mock.records.value = mock.records.value.filter((r) => r.id !== id);
+      return;
+    }
+    await app.remove('maintenance', id);
   }
 
   async function saveReminder(draft: ReminderDraft) {
@@ -148,7 +163,7 @@ export function useGarage() {
     }
     const stored = app.data.reminders.find((r) => r.id === id);
     if (!stored) throw Error('Hatırlatma bulunamadı. Sayfayı yenile.');
-    await app.update('reminders', id, {...reminderPayload(stored), completed: !on});
+    await app.update('reminders', id, reminderToggle(stored as Reminder, on));
   }
 
   /** Live .ics for a reminder draft (packages/core/calendar), as the old ReminderActions did. */
@@ -159,5 +174,5 @@ export function useGarage() {
     return reminderCalendar({...value, id: crypto.randomUUID()} as Reminder, vehicle as Vehicle);
   }
 
-  return {live, today, year, vehicles, records, reminders, summaryFor, loading, reloading, loadError, reload, saveVehicle, saveRecord, saveReminder, toggleReminder, liveCalendar, errorMessage: garageErrorMessage};
+  return {live, today, year, vehicles, records, reminders, summaryFor, loading, reloading, loadError, reload, saveVehicle, saveRecord, deleteRecord, saveReminder, toggleReminder, liveCalendar, errorMessage: garageErrorMessage};
 }

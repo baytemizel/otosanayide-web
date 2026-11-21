@@ -71,3 +71,28 @@ test('stop raises the session fence for captured guards', () => {
   store.stop();
   assert.throws(guard, /Oturum değişti/);
 });
+
+test('v2 garage fields: plate is kept, a null clear drops it, a record can be edited and deleted', async () => {
+  const store = useAppStore();
+  store.start();
+  await settled();
+  store.loginDemo();
+  await store.save('vehicles', {...vehicle, plate: '34 ABC 123', transmission: 'manual'});
+  const car = store.data.vehicles[0]!;
+  assert.equal(car.plate, '34 ABC 123');
+  await store.update('vehicles', car.id, {...vehicle, plate: null, transmission: 'automatic'});
+  assert.equal('plate' in store.data.vehicles[0]!, false);
+  assert.equal(store.data.vehicles[0]!.transmission, 'automatic');
+
+  const record = {vehicleId: car.id, title: 'Yağ değişimi', date: '2026-01-10', mileage: 1200, amount: 900, note: '', type: 'oil', providerName: 'Örnek Garaj'};
+  await store.save('maintenance', record);
+  const id = store.data.maintenance[0]!.id;
+  await store.update('maintenance', id, {...record, amount: 950, providerName: null, documentKind: 'invoice'});
+  assert.equal(store.data.maintenance[0]!.amount, 950);
+  assert.equal(store.data.maintenance[0]!.documentKind, 'invoice');
+  assert.equal('providerName' in store.data.maintenance[0]!, false);
+  await assert.rejects(store.update('maintenance', id, {...record, vehicleId: 'other'}), /araç değiştirilemez/);
+  await store.remove('maintenance', id);
+  assert.equal(store.data.maintenance.length, 0);
+  await assert.rejects(store.remove('maintenance', id), /Kayıt bulunamadı/);
+});

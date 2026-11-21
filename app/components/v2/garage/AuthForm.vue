@@ -4,14 +4,15 @@ import {ArrowRight, Check, KeyRound, Lock, Mail, MailCheck, Phone, User} from '@
 import AuthField from '~/components/v2/garage/AuthField.vue';
 import {useApp} from '~/composables/useApp';
 import {useSession} from '~/composables/useSession';
-import {authErrorMessage, credentialErrors, EMAIL_PATTERN, MFA_CODE, PASSWORD_MIN, returnPath} from '~/lib/v2/auth';
-import {browserSession} from '~/lib/session-instance';
+import {authErrorMessage, credentialErrors, EMAIL_PATTERN, MFA_CODE, nameError, normalizeName, PASSWORD_MIN, returnPath} from '~/lib/v2/auth';
 
 // W10 form panel (Figma 123:106). One form for both modes; the "Giriş yap / Kayıt ol" switch
 // moves between /giris and /kayit and keeps ?donus.
-// Live: POST /api/auth/login (+ /mfa/verify when the account has two-step sign-in), /register (202:
-// the account starts unverified and gets a verification mail) and /password/forgot. The API has no
-// phone, Google or Apple sign-in and no display name, so those controls are disabled or hidden.
+// Live: POST /api/auth/login (+ /mfa/verify when the account has two-step sign-in) and /register (202:
+// the account starts unverified and gets a verification mail) with `name` and the optional product-news
+// choice (`consents.marketing`, v2-04). "Şifremi unuttum" opens the code reset (/giris/sifre-sifirla) with the
+// typed address kept in memory. The API has no phone, Google or Apple sign-in and no "remember me", so those
+// controls are disabled or hidden. Terms/KVKK text versions are not sent: the legal texts have no version ids yet.
 // Demo: any valid values open the local preview membership (no network), as before.
 const props = defineProps<{mode: 'signin' | 'signup'}>();
 const route = useRoute();
@@ -20,7 +21,9 @@ const session = useSession();
 const live = !session.demo;
 
 const method = ref<'email' | 'phone'>('email');
-const form = reactive({name: '', email: '', phone: '', password: '', remember: true, code: ''});
+const form = reactive({name: '', email: '', phone: '', password: '', remember: true, code: '', marketing: false});
+/** Live: the address typed here, handed to the reset page without putting it in the URL. */
+const resetEmail = useState('v2-reset-email', () => '');
 const errors = reactive({name: '', email: '', phone: '', password: '', code: ''});
 const signup = computed(() => props.mode === 'signup');
 
@@ -31,7 +34,6 @@ const formError = ref('');
 const challenge = ref('');
 /** Live: address a registration was sent for; the card then explains the verification mail. */
 const registered = ref('');
-const forgotStatus = ref('');
 let leaving = false;
 
 const donus = computed(() => returnPath(route.query.donus));
@@ -42,8 +44,8 @@ const EMAIL = EMAIL_PATTERN;
 function validate() {
   if (live) {
     const found = credentialErrors(form.email, form.password, signup.value);
-    Object.assign(errors, {name: '', phone: '', ...found});
-    return !found.email && !found.password;
+    Object.assign(errors, {name: signup.value ? nameError(form.name) : '', phone: '', ...found});
+    return !errors.name && !found.email && !found.password;
   }
   errors.name = signup.value && !form.name.trim() ? 'Adını ve soyadını yaz.' : '';
   errors.email = '';
@@ -76,11 +78,10 @@ async function submitLive() {
   if (busy.value) return;
   busy.value = true;
   formError.value = '';
-  forgotStatus.value = '';
   const email = form.email.trim();
   try {
     if (signup.value) {
-      await session.register(email, form.password);
+      await session.register(email, form.password, {name: normalizeName(form.name), consents: {marketing: form.marketing}});
       registered.value = email;
       form.password = '';
       return;
@@ -126,22 +127,11 @@ function backToForm() {
   formError.value = '';
 }
 
-async function forgot() {
+function forgot() {
   if (busy.value) return;
-  formError.value = '';
-  forgotStatus.value = '';
   const email = form.email.trim();
-  errors.email = EMAIL.test(email) ? '' : 'Şifre yenileme bağlantısı için e-posta adresini yaz.';
-  if (errors.email) return;
-  busy.value = true;
-  try {
-    await browserSession().forgotPassword(email);
-    forgotStatus.value = 'Bu adresle bir hesap varsa şifre yenileme bağlantısı gönderildi. E-postanı kontrol et.';
-  } catch (error) {
-    formError.value = authErrorMessage('forgot', error);
-  } finally {
-    busy.value = false;
-  }
+  resetEmail.value = EMAIL.test(email) ? email : '';
+  return navigateTo({path: '/giris/sifre-sifirla', query: keepQuery.value});
 }
 
 function submit() {
@@ -208,7 +198,7 @@ onMounted(() => {
       </div>
 
       <form class="fields" novalidate @submit.prevent="submit">
-        <AuthField v-if="signup && !live" id="auth-name" v-model="form.name" label="Ad soyad" :icon="User" placeholder="Deniz Kaya" autocomplete="name" :error="errors.name"/>
+        <AuthField v-if="signup" id="auth-name" v-model="form.name" label="Ad soyad" :icon="User" placeholder="Deniz Kaya" autocomplete="name" :error="errors.name"/>
         <AuthField v-if="method === 'email'" id="auth-email" v-model="form.email" label="E-posta adresi" :icon="Mail" type="email" inputmode="email" placeholder="deniz@ornek.com" autocomplete="email" :error="errors.email"/>
         <AuthField v-else id="auth-phone" v-model="form.phone" label="Telefon numarası" :icon="Phone" type="tel" inputmode="tel" placeholder="5XX XXX XX XX" autocomplete="tel-national" :error="errors.phone"/>
         <AuthField
@@ -231,12 +221,16 @@ onMounted(() => {
           <button v-if="live" type="button" class="forgot t-label-sm" :disabled="busy" @click="forgot">Şifremi unuttum</button>
           <NuxtLink v-else to="/giris/sifre-sifirla" class="forgot t-label-sm">Şifremi unuttum</NuxtLink>
         </div>
-        <p v-else class="terms t-body-sm t-muted">
+        <label v-if="signup && live" class="remember t-body-sm marketing">
+          <input v-model="form.marketing" type="checkbox" class="box">
+          <span class="box-face" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>
+          <span>Ürün duyurularını e-postayla almak istiyorum. İsteğe bağlı; Hesabım’dan istediğin zaman kapatabilirsin.</span>
+        </label>
+        <p v-if="signup" class="terms t-body-sm t-muted">
           Kayıt olarak <NuxtLink to="/yasal/kullanim-kosullari">Kullanım koşullarını</NuxtLink> ve
           <NuxtLink to="/yasal/gizlilik">Gizlilik bildirimini</NuxtLink> kabul edersin.
         </p>
 
-        <p v-if="forgotStatus" class="form-ok t-body-sm" role="status">{{ forgotStatus }}</p>
         <p v-if="formError" class="form-err t-body-sm" role="alert">{{ formError }}</p>
 
         <button type="submit" class="btn btn-primary btn-lg submit" :disabled="busy">{{ busy ? 'İşleniyor…' : signup ? 'Kayıt ol' : 'Giriş yap' }}<ArrowRight aria-hidden="true"/></button>
@@ -279,6 +273,8 @@ onMounted(() => {
 .box:checked + .box-face{background:var(--orange-500);border-color:var(--orange-500);color:var(--ink-900)}
 .box:focus-visible + .box-face{outline:2px solid var(--orange-500);outline-offset:3px}
 .forgot{color:var(--orange-600);margin-left:auto}
+.marketing{align-items:flex-start}
+.marketing .box,.marketing .box-face{margin-top:1px}
 .forgot:disabled{opacity:.5;cursor:not-allowed}
 .forgot:hover,.switch-line a:hover,.terms a:hover{text-decoration:underline}
 .terms a{color:var(--orange-600);font-weight:600}

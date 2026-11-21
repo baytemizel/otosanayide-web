@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import {computed, ref} from 'vue';
-import {File} from '@lucide/vue';
+import {File, Pencil} from '@lucide/vue';
 import GarageRecordIcon from '~/components/v2/garage/GarageRecordIcon.vue';
 import {formatShortDate, type MockRecord} from '~/data/mock/garage';
 import {formatTry} from '~/lib/v2/garage';
 
 // W11 "Bakım ve gider geçmişi" (Figma 123:357): filter chips and record rows, newest first.
-// Live: the account model has no record kind or document label, so the filter chips are hidden.
-const props = withDefaults(defineProps<{records: MockRecord[]; live?: boolean}>(), {live: false});
+// Live: kind comes from the record type (insurance / inspection = Gider) and "Belgeler" from the document
+// label; records saved before API v2 count as Bakım. Live rows also get an edit button (not in the design;
+// edit and delete of a single record are new in API v2-02).
+const props = withDefaults(defineProps<{records: MockRecord[]; live?: boolean; busy?: boolean}>(), {live: false, busy: false});
+const emit = defineEmits<{edit: [id: string]}>();
 const filters = [
   {id: 'all', label: 'Tümü'},
   {id: 'bakim', label: 'Bakım'},
@@ -24,7 +27,7 @@ const rows = computed(() => props.records
   <section class="history" aria-labelledby="history-title">
     <div class="head">
       <h2 id="history-title" class="t-h4">Bakım ve gider geçmişi</h2>
-      <div v-if="!live" class="chips" role="group" aria-label="Kayıtları süz">
+      <div v-if="!live || records.length" class="chips" role="group" aria-label="Kayıtları süz">
         <button v-for="f in filters" :key="f.id" type="button" class="chip" :class="filter === f.id ? 'chip-active' : 'chip-default'" :aria-pressed="filter === f.id" @click="filter = f.id">{{ f.label }}</button>
       </div>
     </div>
@@ -40,9 +43,10 @@ const rows = computed(() => props.records
           <p class="price">{{ formatTry(r.amount) }}</p>
           <p class="t-body-sm t-muted"><time :datetime="r.date">{{ formatShortDate(r.date) }}</time></p>
         </div>
+        <button v-if="live" type="button" class="btn btn-ghost btn-sm edit" :disabled="busy" :aria-label="`${r.title} kaydını düzenle`" @click="emit('edit', r.id)"><Pencil aria-hidden="true"/></button>
       </li>
     </ul>
-    <p v-else-if="live" class="empty t-body-sm t-muted">Bu araç için henüz kayıt yok. Yapılan bakımı “Kayıt ekle” ile gir.</p>
+    <p v-else-if="live && !records.length" class="empty t-body-sm t-muted">Bu araç için henüz kayıt yok. Yapılan bakımı “Kayıt ekle” ile gir.</p>
     <p v-else class="empty t-body-sm t-muted">Bu süzgeçte kayıt yok.</p>
   </section>
 </template>
@@ -59,6 +63,7 @@ const rows = computed(() => props.records
 .doc{flex:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 9px;border-radius:999px;background:var(--cream-100);color:var(--ink-800)}
 .amount{flex:none;width:110px;display:flex;flex-direction:column;align-items:flex-end;gap:3px;white-space:nowrap}
 .price{font-weight:700;font-size:17px;line-height:1.2;color:var(--ink-900)}
+.edit{flex:none;padding:8.5px;margin-right:-8px}
 .empty{padding:24px 0}
 @media (max-width:600px){
   .history{padding:20px}

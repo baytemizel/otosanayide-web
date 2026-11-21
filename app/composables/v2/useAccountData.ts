@@ -7,6 +7,7 @@ import {privacyOwnerAction, privacyOwnerResponse, type PrivacyOwnRequest} from '
 import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {memberToken} from '~/composables/v2/useRequests';
+import {useUnreadCount} from '~/composables/v2/useUnreadCount';
 import {securityErrorMessage} from '~/lib/account-security';
 import {callApi} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
@@ -15,6 +16,7 @@ import {readAllNotifications} from '~/lib/notifications-read';
 import type {Notice} from '~/lib/notifications-helpers';
 import {fetchOwnReviews, type OwnReviewListItem} from '~/lib/own-reviews';
 import {SessionRequestError} from '~/lib/session';
+import {readUnreadCount} from '~/lib/v2/account';
 import {browserSession} from '~/lib/session-instance';
 import {decodeClaims, decodeNotices, exportErrorMessage, exportSummary, liveErrorMessage, noticeKindParam, ownReviewRow, type LiveClaim, type OwnReviewRow} from '~/lib/v2/requests';
 
@@ -30,6 +32,8 @@ export function useNotices(filter: () => string) {
   const loading = ref(false);
   const error = ref('');
   const markingAll = ref(false);
+  // v2-04: the page answer carries the inbox's unread count (navbar badge, page counter).
+  const unread = useUnreadCount();
   let generation = 0;
 
   async function load(after = '') {
@@ -39,11 +43,12 @@ export function useNotices(filter: () => string) {
     error.value = '';
     const kind = noticeKindParam(filter());
     try {
-      const query = new URLSearchParams();
+      const query = new URLSearchParams({v: '2'});
       if (after) query.set('after', after);
       if (kind) query.set('kind', kind);
-      const page = await callApi(`/api/notifications${query.size ? '?' + query : ''}`, {token: await token()}, decodeNotices);
+      const page = await callApi(`/api/notifications?${query}`, {token: await token()}, (raw) => ({...decodeNotices(raw), unreadCount: readUnreadCount(raw)}));
       if (run !== generation) return;
+      unread.set(page.unreadCount);
       items.value = after ? [...items.value, ...page.items] : page.items;
       next.value = page.next;
     } catch (e) {
@@ -64,6 +69,7 @@ export function useNotices(filter: () => string) {
     try {
       await callApi('/api/notifications', {method: 'PATCH', token: await token(), body: {id, read: true}}, () => null);
       items.value = items.value.map(n => (n.id === id ? {...n, read: true} : n));
+      unread.adjust(-1);
     } catch (e) {
       app.notify(liveErrorMessage(e, 'Bildirim okundu olarak işaretlenemedi.'));
     }
@@ -75,6 +81,7 @@ export function useNotices(filter: () => string) {
     try {
       const updated = await readAllNotifications(token, Date.now());
       items.value = items.value.map(n => ({...n, read: true}));
+      void unread.refresh(true);
       app.notify(updated ? `${updated} bildirim okundu olarak işaretlendi.` : 'Okunmamış bildirim yok.');
     } catch (e) {
       app.notify(liveErrorMessage(e, 'İşlem tamamlanamadı. Tekrar dene.'));
@@ -82,7 +89,7 @@ export function useNotices(filter: () => string) {
       markingAll.value = false;
     }
   }
-  return {items, next, loading, error, markingAll, load, markRead, markAll};
+  return {items, next, loading, error, markingAll, unreadCount: unread.value, load, markRead, markAll};
 }
 
 /* ------------------------------------------------------------------ W18 preferences (web-09) */
@@ -383,7 +390,8 @@ export function useOwnReviews() {
       busy.value = '';
     }
   }
-  return {rows, next, loading, error, busy, load, withdraw};
+  // `items` keeps the raw list for the v2-03 review fields (visit month, service) shown on /yorumlarim.
+  return {rows, items, next, loading, error, busy, load, withdraw};
 }
 
 /* ------------------------------------------------------------------ /basvurularim */

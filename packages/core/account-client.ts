@@ -21,6 +21,7 @@ export async function accountJson<T>(options:{guard:()=>void;token:()=>Promise<s
  try{return await Promise.race([deadline,(async()=>{
  options.guard();await options.token();options.guard();if(controller.signal.aborted)throw Error('account_timeout');const response=await options.request(controller.signal);options.guard();
  if(!response.ok)throw new AccountRequestError(response.status,response.status===409?'Hesap kayıtları değişti. Kayıtları yenileyip tekrar dene.':response.status===503?'Ortak garaj geçişi henüz etkin değil.':'İşlem tamamlanamadı. Bilgilerini ve bağlantını kontrol edip tekrar dene.');
- const bytes=await boundedBytes(response,1_100_000);options.guard();const result=options.decode(JSON.parse(new TextDecoder().decode(bytes)));options.guard();return {value:result,revision:response.headers.get('X-Garage-Revision'),check:options.guard};
+ // 204 (DELETE /api/me maintenance) has no body; it decodes as null.
+ const bytes=await boundedBytes(response,1_100_000);options.guard();const result=options.decode(response.status===204?null:JSON.parse(new TextDecoder().decode(bytes)));options.guard();return {value:result,revision:response.headers.get('X-Garage-Revision'),check:options.guard};
  })()]);}finally{clearTimeout(timer);controller.abort();}
 }

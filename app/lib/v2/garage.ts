@@ -1,12 +1,15 @@
-import {maintenanceSchema, reminderSchema, reminderStatus, vehicleSchema, type Maintenance, type Reminder, type Vehicle} from '@otosanayide/core';
+import {
+  garagePlateSchema, garageTransmissions, maintenanceSchema, normalizeGaragePlate, reminderSchema, reminderStatus, vehicleSchema,
+  type Maintenance, type Reminder, type Vehicle, type maintenanceDocumentKinds, type maintenanceTypes, type reminderTopics,
+} from '@otosanayide/core';
 import {AccountRequestError} from '@otosanayide/core/account-client';
-import type {MockRecord, MockVehicle} from '~/data/mock/garage';
+import type {MockRecord, MockRecordIcon, MockVehicle} from '~/data/mock/garage';
 
 /**
  * W11 Araçlarım / W12 Hatırlatma view models. Demo data (app/data/mock/garage.ts) already has the
- * MockVehicle / MockRecord shape; live records from GET /api/me are mapped here. Fields the account
- * model does not have (plate, transmission, record kind, document label, several notice days) are
- * left empty and the components hide them in live mode.
+ * MockVehicle / MockRecord shape; live records from GET /api/me?v=2 are mapped here, including the
+ * v2-02 fields (plate, transmission, record type / provider / document label, reminder on/off, topic
+ * and several notice days). The account model has no "hide plate" flag; that option stays demo-only.
  */
 export type GarageVehicle = MockVehicle & {source?: Vehicle; inspectionDueDate?: string};
 export type GarageRecord = MockRecord & {source?: Maintenance};
@@ -27,7 +30,7 @@ export type GarageReminderView = {
   notifyText: string;
   /** "14 gün", "3 ay", "Bugün", "2 gün geçti", "7.600 km", "Eşik geldi". */
   remaining: string;
-  /** Right-hand text when switched off ("Kapalı" in the mock, "Tamamlandı" in live). */
+  /** Right-hand text when switched off ("Kapalı"; live: "Tamamlandı" for a reminder marked completed). */
   offText: string;
   progress: number;
   tone: GarageTone;
@@ -36,7 +39,7 @@ export type GarageReminderView = {
   active: boolean;
   /** Sort key: days left for dated reminders; km-only ones come after every dated one. */
   sort: number;
-  /** Live only: the stored reminder (for .ics and the completed toggle). */
+  /** Live only: the stored reminder (for .ics and the on/off toggle). */
   source?: Reminder;
 };
 
@@ -49,6 +52,65 @@ export const notifyOptions = [
 
 /** Fuel values of the account model (vehicleSchema). */
 export const liveFuels = ['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrikli'] as const;
+
+export type Transmission = (typeof garageTransmissions)[number];
+export type MaintenanceType = (typeof maintenanceTypes)[number];
+export type DocumentKind = (typeof maintenanceDocumentKinds)[number];
+export type ReminderTopic = (typeof reminderTopics)[number];
+
+/** "Vites" options (vehicle.transmission). */
+export const transmissionOptions: {value: Transmission; label: string}[] = [
+  {value: 'manual', label: 'Manuel'},
+  {value: 'automatic', label: 'Otomatik'},
+  {value: 'semi_automatic', label: 'Yarı otomatik'},
+];
+export const transmissionLabel = (value?: string) => transmissionOptions.find((o) => o.value === value)?.label ?? '';
+
+/** Record "Tür" (maintenance.type): label, history icon and the W11 Bakım / Gider filter it falls under. */
+export const recordTypes: {value: MaintenanceType; label: string; icon: MockRecordIcon; kind: MockRecord['kind']}[] = [
+  {value: 'periodic', label: 'Periyodik bakım', icon: 'wrench', kind: 'bakim'},
+  {value: 'oil', label: 'Yağ değişimi', icon: 'droplet', kind: 'bakim'},
+  {value: 'tyre', label: 'Lastik', icon: 'tyre', kind: 'bakim'},
+  {value: 'brake', label: 'Fren', icon: 'wrench', kind: 'bakim'},
+  {value: 'repair', label: 'Onarım', icon: 'wrench', kind: 'bakim'},
+  {value: 'inspection', label: 'Muayene', icon: 'shield', kind: 'gider'},
+  {value: 'insurance', label: 'Sigorta', icon: 'shield', kind: 'gider'},
+  {value: 'other', label: 'Diğer', icon: 'file', kind: 'bakim'},
+];
+
+/** "Belge" options (maintenance.documentKind; '' = none). Only the label is stored, no file. */
+export const documentOptions: {value: DocumentKind | ''; label: string}[] = [
+  {value: '', label: 'Yok'},
+  {value: 'invoice', label: 'Fatura'},
+  {value: 'policy', label: 'Poliçe'},
+  {value: 'other', label: 'Diğer belge'},
+];
+const documentTag: Record<DocumentKind, string> = {invoice: 'Fatura', policy: 'Poliçe', other: 'Belge'};
+
+/** W12 "Konu" in live: the title shown on the card plus the API topic it is filed under. */
+export const liveReminderTopics: {label: string; topic: ReminderTopic}[] = [
+  {label: 'Periyodik bakım', topic: 'periodic'},
+  {label: 'Araç muayenesi', topic: 'inspection'},
+  {label: 'Lastik değişimi', topic: 'tyre'},
+  {label: 'Yağ değişimi', topic: 'oil'},
+  {label: 'Trafik sigortası', topic: 'insurance'},
+  {label: 'Kasko', topic: 'insurance'},
+  {label: 'Egzoz emisyon', topic: 'other'},
+  {label: 'Diğer', topic: 'other'},
+];
+export const reminderTopicFor = (title: string): ReminderTopic => liveReminderTopics.find((t) => t.label === title)?.topic ?? 'other';
+/** Summary-card eyebrow, as in the mock ("Sonraki bakım", "Muayene"); other topics use the title. */
+const topicEyebrow: Partial<Record<ReminderTopic, string>> = {periodic: 'Sonraki bakım', inspection: 'Muayene'};
+
+/** At most three notice days per reminder (API advanceDaysList: 1–3 of 0, 1, 3, 7). */
+export const MAX_NOTICE_DAYS = 3;
+
+/** Plate as the API stores it ("34abc123" → "34 ABC 123"), or an error text. Empty input = no plate. */
+export function checkPlate(input: string): {plate: string | null; error: string} {
+  if (!input.trim()) return {plate: null, error: ''};
+  const plate = normalizeGaragePlate(input);
+  return garagePlateSchema.safeParse(plate).success ? {plate, error: ''} : {plate: null, error: 'Plakayı 34 ABC 123 biçiminde yaz.'};
+}
 
 const DAY = 86_400_000;
 /** Ring windows for live reminders (the API keeps no creation date): the arc fills over the last 180 days / 10.000 km. */
@@ -95,10 +157,10 @@ export function liveVehicle(v: Vehicle): GarageVehicle {
     id: v.id,
     model: `${v.brand} ${v.model}`,
     year: v.year,
-    plate: null,
+    plate: v.plate ?? null,
     plateHidden: false,
     fuel: v.fuel,
-    transmission: '',
+    transmission: transmissionLabel(v.transmission),
     km: v.mileage,
     inspectionDueDate: v.inspectionDueDate,
     source: v,
@@ -106,15 +168,17 @@ export function liveVehicle(v: Vehicle): GarageVehicle {
 }
 
 export function liveRecord(m: Maintenance): GarageRecord {
-  const km = formatKm(m.mileage);
+  const type = recordTypes.find((t) => t.value === m.type);
+  // The API returns no business name for businessId; a record linked only to a listed business says so.
+  const provider = m.providerName ?? (m.businessId ? 'Kayıtlı servis' : '');
   return {
     id: m.id,
     vehicleId: m.vehicleId,
     title: m.title,
-    detail: m.note ? `${m.note} · ${km}` : km,
-    kind: 'bakim',
-    icon: 'wrench',
-    document: m.attachmentIds?.length ? 'Belge' : null,
+    detail: [provider, m.note, formatKm(m.mileage)].filter(Boolean).join(' · '),
+    kind: type?.kind ?? 'bakim',
+    icon: type?.icon ?? 'wrench',
+    document: m.documentKind ? documentTag[m.documentKind] : m.attachmentIds?.length ? 'Belge' : null,
     amount: m.amount,
     date: m.date,
     source: m,
@@ -123,16 +187,17 @@ export function liveRecord(m: Maintenance): GarageRecord {
 
 /** A stored reminder as shown on W11. `vehicle` gives the last recorded mileage for km targets. */
 export function liveReminder(r: Reminder, vehicle: Pick<Vehicle, 'mileage'> | undefined, today: string): GarageReminderView {
-  const active = !r.completed;
+  // Switch = enabled (v2). A reminder marked completed (old web toggle, mobile) also counts as off.
+  const active = r.enabled !== false && !r.completed;
   const status = vehicle ? reminderStatus(r, vehicle as Vehicle, today) : {overdue: false, remainingKm: undefined};
   const channels = r.channels ?? [];
   const base = {
     id: r.id,
     vehicleId: r.vehicleId,
     topic: r.title,
-    label: r.title,
-    notifyText: notifyText([r.advanceDays ?? 1]),
-    offText: 'Tamamlandı',
+    label: (r.topic && topicEyebrow[r.topic]) || r.title,
+    notifyText: notifyText(r.advanceDaysList ?? [r.advanceDays ?? 1]),
+    offText: r.completed ? 'Tamamlandı' : 'Kapalı',
     push: channels.includes('push'),
     email: channels.includes('email'),
     active,
@@ -189,13 +254,29 @@ export function inspectionView(v: GarageVehicle, today: string): GarageReminderV
 
 /** Same fields the stored reminder has, for PATCH /api/me (the update schema is strict). */
 export function reminderPayload(r: Reminder) {
-  return {vehicleId: r.vehicleId, title: r.title, dueDate: r.dueDate, dueKm: r.dueKm, channels: r.channels, advanceDays: r.advanceDays, completed: r.completed ?? false};
+  return {
+    vehicleId: r.vehicleId, title: r.title, dueDate: r.dueDate, dueKm: r.dueKm, channels: r.channels, advanceDays: r.advanceDays, completed: r.completed ?? false,
+    enabled: r.enabled ?? true, topic: r.topic, advanceDaysList: r.advanceDaysList,
+  };
+}
+
+/** Switch on = enabled and no longer completed; switch off = disabled (the API stops planning and sending it). */
+export function reminderToggle(r: Reminder, on: boolean) {
+  return on ? {...reminderPayload(r), enabled: true, completed: false} : {...reminderPayload(r), enabled: false};
 }
 
 /* ---------- forms ---------- */
 
+/** `transmission`: demo label ("Manuel"); live API value ("manual") or '' when not given. */
 export type VehicleDraft = {id?: string; brand: string; model: string; year: number; km: number; fuel: string; transmission: string; plate: string | null; plateHidden: boolean; inspectionDueDate: string};
-export type RecordDraft = {vehicleId: string; title: string; place: string; kind: MockRecord['kind']; amount: number; date: string; document: string; mileage: number};
+/**
+ * `place`: demo "Servis veya not"; live the service name (providerName). Live only: `id` (edit), `type`,
+ * `documentKind` ('' = none) and `note`. Demo uses `kind` and the `document` label.
+ */
+export type RecordDraft = {
+  id?: string; vehicleId: string; title: string; place: string; kind: MockRecord['kind']; amount: number; date: string; document: string; mileage: number;
+  type?: MaintenanceType; documentKind?: DocumentKind | ''; note?: string;
+};
 export type ReminderDraft = {vehicleId: string; topic: string; date: string; dueKm: number | null; notify: number[]; push: boolean; email: boolean};
 
 /** Turkish money input: "2400", "2.400", "2400,50", "2.400,50". Null when it is not an amount. */
@@ -212,35 +293,71 @@ export function parseWhole(input: string): number | null {
   return /^\d{1,9}$/.test(text) ? Number(text) : null;
 }
 
-/** Live vehicle (vehicleSchema). The photo stays as it was; plate and transmission are not stored. */
+/**
+ * v2 field for a write: the value, `null` to clear one the stored record has (PATCH), or nothing.
+ * Absent fields are kept by the API, so a v2 field this form does not edit is simply not sent.
+ */
+function v2Field<K extends string, V>(key: K, value: V | null | undefined, stored: unknown) {
+  if (value !== null && value !== undefined && value !== '') return {[key]: value} as Record<K, V>;
+  return stored !== undefined ? ({[key]: null} as Record<K, null>) : {};
+}
+
+/** Strict schema check of a write; `null` values (clear on PATCH) are checked as absent. */
+function checked<T extends object>(value: T, schema: {parse: (v: unknown) => unknown}) {
+  schema.parse(Object.fromEntries(Object.entries(value).filter(([, v]) => v !== null)));
+  return value;
+}
+
+/** Live vehicle (vehicleSchema + v2 plate / transmission). The photo and VIN are kept as they were. */
 export function vehicleInput(draft: VehicleDraft, existing?: Vehicle) {
-  return vehicleSchema.parse({
+  const transmission = (garageTransmissions as readonly string[]).includes(draft.transmission) ? (draft.transmission as Transmission) : null;
+  return checked({
     brand: draft.brand,
     model: draft.model,
     year: draft.year,
-    fuel: draft.fuel,
+    fuel: draft.fuel as Vehicle['fuel'],
     mileage: draft.km,
     ...(draft.inspectionDueDate ? {inspectionDueDate: draft.inspectionDueDate} : {}),
     ...(existing?.photoId ? {photoId: existing.photoId} : {}),
-  });
+    ...v2Field('plate', draft.plate ? normalizeGaragePlate(draft.plate) : null, existing?.plate),
+    ...v2Field('transmission', transmission, existing?.transmission),
+  }, vehicleSchema);
 }
 
-/** Live maintenance record (maintenanceSchema). Kind and document label have no field in the model. */
-export function maintenanceInput(draft: RecordDraft) {
-  return maintenanceSchema.parse({vehicleId: draft.vehicleId, title: draft.title, date: draft.date, mileage: draft.mileage, amount: draft.amount, note: draft.place});
+/**
+ * Live maintenance record (maintenanceSchema + v2 type / providerName / documentKind). On edit the whole
+ * record is sent (PATCH replaces it); businessId is not edited on the web, so it is left out and kept.
+ */
+export function maintenanceInput(draft: RecordDraft, existing?: Maintenance) {
+  return checked({
+    vehicleId: draft.vehicleId,
+    title: draft.title,
+    date: draft.date,
+    mileage: draft.mileage,
+    amount: draft.amount,
+    note: draft.note ?? '',
+    ...v2Field('type', draft.type, existing?.type),
+    ...v2Field('providerName', draft.place.trim(), existing?.providerName),
+    ...v2Field('documentKind', draft.documentKind, existing?.documentKind),
+  }, maintenanceSchema);
 }
 
-/** Live reminder (reminderSchema): one notice day, push / e-mail preference. */
+/** Live reminder (reminderSchema + v2): up to three notice days, topic, push / e-mail preference, switched on. */
 export function reminderInput(draft: ReminderDraft) {
   const channels = [...(draft.push ? ['push' as const] : []), ...(draft.email ? ['email' as const] : [])];
+  const days = [...new Set(draft.notify.length ? draft.notify : [0])].sort((a, b) => a - b).slice(0, MAX_NOTICE_DAYS);
   return reminderSchema.parse({
     vehicleId: draft.vehicleId,
     title: draft.topic,
     completed: false,
+    enabled: true,
+    topic: reminderTopicFor(draft.topic),
     ...(draft.date ? {dueDate: draft.date} : {}),
     ...(draft.dueKm !== null ? {dueKm: draft.dueKm} : {}),
     channels,
-    advanceDays: draft.notify[0] ?? 0,
+    // advanceDays must equal the earliest (largest) day of the list.
+    advanceDays: Math.max(...days),
+    advanceDaysList: days,
   });
 }
 

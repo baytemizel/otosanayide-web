@@ -1,5 +1,5 @@
 // Search group: GET /api/search (v1 + v2: sort, cursor, total, verifiedOwner, reviewSummary, openingHours),
-// GET /api/businesses/:id (v2), coverage waitlist (web-12) and named lists (web-13, used by "Karşılaştırmayı kaydet").
+// GET /api/businesses/:id (v2), GET /api/coverage (v2-05), coverage waitlist (web-12) and named lists (web-13, used by "Karşılaştırmayı kaydet").
 // Synthetic businesses only ("Örnek …"), kept in api.state.businesses so other route files can share them.
 // Faked: full-text search is a plain substring match; the cursor is an unsigned offset + filter hash
 // (the real one is HMAC-signed); `rating` uses the same Bayes formula as the API note (C=5, m=3.5).
@@ -179,6 +179,20 @@ export default (api) => {
     const b = businesses().find((x) => x.id === params.id && x.published);
     if (!b) return reply.error(404, 'İşletme bulunamadı.');
     return reply.json(publicShape(b, query.get('v') === '2'));
+  });
+
+  // v2-05 GET /api/coverage (public): provinces in service with district names and approximate administrative
+  // centres, plus the counts. Same source file as the API (coverage.json areas); categoryCount is the API's
+  // taxonomy size (20), not this stub's shortened category list. No query string allowed.
+  api.get('/api/coverage', ({url}, reply) => {
+    if (url.search) return reply.error(400, 'Geçersiz istek.');
+    const cities = coverage.cities.map((city) => ({
+      city,
+      districts: (coverage.areas[city]?.districts ?? []).filter((d) => typeof d.latitude === 'number' && typeof d.longitude === 'number')
+        .map((d) => ({name: d.name, center: {lat: d.latitude, lng: d.longitude}})),
+    }));
+    reply.header('Cache-Control', 'public, max-age=3600');
+    return reply.json({cityCount: cities.length, categoryCount: 20, cities});
   });
 
   // web-12 coverage waitlist: verified e-mail only; uncovered provinces only; at most 5.

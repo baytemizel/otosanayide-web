@@ -8,12 +8,14 @@ import {useMemberPage} from '~/composables/useMemberPage';
 import {useOwnReviews} from '~/composables/v2/useAccountData';
 import {mockOwnReviews, reviewStatusLabel, type MockOwnReview} from '~/data/mock/account';
 import {demoMode} from '~/lib/env';
+import {ownReviewMeta} from '~/lib/v2/profile';
 import type {OwnReviewRow} from '~/lib/v2/requests';
 
 // Yorumlarım: linked from the Figma account menu; no Web v2 frame, built from the W17 layout.
 // Demo: mock reviews; "Sil" removes locally. Live: GET /api/reviews/mine/all (web-17) with the
 // moderation status; "Geri çek" is PATCH /api/reviews/mine {action:'withdraw'} after a confirmation.
-// Editing happens in the review form on the business profile (same PATCH, action 'edit').
+// Editing happens in the review form on the business profile (same PATCH, action 'edit'; ?yorum=duzenle
+// opens it in edit mode). With v=2 the visit month and service are shown in the meta line.
 useMemberPage();
 const demo = demoMode();
 useSeoMeta({title: 'Yorumlarım', robots: 'noindex, nofollow'});
@@ -23,6 +25,7 @@ const remove = (id: string) => { reviews.value = reviews.value.filter((review) =
 const tagClass = (status: MockOwnReview['status']) => (status === 'yayinda' ? 'tag-lime' : status === 'incelemede' ? 'tag-orange' : 'tag-cream');
 
 const live = useOwnReviews();
+const liveMeta = computed(() => new Map(live.items.value.map((item) => [item.review.id, ownReviewMeta(item.review)])));
 const count = computed(() => (demo ? reviews.value.length : live.rows.value.length));
 const withdrawing = ref<OwnReviewRow | null>(null);
 async function confirmWithdraw() {
@@ -84,6 +87,7 @@ async function confirmWithdraw() {
             <div class="meta">
               <span v-if="review.rating" class="stars" :aria-label="`${review.rating} / 5`"><Star v-for="n in 5" :key="n" :size="16" :class="{off: n > review.rating}" aria-hidden="true"/></span>
               <span v-if="review.date" class="t-body-sm t-muted">{{ review.date }}</span>
+              <span v-if="liveMeta.get(review.id)" class="t-body-sm t-muted">{{ liveMeta.get(review.id) }}</span>
             </div>
             <p class="t-body-md">{{ review.text }}</p>
             <div v-if="review.reason" class="reply">
@@ -91,7 +95,7 @@ async function confirmWithdraw() {
               <p class="t-body-sm">{{ review.reason }}</p>
             </div>
             <div v-if="(review.canEdit && review.available) || review.canWithdraw" class="actions">
-              <V2Button v-if="review.canEdit && review.available" variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=1`">Düzenle</V2Button>
+              <V2Button v-if="review.canEdit && review.available" variant="outline" size="sm" :to="`/servis/${review.businessId}?yorum=duzenle`">Düzenle</V2Button>
               <V2Button v-if="review.canWithdraw" variant="ghost" size="sm" :disabled="!!live.busy.value" @click="withdrawing = review">{{ live.busy.value === review.id ? 'Geri çekiliyor…' : 'Geri çek' }}</V2Button>
             </div>
           </li>
@@ -120,7 +124,7 @@ async function confirmWithdraw() {
 .item{display:flex;flex-direction:column;gap:12px;padding:24px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .top a:hover{text-decoration:underline}
-.meta{display:flex;align-items:center;gap:12px}
+.meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .stars{display:flex;gap:2px;color:var(--orange-500)}
 .stars :deep(svg){fill:currentColor}
 .stars .off{color:var(--cream-200)}

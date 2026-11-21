@@ -1,7 +1,10 @@
-import {computed, ref, shallowRef} from 'vue';
+import {computed, onMounted, ref, shallowRef} from 'vue';
 import type {AreaPoint} from '@otosanayide/core/coverage';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {apiFetch} from '~/lib/api';
+import {callApi} from '~/lib/api-read';
+import {demoMode} from '~/lib/env';
+import {bundledCoverage, decodeCoverage, type Coverage} from '~/lib/v2/coverage';
 import {decodeSearchPage, type SearchPage} from '~/lib/search-response';
 import type {CardBusiness} from '~/lib/v2/business-card';
 import {appendCards, liveSearchParams, pageCards, searchErrorText, v1Params} from '~/lib/v2/search';
@@ -19,6 +22,29 @@ export function useSearchCards() {
       cards.value = {...cards.value, ...Object.fromEntries(list.map((c) => [c.id, c]))};
     },
   };
+}
+
+/* ------------------------------------------------------------------ coverage (v2-05) */
+
+let coverageRequest: Promise<void> | null = null;
+
+/**
+ * Provinces in service and the home counts. Live: `GET /api/coverage` once per page load, shared by every
+ * screen (public data, cached by the API for an hour); the server render and a failed request use the
+ * list bundled in packages/core. Demo: always the bundled list, as before.
+ */
+export function useCoverage() {
+  const fetched = useState<Coverage | null>('v2-coverage', () => null);
+  if (!demoMode()) {
+    onMounted(() => {
+      if (fetched.value || coverageRequest) return;
+      coverageRequest = callApi('/api/coverage', {}, decodeCoverage)
+        .then((value) => { fetched.value = value; })
+        .catch(() => { /* bundled coverage stays; the next screen asks again */ })
+        .finally(() => { coverageRequest = null; });
+    });
+  }
+  return computed<Coverage>(() => fetched.value ?? bundledCoverage);
 }
 
 class SearchFailure extends Error {}

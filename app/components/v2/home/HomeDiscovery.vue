@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {computed, nextTick, ref, watch} from 'vue';
-import {ChevronDown, Columns2, List, Map as MapIcon, SlidersVertical} from '@lucide/vue';
+import {Columns2, List, Map as MapIcon, SlidersVertical} from '@lucide/vue';
 import V2ServiceCard from '~/components/v2/V2ServiceCard.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import HomeCompareBar from '~/components/v2/home/HomeCompareBar.vue';
 import HomeMockMap from '~/components/v2/home/HomeMockMap.vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
@@ -39,6 +40,7 @@ const selectedId = ref<string | null>(demo ? 'ornek-teknik-garaj' : null);
 const liveFilters: HomeDiscoveryFilter[] = ['verified'];
 const filterOff = (id: HomeDiscoveryFilter) => !demo && !liveFilters.includes(id);
 const sortOff = (id: HomeDiscoverySort) => !demo && id === 'distance';
+const sortOptions = computed(() => homeDiscoverySorts.map((s) => ({value: s.id, label: s.label, disabled: sortOff(s.id), hint: sortOff(s.id) ? 'Konum gerekir' : undefined})));
 const liveSort: Record<HomeDiscoverySort, SearchSort> = {recommended: 'onerilen', distance: 'yakin', rating: 'puan'};
 const live = useLiveSearch(() => (demo ? null : {
   filters: {...emptyFilters(homeLiveCity), verifiedOnly: filters.value.includes('verified'), sort: liveSort[sort.value]},
@@ -118,10 +120,7 @@ function setCompared(id: string, on: boolean) {
       <p class="count t-body-sm t-muted" aria-live="polite">{{ countText }}</p>
       <label class="sort t-label-sm">
         <SlidersVertical :size="16" aria-hidden="true"/>
-        <select v-model="sort" aria-label="Sıralama">
-          <option v-for="s in homeDiscoverySorts" :key="s.id" :value="s.id" :disabled="sortOff(s.id)">{{ s.label }}{{ sortOff(s.id) ? ' (konum gerekir)' : '' }}</option>
-        </select>
-        <ChevronDown :size="16" aria-hidden="true"/>
+        <V2Select v-model="sort" :options="sortOptions" variant="bare" anchor=".sort" :match-width="false" aria-label="Sıralama"/>
       </label>
     </div>
 
@@ -163,8 +162,6 @@ function setCompared(id: string, on: boolean) {
 .chips .chip-default:hover{border-color:var(--ink-300)}
 .count{white-space:nowrap}
 .sort{position:relative;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:var(--white);border:1px solid var(--cream-200);color:var(--ink-800);cursor:pointer}
-.sort select{appearance:none;border:0;background:transparent;padding:0;font:inherit;color:inherit;cursor:pointer}
-.sort select:focus{outline:none}
 .sort:focus-within{border-color:var(--ink-900)}
 
 .body{display:flex;gap:20px;align-items:flex-start}

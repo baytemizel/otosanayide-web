@@ -72,19 +72,40 @@ export function otherVehicleText(brand: string, model: string, year: string) {
   return [brand.trim(), model.trim(), year.trim()].filter(Boolean).join(' ').slice(0, 120);
 }
 
-export type RequestDraft = {businessId: string; kind: 'quotes' | 'appointments'; service: string; vehicle: string; message: string; preferredDate?: string; preferredSlot?: string};
+export type ContactPreference = 'app_message' | 'phone' | 'email';
+export type PreferredWindow = 'today' | 'this_week' | 'next_week' | 'any';
+export type RequestDraft = {
+  businessId: string; kind: 'quotes' | 'appointments'; service: string; vehicle: string; message: string; preferredDate?: string; preferredSlot?: string;
+  /** v2-01: W14 contact preference (the API stores `app_message` when it is left out). */
+  contactPreference?: ContactPreference;
+  /** v2-01: W14 "Tercih edilen zaman"; quotes only. */
+  preferredWindow?: PreferredWindow;
+  /** v2-01: id of one of the member's (not archived) garage vehicles. */
+  vehicleId?: string;
+};
+
+/** W14 chip ids (shared with the demo data) → v2-01 body values. */
+export const windowParam: Record<string, PreferredWindow> = {bugun: 'today', 'bu-hafta': 'this_week', 'gelecek-hafta': 'next_week', 'fark-etmez': 'any'};
+export const contactParam: Record<string, ContactPreference> = {uygulama: 'app_message', telefon: 'phone', 'e-posta': 'email'};
+
+const SLOT = /^([01]\d|2[0-3]):(00|30)$/;
+const VEHICLE_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
 /**
- * Body of POST /api/requests: the core request schema, then the web-15 `preferredSlot` ("HH:00",
- * appointments with a date only), then the idempotency key.
+ * Body of POST /api/requests: the core request schema, then the web-15 `preferredSlot` ("HH:00" or,
+ * since v2-01, "HH:30"; appointments with a date only), the v2-01 optional fields, then the
+ * idempotency key. A value the API would refuse is left out instead of sent.
  */
 export function requestBody(draft: RequestDraft, requestKey: string) {
   const value = requestSchema.parse({
     businessId: draft.businessId, kind: draft.kind, service: draft.service, vehicle: draft.vehicle, message: draft.message,
     ...(draft.preferredDate ? {preferredDate: draft.preferredDate} : {}),
   });
-  const slot = draft.kind === 'appointments' && value.preferredDate && draft.preferredSlot && /^([01]\d|2[0-3]):00$/.test(draft.preferredSlot) ? {preferredSlot: draft.preferredSlot} : {};
-  return {...value, ...slot, requestKey};
+  const slot = draft.kind === 'appointments' && value.preferredDate && draft.preferredSlot && SLOT.test(draft.preferredSlot) ? {preferredSlot: draft.preferredSlot} : {};
+  const contact = draft.contactPreference && Object.values(contactParam).includes(draft.contactPreference) ? {contactPreference: draft.contactPreference} : {};
+  const window = draft.kind === 'quotes' && draft.preferredWindow && Object.values(windowParam).includes(draft.preferredWindow) ? {preferredWindow: draft.preferredWindow} : {};
+  const vehicle = draft.vehicleId && VEHICLE_ID.test(draft.vehicleId) ? {vehicleId: draft.vehicleId} : {};
+  return {...value, ...slot, ...contact, ...window, ...vehicle, requestKey};
 }
 
 /** Why a draft cannot be sent yet, in the order the wizard asks. */
@@ -98,13 +119,53 @@ export function requestDraftProblem(draft: Pick<RequestDraft, 'service' | 'vehic
 
 /* ------------------------------------------------------------------ W15 requests */
 
-export type LiveRequest = RequestItem & {preferredStartsAt?: string; extras: ReturnType<typeof offerExtras>};
+/** v2 statuses: v1's six plus `expired` (48 h without an answer) and `no_show` (v2-01). */
+export type LiveStatus = RequestItem['status'] | 'expired' | 'no_show';
+/** v2-01 request metadata (GET /api/requests?v=2, customer view). */
+export interface RequestMeta {
+  reference: string | null;
+  createdAtMs: number | null;
+  respondByMs: number | null;
+  seenByBusinessAtMs: number | null;
+  contactPreference: ContactPreference | null;
+  preferredWindow: PreferredWindow | null;
+  vehicleId: string | null;
+  resolutionCode: string | null;
+}
+export type LiveRequest = Omit<RequestItem, 'status'> & {status: LiveStatus; preferredStartsAt?: string; extras: ReturnType<typeof offerExtras>; meta: RequestMeta};
 const V2_OFFER_KEYS = ['lines', 'totalMinor', 'currency', 'excluded', 'mayChangeAfterInspection'] as const;
+const V2_META_KEYS = ['reference', 'createdAtMs', 'respondByMs', 'seenByBusinessAtMs', 'contactPreference', 'preferredWindow', 'vehicleId', 'resolutionCode', 'customer'] as const;
+/** v1 shows the new statuses as these (same text the API uses), so the strict core item still checks the rest. */
+const V1_STATUS: Record<'expired' | 'no_show', {status: RequestItem['status']; resolution: string}> = {
+  expired: {status: 'declined', resolution: 'Yanıt süresi doldu.'},
+  no_show: {status: 'cancelled', resolution: 'Müşteri randevuya gelmedi.'},
+};
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const ms = z.number().int().nonnegative().max(8_640_000_000_000_000);
+const metaSchema = z.object({
+  reference: z.string().regex(/^R-\d{4}-\d{6}$/).nullable().optional().catch(null),
+  createdAtMs: ms.optional().catch(undefined),
+  respondByMs: ms.optional().catch(undefined),
+  seenByBusinessAtMs: ms.nullable().optional().catch(null),
+  contactPreference: z.enum(['app_message', 'phone', 'email']).optional().catch(undefined),
+  preferredWindow: z.enum(['today', 'this_week', 'next_week', 'any']).optional().catch(undefined),
+  vehicleId: z.string().regex(VEHICLE_ID).optional().catch(undefined),
+  resolutionCode: z.string().regex(/^[a-z_]{1,40}$/).optional().catch(undefined),
+});
+
+/** The v2-01 fields of one item; a malformed field reads as absent instead of dropping the request. */
+export function requestMeta(raw: Record<string, unknown>): RequestMeta {
+  const m = metaSchema.parse(raw);
+  return {
+    reference: m.reference ?? null, createdAtMs: m.createdAtMs ?? null, respondByMs: m.respondByMs ?? null, seenByBusinessAtMs: m.seenByBusinessAtMs ?? null,
+    contactPreference: m.contactPreference ?? null, preferredWindow: m.preferredWindow ?? null, vehicleId: m.vehicleId ?? null, resolutionCode: m.resolutionCode ?? null,
+  };
+}
 
 /**
- * GET /api/requests?v=2. The v2 additions (offer lines, preferredStartsAt) are taken off and read
- * apart; the remainder must pass the strict core item schema. A malformed item is left out.
+ * GET /api/requests?v=2. The v2 additions (offer lines, preferredStartsAt, v2-01 metadata, the
+ * `expired`/`no_show` statuses) are taken off and read apart; the remainder must pass the strict core
+ * item schema. A malformed item is left out.
  */
 export function decodeRequestPage(raw: unknown): {items: LiveRequest[]; next: string | null; dropped: number} {
   if (!isRecord(raw) || !Array.isArray(raw.items)) throw Error('request_page');
@@ -113,6 +174,13 @@ export function decodeRequestPage(raw: unknown): {items: LiveRequest[]; next: st
   for (const entry of raw.items.slice(0, 50)) {
     if (!isRecord(entry)) { dropped++; continue; }
     const {preferredStartsAt, ...core} = entry;
+    const meta = requestMeta(core);
+    for (const key of V2_META_KEYS) delete core[key];
+    const v2Status = core.status === 'expired' || core.status === 'no_show' ? core.status : null;
+    if (v2Status) {
+      core.status = V1_STATUS[v2Status].status;
+      if (typeof core.resolution !== 'string' || core.resolution.trim().length < 10) core.resolution = V1_STATUS[v2Status].resolution;
+    }
     let extras: ReturnType<typeof offerExtras> = null;
     if (isRecord(core.offer)) {
       const offer = {...core.offer};
@@ -124,7 +192,7 @@ export function decodeRequestPage(raw: unknown): {items: LiveRequest[]; next: st
     const parsed = requestItem.safeParse(core);
     if (!parsed.success || items.some(i => i.id === parsed.data.id)) { dropped++; continue; }
     const starts = typeof preferredStartsAt === 'string' && !Number.isNaN(Date.parse(preferredStartsAt)) ? preferredStartsAt : undefined;
-    items.push({...parsed.data, ...(starts ? {preferredStartsAt: starts} : {}), extras});
+    items.push({...parsed.data, status: v2Status ?? parsed.data.status, ...(starts ? {preferredStartsAt: starts} : {}), extras, meta});
   }
   const next = typeof raw.next === 'string' && raw.next.length <= 256 ? raw.next : null;
   return {items, next, dropped};
@@ -148,10 +216,21 @@ export interface OfferCardView {
 }
 
 const lineLabels = {labour: 'İşçilik', parts: 'Parça', tax: 'KDV', other: 'Diğer'} as const;
-const statusText: Record<RequestItem['status'], string> = {
+export const requestStatusText: Record<LiveStatus, string> = {
   requested: 'Yanıt bekleniyor', offered: 'Karar bekleniyor', confirmed: 'Kesinleşti', declined: 'İşletme reddetti', cancelled: 'İptal edildi', completed: 'Tamamlandı',
+  expired: 'Yanıt süresi doldu', no_show: 'Randevuya gidilmedi',
 };
-const statusTone: Record<RequestItem['status'], Tone> = {requested: 'cream', offered: 'orange', confirmed: 'lime', declined: 'cream', cancelled: 'cream', completed: 'cream'};
+const statusTone: Record<LiveStatus, Tone> = {requested: 'cream', offered: 'orange', confirmed: 'lime', declined: 'cream', cancelled: 'cream', completed: 'cream', expired: 'cream', no_show: 'cream'};
+const OPEN: readonly LiveStatus[] = ['requested', 'offered', 'confirmed'];
+
+/** v2-01 reason codes (decline by the business, cancel by either side) as short labels. */
+export const resolutionLabels: Record<string, string> = {
+  no_capacity: 'Uygun kapasite yok', service_not_offered: 'Hizmet verilmiyor', parts_unavailable: 'Parça temin edilemiyor', outside_area: 'Hizmet alanı dışında',
+  found_other: 'Başka bir işletmeyle anlaşıldı', price: 'Fiyat', timing: 'Zamanlama', other: 'Diğer',
+};
+const BUSINESS_CANCEL_CODES = ['no_capacity'];
+export const contactLabels: Record<ContactPreference, string> = {app_message: 'Uygulama mesajı', phone: 'Telefon', email: 'E-posta'};
+export const windowLabels: Record<PreferredWindow, string> = {today: 'Bugün', this_week: 'Bu hafta içinde', next_week: 'Gelecek hafta', any: 'Fark etmez'};
 
 export interface RequestView {
   id: string;
@@ -162,7 +241,7 @@ export interface RequestView {
   message: string;
   businessId: string;
   businessName: string;
-  status: RequestItem['status'];
+  status: LiveStatus;
   statusLabel: string;
   tone: Tone;
   offer: OfferCardView | null;
@@ -174,12 +253,28 @@ export interface RequestView {
   canCancel: boolean;
   messagesOpen: boolean;
   amount: number | null;
+  /** "R-2026-000123" when the API has one, else the request id with "#". */
+  code: string;
+  /** "18 Kasım 2026 · 12 dk" (created; relative part only within a week). */
+  createdText: string;
+  /** "12 dk", "Dün", "12 Kas" for list rows. */
+  createdShort: string;
+  /** While `requested`: until when the business is expected to answer. */
+  respondByText: string;
+  respondByPassed: boolean;
+  /** null: the API did not say; '' business has not seen it yet. */
+  seenText: string | null;
+  resolutionLabel: string;
+  contactText: string;
+  windowText: string;
+  vehicleId: string | null;
 }
 
 /** A member's live request as the W15 screen shows it (one business, at most one offer). */
 export function requestView(item: LiveRequest, now: number): RequestView {
   const offer = item.offer;
   const quote = item.kind === 'quotes';
+  const meta = item.meta;
   let lines: OfferLine[] = [];
   if (offer && quote) {
     lines = item.extras?.lines
@@ -193,21 +288,61 @@ export function requestView(item: LiveRequest, now: number): RequestView {
     expired ? 'Bu önerinin süresi doldu; işletmeden yeni yanıt bekle.' : '',
   ].filter(Boolean);
   const offerView: OfferCardView | null = offer ? {
-    id: item.id, code: item.id, businessId: item.businessId, validUntil: longDate(offer.expiresAtMs), lines, note: offer.text, notes,
+    id: item.id, code: meta.reference ?? item.id, businessId: item.businessId, validUntil: longDate(offer.expiresAtMs), lines, note: offer.text, notes,
     kind: quote ? 'quote' : 'appointment', ...(offer.startsAt ? {startsAtText: dateTimeText(Date.parse(offer.startsAt))} : {}), expired,
   } : null;
   const offerStatus: OfferStatus | null = !offer ? null : item.status === 'offered' ? 'pending' : ['confirmed', 'completed'].includes(item.status) ? 'accepted' : 'rejected';
   const preferredText = item.preferredStartsAt ? `${dateTimeText(Date.parse(item.preferredStartsAt))} · onay değildir`
     : item.preferredDate ? `${longDate(Date.parse(`${item.preferredDate}T12:00:00+03:00`))} · onay değildir` : '';
   const amount = lines.length ? lines.reduce((sum, line) => sum + line.amount, 0) : null;
+  const code = meta.resolutionCode ?? '';
+  const statusLabel = item.status === 'offered' && !quote ? 'Saat önerildi'
+    : item.status === 'cancelled' && BUSINESS_CANCEL_CODES.includes(code) ? 'İşletme iptal etti'
+      : requestStatusText[item.status];
+  const waiting = item.status === 'requested';
   return {
     id: item.id, kind: item.kind, kindText: quote ? 'Teklif talebi' : 'Randevu talebi', service: item.service, vehicle: item.vehicle, message: item.message,
-    businessId: item.businessId, businessName: item.businessName, status: item.status,
-    statusLabel: item.status === 'offered' && !quote ? 'Saat önerildi' : statusText[item.status], tone: statusTone[item.status],
+    businessId: item.businessId, businessName: item.businessName, status: item.status, statusLabel, tone: statusTone[item.status],
     offer: offerView, offerStatus, preferredText, resolution: item.resolution ?? '', version: item.version,
-    canAccept: item.status === 'offered' && !expired, canCancel: ['requested', 'offered', 'confirmed'].includes(item.status),
-    messagesOpen: ['requested', 'offered', 'confirmed'].includes(item.status), amount,
+    canAccept: item.status === 'offered' && !expired, canCancel: OPEN.includes(item.status), messagesOpen: OPEN.includes(item.status), amount,
+    code: meta.reference ?? `#${item.id}`,
+    createdText: meta.createdAtMs === null ? '' : now - meta.createdAtMs < 7 * DAY ? `${longDate(meta.createdAtMs)} · ${relativeTime(meta.createdAtMs, now)}` : longDate(meta.createdAtMs),
+    createdShort: meta.createdAtMs === null ? '' : relativeTime(meta.createdAtMs, now),
+    respondByText: waiting && meta.respondByMs !== null ? dateTimeText(meta.respondByMs) : '',
+    respondByPassed: waiting && meta.respondByMs !== null && meta.respondByMs <= now,
+    seenText: meta.seenByBusinessAtMs === null ? (meta.createdAtMs === null ? null : '') : relativeTime(meta.seenByBusinessAtMs, now),
+    resolutionLabel: code ? resolutionLabels[code] ?? '' : '',
+    contactText: meta.contactPreference ? contactLabels[meta.contactPreference] : '',
+    windowText: meta.preferredWindow ? windowLabels[meta.preferredWindow] : '',
+    vehicleId: meta.vehicleId,
   };
+}
+
+/* Customer cancel (v2-01 reason codes). */
+export type CancelReason = 'found_other' | 'price' | 'timing' | 'other';
+export const cancelReasons: {id: CancelReason; label: string}[] = [
+  {id: 'found_other', label: 'Başka bir işletmeyle anlaştım'},
+  {id: 'price', label: 'Fiyat uygun değil'},
+  {id: 'timing', label: 'Zamanlama uymuyor'},
+  {id: 'other', label: 'Diğer'},
+];
+
+/** Why the cancel form cannot be sent yet ('' when it can). `other` needs a text; a text is 10–1000 characters. */
+export function cancelProblem(reason: CancelReason | '', text: string) {
+  const length = text.trim().length;
+  if (!reason) return 'Bir neden seç.';
+  if (reason === 'other' && length < 10) return 'Nedeni en az 10 karakterle yaz.';
+  if (length > 0 && length < 10) return 'Açıklama en az 10 karakter olmalı ya da boş kalmalı.';
+  if (length > 1000) return 'Açıklama en çok 1000 karakter olabilir.';
+  return '';
+}
+
+/** Body of PATCH /api/requests for a customer cancel. Without a text the API stores the code's default sentence. */
+export function cancelBody(view: Pick<RequestView, 'id' | 'version'>, reason: CancelReason, text = '') {
+  const problem = cancelProblem(reason, text);
+  if (problem) throw Error(problem);
+  const trimmed = text.trim();
+  return {id: view.id, version: view.version, action: 'cancel' as const, reasonCode: reason, ...(trimmed ? {text: trimmed} : {})};
 }
 
 export interface ThreadMessage {from: 'business' | 'member'; text: string; time: string}
@@ -217,19 +352,52 @@ export function threadMessage(message: RequestMessage): ThreadMessage {
 
 /* ------------------------------------------------------------------ W16 appointment */
 
-export interface AvailabilityDay {date: string; slots: string[]}
-export interface CalendarDay {date: string; short: string; num: string; closed: boolean; free: number; slots: string[]}
+export interface AvailabilitySlot {time: string; state: 'free' | 'full'}
+export interface AvailabilityDay {date: string; slots: AvailabilitySlot[]}
+export interface LiveAvailability {slotMinutes: 30 | 60 | 120 | null; capacity: number | null; days: AvailabilityDay[]}
+export interface CalendarDay {date: string; short: string; num: string; closed: boolean; free: number; slots: string[]; taken: string[]}
+
+const availabilitySlot = z.union([
+  z.object({time: z.string().regex(SLOT), state: z.enum(['free', 'full'])}).passthrough(),
+  z.string().regex(SLOT).transform(time => ({time, state: 'free' as const})),
+]);
+const availabilityV2 = z.object({
+  timezone: z.literal('Europe/Istanbul'),
+  slotMinutes: z.union([z.literal(30), z.literal(60), z.literal(120)]).nullable(),
+  capacity: z.number().int().positive().max(100).nullable().optional(),
+  days: z.array(z.object({date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slots: z.array(availabilitySlot).max(48)}).passthrough()).max(14),
+}).passthrough();
+
+/**
+ * GET /api/businesses/{id}/availability?v=2 (v2-01): every upcoming slot with `state` free/full and
+ * 30-minute slots. A v1 answer (free times as strings) still reads, as free slots.
+ */
+export function decodeAvailability(raw: unknown): LiveAvailability {
+  const value = availabilityV2.parse(raw);
+  return {
+    slotMinutes: value.slotMinutes, capacity: value.capacity ?? null,
+    days: value.days.map(day => ({date: day.date, slots: day.slots.map(slot => ({time: slot.time, state: slot.state}))})),
+  };
+}
 
 export const istanbulToday = (now = new Date()) => istanbulClock(now).date;
 export const addDays = (date: string, n: number) => new Date(Date.parse(`${date}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const utcLabel = (date: string, options: Intl.DateTimeFormatOptions) => new Date(`${date}T00:00:00Z`).toLocaleDateString('tr-TR', {timeZone: 'UTC', ...options});
 
-/** Week strip for the live calendar: `count` days from `from`; a day without slots is shown closed. */
+/**
+ * Week strip for the live calendar: `count` days from `from`. `slots` lists every time (full ones
+ * too, drawn as taken), `free` counts the bookable ones; a day without any slot is shown closed.
+ */
 export function calendarDays(from: string, days: readonly AvailabilityDay[], count = 7): CalendarDay[] {
   return Array.from({length: count}, (_, i) => {
     const date = addDays(from, i);
-    const slots = [...(days.find(d => d.date === date)?.slots ?? [])].sort();
-    return {date, short: utcLabel(date, {weekday: 'short'}).replace('.', '').toLocaleUpperCase('tr-TR'), num: String(Number(date.slice(8, 10))), closed: !slots.length, free: slots.length, slots};
+    const all = [...(days.find(d => d.date === date)?.slots ?? [])].sort((a, b) => a.time.localeCompare(b.time));
+    const slots = [...new Set(all.map(s => s.time))];
+    const taken = slots.filter(time => !all.some(s => s.time === time && s.state === 'free'));
+    return {
+      date, short: utcLabel(date, {weekday: 'short'}).replace('.', '').toLocaleUpperCase('tr-TR'), num: String(Number(date.slice(8, 10))),
+      closed: !slots.length, free: slots.length - taken.length, slots, taken,
+    };
   });
 }
 
@@ -262,7 +430,7 @@ export function decodeNotices(raw: unknown): {items: Notice[]; next: string | nu
 /** NotificationRow's shape (same as the demo `MockNotification`). */
 export interface NotificationView {id: string; kind: 'talep' | 'yorum' | 'garaj'; icon: 'file' | 'calendar' | 'bell' | 'message' | 'shield'; tone: 'orange' | 'lime' | 'sky' | 'cream'; title: string; text: string; time: string; unread: boolean; to: string}
 
-const noticeTitles: Record<string, string> = {requested: 'Talebin iletildi', offered: 'Yanıt geldi', confirmed: 'Talep kesinleşti', declined: 'İşletme reddetti', cancelled: 'Talep iptal edildi', completed: 'Talep tamamlandı'};
+const noticeTitles: Record<string, string> = {requested: 'Talebin iletildi', offered: 'Yanıt geldi', confirmed: 'Talep kesinleşti', declined: 'İşletme reddetti', cancelled: 'Talep iptal edildi', completed: 'Talep tamamlandı', expired: 'Yanıt süresi doldu', no_show: 'Randevuya gidilmedi'};
 const phaseText: Record<string, string> = {advance: 'Hatırlatma tarihin yaklaşıyor', mileage: 'Kilometre hedefine ulaşıldı'};
 
 export function notificationView(notice: Notice, now: number): NotificationView {

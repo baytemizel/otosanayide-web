@@ -12,6 +12,6 @@ Then run the web with `NUXT_PUBLIC_APP_MODE=live NUXT_PUBLIC_API_ORIGIN=http://l
 (`.claude/launch.json` → `web-live-stub`). Use `localhost` for both, so the refresh cookie is same-site.
 
 Seed members: `deniz@example.com` / `ornek-sifre-123`, and `mfa@example.com` (same password, TOTP on, code `123456`) — test values, stub only. New sign-ups work but start unverified.
-Tokens `gecersiz` make `email/verify` and `password/reset` fail. Restarting the stub resets all data.
+Tokens `gecersiz` make `email/verify` and `password/reset` fail. The password reset code (`password/forgot` with `method:"code"`) is always `123456`; nothing is mailed. Deniz has the profile name "Deniz Kaya". Restarting the stub resets all data.
 
 Route files in `routes/` are grouped by screen area; each one documents what it fakes.

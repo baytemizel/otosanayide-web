@@ -4,12 +4,12 @@ import {ArrowRight, Car, Check, Users} from '@lucide/vue';
 import {formatKmValue, vehicleTitle, type MockVehicle} from '~/data/mock/garage';
 
 // W11 "Araç listesi" (Figma 123:272): vehicle cards (selected = 2 px ink border, lime icon, check)
-// and the "Aile ile paylaş" invite card. Live: there is no plate field and no family-sharing API yet,
-// so the card line shows the fuel and the invite card is shown as not available.
+// and the "Aile ile paylaş" invite card. Live: the plate comes from API v2 (there is no "hide plate"
+// flag); there is no family-sharing API yet, so the invite card is shown as not available.
 const props = withDefaults(defineProps<{vehicles: MockVehicle[]; selectedId: string; live?: boolean}>(), {live: false});
 const emit = defineEmits<{select: [id: string]}>();
 
-const plateText = (v: MockVehicle) => (props.live ? v.fuel : v.plate ? `${v.plate}${v.plateHidden ? ' (gizli)' : ''}` : 'Plaka eklenmedi');
+const plateText = (v: MockVehicle) => (v.plate ? `${v.plate}${!props.live && v.plateHidden ? ' (gizli)' : ''}` : 'Plaka eklenmedi');
 
 const inviting = ref(false);
 const email = ref('');

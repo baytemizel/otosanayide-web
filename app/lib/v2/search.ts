@@ -1,7 +1,8 @@
 import {brands as coreBrands, categories, cities} from '@otosanayide/core';
-import {areaReference, maxNearbyRadius, referenceDistricts, type AreaPoint} from '@otosanayide/core/coverage';
+import {maxNearbyRadius, type AreaPoint} from '@otosanayide/core/coverage';
 import {allProvinces, nearbyProvince, sameText, trLower, type SearchFilters, type SearchSort} from '~/data/mock/search';
 import {toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
+import {bundledCoverage, coverageCenter, coverageCity, coverageDistricts, type Coverage} from '~/lib/v2/coverage';
 import type {SearchPage} from '~/lib/search-response';
 
 /**
@@ -21,19 +22,22 @@ export const livePrimaryServices = ['Periyodik bakım', 'Boyasız göçük', 'Ka
 export const liveBrands = [...coreBrands];
 export const livePrimaryBrands = ['BMW', 'Mercedes-Benz', 'Audi'];
 
-export const isCovered = (il: string) => cities.some((city) => sameText(city, il));
-/** Province spelled as in the core coverage list ("hakkari" → "Hakkâri"), or the input when unknown. */
-export const coveredName = (il: string) => cities.find((city) => sameText(city, il)) ?? allProvinces.find((p) => sameText(p, il)) ?? il;
+// Coverage helpers take the live coverage (GET /api/coverage, useCoverage); the default is the list
+// bundled in packages/core, which is also the fallback when the request fails.
+export const isCovered = (il: string, coverage: Coverage = bundledCoverage) => !!coverageCity(coverage, il);
+/** Province spelled as in the coverage list ("hakkari" → "Hakkâri"), or the input when unknown. */
+export const coveredName = (il: string, coverage: Coverage = bundledCoverage) => coverageCity(coverage, il) ?? allProvinces.find((p) => sameText(p, il)) ?? il;
 
 /** The covered province offered by S02 "Yakındaki ili gör". Never an uncovered one. */
-export function nearbyCovered(il: string) {
+export function nearbyCovered(il: string, coverage: Coverage = bundledCoverage) {
   const hint = nearbyProvince[trLower(il)];
-  return hint && isCovered(hint) ? coveredName(hint) : 'İstanbul';
+  if (hint && isCovered(hint, coverage)) return coveredName(hint, coverage);
+  return coverageCity(coverage, 'İstanbul') ?? coverage.cities[0] ?? 'İstanbul';
 }
 
 /** District options of a covered province: official reference list plus what the API returned. */
-export function liveDistricts(il: string, fromApi: string[] = []) {
-  return [...new Set([...referenceDistricts(coveredName(il)), ...fromApi])].sort((a, b) => a.localeCompare(b, 'tr'));
+export function liveDistricts(il: string, fromApi: string[] = [], coverage: Coverage = bundledCoverage) {
+  return [...new Set([...coverageDistricts(coverage, il), ...fromApi])].sort((a, b) => a.localeCompare(b, 'tr'));
 }
 
 /** Category id for a category name or id ("Kaporta & Boya" / "body"), else undefined. */
@@ -60,13 +64,13 @@ const synonyms: Record<string, string> = {
  * API's limits: one province/district, one service (the longest match), one brand, "kart". Text that
  * matches nothing is sent to the API as `q`.
  */
-export function readLiveQuery(text: string, base: SearchFilters): SearchFilters {
+export function readLiveQuery(text: string, base: SearchFilters, coverage: Coverage = bundledCoverage): SearchFilters {
   const lower = trLower(text);
   const has = (term: string) => new RegExp(`(^|[^\\p{L}])${trLower(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'u').test(lower);
   const next: SearchFilters = {...base, q: text, services: [], brands: [], payments: [], symptom: '', text: ''};
   const province = allProvinces.find((p) => has(p));
-  if (province) next.il = coveredName(province);
-  const district = referenceDistricts(coveredName(next.il)).filter((d) => has(d)).sort((a, b) => b.length - a.length)[0];
+  if (province) next.il = coveredName(province, coverage);
+  const district = coverageDistricts(coverage, next.il).filter((d) => has(d)).sort((a, b) => b.length - a.length)[0];
   next.ilce = district ?? (province ? '' : base.ilce);
   const services = [...liveServices.filter((s) => has(s)), ...Object.entries(synonyms).filter(([k]) => has(k)).map(([, s]) => s)];
   const service = services.sort((a, b) => b.length - a.length)[0];
@@ -79,9 +83,9 @@ export function readLiveQuery(text: string, base: SearchFilters): SearchFilters 
 }
 
 /** The circle a live search uses: area reference for "çevresi", the device point for "konum", else none. */
-export function searchCenter(f: SearchFilters, device: AreaPoint | null): AreaPoint | null {
+export function searchCenter(f: SearchFilters, device: AreaPoint | null, coverage: Coverage = bundledCoverage): AreaPoint | null {
   if (f.area === 'konum') return device;
-  if (f.area === 'cevre') return areaReference(coveredName(f.il), f.ilce) ?? areaReference(coveredName(f.il));
+  if (f.area === 'cevre') return coverageCenter(coverage, coveredName(f.il, coverage), f.ilce);
   return null;
 }
 

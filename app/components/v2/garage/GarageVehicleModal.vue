@@ -3,16 +3,17 @@ import {reactive, watch} from 'vue';
 import {ArrowRight} from '@lucide/vue';
 import {brands} from '@otosanayide/core';
 import V2Modal from '~/components/v2/V2Modal.vue';
-import {liveFuels, parseWhole, type GarageVehicle, type VehicleDraft} from '~/lib/v2/garage';
+import V2Select from '~/components/v2/V2Select.vue';
+import {checkPlate, liveFuels, parseWhole, transmissionOptions, type GarageVehicle, type VehicleDraft} from '~/lib/v2/garage';
 
 // Add / edit vehicle (W11 "Araç ekle" and "Düzenle"). No Figma frame: V2Modal + shared form classes.
-// Live: the account model (vehicleSchema) has brand and model apart, its own fuel list and an optional
-// inspection date; it stores no plate or transmission, so those fields are not shown.
+// Live: the account model (vehicleSchema, API v2) has brand and model apart, its own fuel list, an optional
+// inspection date, transmission and plate. It has no "hide plate" flag, so that checkbox is demo-only.
 const props = withDefaults(defineProps<{open: boolean; vehicle?: GarageVehicle | null; live?: boolean; busy?: boolean; error?: string}>(), {vehicle: null, live: false, busy: false, error: ''});
 const emit = defineEmits<{close: []; save: [vehicle: VehicleDraft]}>();
 
 const form = reactive({brand: '', model: '', year: '', km: '', fuel: 'Benzin', transmission: 'Manuel', plate: '', plateHidden: true, inspection: ''});
-const errors = reactive({brand: '', model: '', year: '', km: ''});
+const errors = reactive({brand: '', model: '', year: '', km: '', plate: ''});
 const maxYear = props.live ? new Date().getFullYear() + 1 : 2027;
 
 watch(() => props.open, (open) => {
@@ -22,10 +23,12 @@ watch(() => props.open, (open) => {
   Object.assign(form, {
     brand: source?.brand ?? '',
     model: source ? source.model : v?.model ?? '', year: v ? String(v.year) : '', km: v ? String(v.km) : '',
-    fuel: v?.fuel ?? 'Benzin', transmission: v?.transmission || 'Manuel', plate: v?.plate ?? '', plateHidden: v?.plateHidden ?? true,
+    fuel: v?.fuel ?? 'Benzin', plate: v?.plate ?? '', plateHidden: v?.plateHidden ?? true,
+    // Live: the API value ('' = not given); demo: the label.
+    transmission: props.live ? source?.transmission ?? '' : v?.transmission || 'Manuel',
     inspection: v?.inspectionDueDate ?? '',
   });
-  Object.assign(errors, {brand: '', model: '', year: '', km: ''});
+  Object.assign(errors, {brand: '', model: '', year: '', km: '', plate: ''});
 }, {immediate: true});
 
 function save() {
@@ -36,25 +39,23 @@ function save() {
   errors.model = form.model.trim() ? '' : props.live ? 'Modeli yaz.' : 'Marka ve modeli yaz.';
   errors.year = Number.isInteger(year) && year >= 1950 && year <= maxYear ? '' : `1950 ile ${maxYear} arasında bir yıl yaz.`;
   errors.km = km !== null && km >= 0 && km <= 2_000_000 ? '' : 'Kilometreyi kontrol et.';
-  if (errors.brand || errors.model || errors.year || errors.km) return;
+  const plate = props.live ? checkPlate(form.plate) : {plate: form.plate.trim() ? form.plate.trim().toLocaleUpperCase('tr-TR') : null, error: ''};
+  errors.plate = plate.error;
+  if (errors.brand || errors.model || errors.year || errors.km || errors.plate) return;
   emit('save', {
     id: props.vehicle?.id, brand: form.brand.trim(), model: form.model.trim(), year, km: km ?? 0, fuel: form.fuel, transmission: form.transmission,
-    plate: form.plate.trim() ? form.plate.trim().toLocaleUpperCase('tr-TR') : null, plateHidden: form.plateHidden, inspectionDueDate: form.inspection,
+    plate: plate.plate, plateHidden: form.plateHidden, inspectionDueDate: form.inspection,
   });
 }
 </script>
 
 <template>
-  <V2Modal :open="open" :title="vehicle ? 'Aracı düzenle' : 'Araç ekle'" :subtitle="live ? 'Plaka ve şasi numarası istemiyoruz.' : 'VIN ve plaka zorunlu değil.'" :width="640" @close="emit('close')">
+  <V2Modal :open="open" :title="vehicle ? 'Aracı düzenle' : 'Araç ekle'" :subtitle="live ? 'Plaka zorunlu değil; şasi numarası istemiyoruz.' : 'VIN ve plaka zorunlu değil.'" :width="640" @close="emit('close')">
     <form id="vehicle-form" class="body" novalidate @submit.prevent="save">
       <div v-if="live" class="two">
         <div class="field">
           <label class="field-label" for="veh-brand">Marka</label>
-          <select id="veh-brand" v-model="form.brand" class="select" :aria-invalid="errors.brand ? 'true' : undefined">
-            <option value="">Marka seç</option>
-            <option v-if="form.brand && !brands.includes(form.brand)" :value="form.brand">{{ form.brand }}</option>
-            <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
-          </select>
+          <V2Select id="veh-brand" v-model="form.brand" :options="form.brand && !brands.includes(form.brand) ? [form.brand, ...brands] : brands" placeholder="Marka seç" :invalid="!!errors.brand"/>
           <p v-if="errors.brand" class="err" role="alert">{{ errors.brand }}</p>
         </div>
         <div class="field">
@@ -80,31 +81,39 @@ function save() {
           <p v-if="errors.km" class="err" role="alert">{{ errors.km }}</p>
         </div>
       </div>
-      <div v-if="live" class="two">
-        <div class="field">
-          <label class="field-label" for="veh-fuel">Yakıt</label>
-          <select id="veh-fuel" v-model="form.fuel" class="select">
-            <option v-for="f in liveFuels" :key="f">{{ f }}</option>
-          </select>
+      <template v-if="live">
+        <div class="two">
+          <div class="field">
+            <label class="field-label" for="veh-fuel">Yakıt</label>
+            <V2Select id="veh-fuel" v-model="form.fuel" :options="liveFuels"/>
+          </div>
+          <div class="field">
+            <label class="field-label" for="veh-gear">Vites (isteğe bağlı)</label>
+            <V2Select id="veh-gear" v-model="form.transmission" :options="transmissionOptions" placeholder="Seç"/>
+          </div>
         </div>
-        <div class="field">
-          <label class="field-label" for="veh-inspection">Muayene tarihi (isteğe bağlı)</label>
-          <input id="veh-inspection" v-model="form.inspection" class="input" type="date">
+        <div class="two">
+          <div class="field">
+            <label class="field-label" for="veh-plate">Plaka (isteğe bağlı)</label>
+            <input id="veh-plate" v-model="form.plate" class="input" placeholder="34 ABC 123" maxlength="40" autocomplete="off" :aria-invalid="errors.plate ? 'true' : undefined">
+            <p v-if="errors.plate" class="err" role="alert">{{ errors.plate }}</p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="veh-inspection">Muayene tarihi (isteğe bağlı)</label>
+            <input id="veh-inspection" v-model="form.inspection" class="input" type="date">
+          </div>
         </div>
-      </div>
+        <p class="hint">Plaka hatırlatma bildirimlerinde yer almaz.</p>
+      </template>
       <template v-else>
         <div class="two">
           <div class="field">
             <label class="field-label" for="veh-fuel">Yakıt</label>
-            <select id="veh-fuel" v-model="form.fuel" class="select">
-              <option>Benzin</option><option>Dizel</option><option>LPG</option><option>Hibrit</option><option>Elektrik</option>
-            </select>
+            <V2Select id="veh-fuel" v-model="form.fuel" :options="['Benzin', 'Dizel', 'LPG', 'Hibrit', 'Elektrik']"/>
           </div>
           <div class="field">
             <label class="field-label" for="veh-gear">Vites</label>
-            <select id="veh-gear" v-model="form.transmission" class="select">
-              <option>Manuel</option><option>Otomatik</option>
-            </select>
+            <V2Select id="veh-gear" v-model="form.transmission" :options="['Manuel', 'Otomatik']"/>
           </div>
         </div>
         <div class="field">

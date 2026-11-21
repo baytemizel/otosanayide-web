@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
-import {ArrowRight, ChevronDown, Globe, Menu, X} from '@lucide/vue';
+import {ArrowRight, Bell, ChevronDown, Globe, Menu, X} from '@lucide/vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
 import {useLocale} from '~/composables/useLocale';
 import {useSession} from '~/composables/useSession';
+import {useUnreadCount} from '~/composables/v2/useUnreadCount';
 import {portalUrl} from '~/lib/portal';
+import {unreadBadge} from '~/lib/v2/account';
 
 // V2/Navbar (Figma 118:382). Guest: "Giriş yap" + "İşletmeni ekle"; member: bell + account pill.
 // Interaction note 01: shrinks and sticks to the top on scroll; the active page gets the orange dot.
+// Live: the member pill shows the profile name (/api/me/profile, e-mail-based label without one) and the
+// bell's dot is the unread count of GET /api/notifications?v=2, asked on sign-in and on page changes
+// (at most every 30 s). Demo keeps the design's bell with its dot.
 const route = useRoute();
 const {locale, setLocale} = useLocale();
 const session = useSession();
+const {value: unreadCount, refresh: refreshUnread} = useUnreadCount();
+const bellLabel = computed(() => (unreadCount.value ? `Bildirimler, ${unreadBadge(unreadCount.value)} okunmamış` : 'Bildirimler'));
 
 const links = [
   {label: 'Keşfet', to: '/ara', match: ['/ara', '/servis', '/karsilastir']},
@@ -40,6 +47,11 @@ function onScroll() {
 onMounted(() => {
   onScroll();
   window.addEventListener('scroll', onScroll, {passive: true});
+  if (!session.demo) {
+    watch(() => [session.signedIn.value, route.path] as const, ([member], previous) => {
+      if (member) void refreshUnread(!previous?.[0]);
+    }, {immediate: true});
+  }
 });
 onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 watch(() => route.fullPath, () => {
@@ -69,7 +81,7 @@ async function signOut() {
           </NuxtLink>
         </li>
         <li v-if="!session.signedIn.value" class="menu-extra"><NuxtLink to="/giris" class="menu-link">Giriş yap</NuxtLink></li>
-        <li v-if="session.signedIn.value" class="menu-extra menu-extra-sm"><NuxtLink to="/bildirimler" class="menu-link">Bildirimler</NuxtLink></li>
+        <li v-if="session.signedIn.value" class="menu-extra menu-extra-sm"><NuxtLink to="/bildirimler" class="menu-link">Bildirimler<span v-if="unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span></NuxtLink></li>
         <li class="menu-extra menu-extra-sm"><button type="button" class="menu-link" @click="toggleLocale"><Globe :size="16" aria-hidden="true"/>{{ locale === 'tr' ? 'English' : 'Türkçe' }}</button></li>
       </ul>
 
@@ -79,8 +91,9 @@ async function signOut() {
         </button>
 
         <template v-if="session.signedIn.value">
-          <NuxtLink to="/bildirimler" class="bell" aria-label="Bildirimler">
-            <img src="/v2/bell-button.svg" alt="" width="42" height="42">
+          <NuxtLink to="/bildirimler" class="bell" :aria-label="bellLabel">
+            <img v-if="session.demo" src="/v2/bell-button.svg" alt="" width="42" height="42">
+            <span v-else class="bell-live" aria-hidden="true"><Bell :size="18" :stroke-width="1.5"/><span v-if="unreadCount" class="bell-dot"/></span>
           </NuxtLink>
           <div class="account">
             <button type="button" class="account-pill" :aria-expanded="accountOpen" aria-haspopup="menu" @click="accountOpen = !accountOpen">
@@ -89,7 +102,9 @@ async function signOut() {
               <ChevronDown :size="16" aria-hidden="true"/>
             </button>
             <ul v-if="accountOpen" class="account-menu" role="menu">
-              <li v-for="item in accountLinks" :key="item.to" role="none"><NuxtLink :to="item.to" role="menuitem">{{ item.label }}</NuxtLink></li>
+              <li v-for="item in accountLinks" :key="item.to" role="none">
+                <NuxtLink :to="item.to" role="menuitem">{{ item.label }}<span v-if="item.to === '/bildirimler' && unreadCount" class="menu-count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span></NuxtLink>
+              </li>
               <li role="none"><button type="button" role="menuitem" @click="signOut">Çıkış yap</button></li>
             </ul>
           </div>
@@ -124,6 +139,10 @@ async function signOut() {
 .lang:hover{border-color:var(--ink-300)}
 .login{padding:10px 14px;font-weight:600;font-size:15px;line-height:1.2;color:var(--ink-900)}
 .bell img{width:42px;height:42px}
+.bell{position:relative;display:block}
+.bell-live{position:relative;display:grid;place-items:center;width:42px;height:42px;border-radius:999px;background:var(--cream-100);color:var(--ink-900)}
+.bell-dot{position:absolute;top:7px;right:5.5px;width:11px;height:11px;border-radius:999px;background:var(--orange-500);border:2px solid var(--cream-100)}
+.menu-count{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:8px;padding:0 6px;border-radius:999px;background:var(--orange-500);color:var(--white);font-size:11px;font-weight:700;vertical-align:1px}
 .account{position:relative}
 .account-pill{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border:1px solid var(--cream-200);border-radius:999px;font-weight:600;font-size:13px;line-height:1.2;color:var(--ink-900)}
 .initials{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;background:var(--ink-900);color:var(--lime-400);font-family:var(--font-mono);font-weight:500;font-size:11px;letter-spacing:.06em}

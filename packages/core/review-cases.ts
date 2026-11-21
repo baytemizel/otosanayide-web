@@ -1,5 +1,10 @@
 import {z} from 'zod';import {reviewIdSchema} from './review-policy';
-export const caseInput=z.object({reviewId:reviewIdSchema,kind:z.enum(['report','appeal']),text:z.string().trim().min(10).max(2000)}).strict();
+/** v2-03 report reasons (`kind=report` only). Without a reason or with `other` the text needs 10+ characters; otherwise it may be left out. */
+export const reportReasons=['fake','offensive','personal_data','not_customer','spam','other'] as const;
+export type ReviewReportReason=(typeof reportReasons)[number];
+export const caseInput=z.object({reviewId:reviewIdSchema,kind:z.enum(['report','appeal']),text:z.string().trim().max(2000).optional(),reason:z.enum(reportReasons).optional()}).strict()
+ .refine(v=>v.kind==='report'||v.reason===undefined,{message:'case_reason',path:['reason']})
+ .refine(v=>{const n=(v.text??'').length;return n>=10||(n===0&&v.reason!==undefined&&v.reason!=='other');},{message:'case_text',path:['text']});
 export const caseDecision=z.object({id:reviewIdSchema,decision:z.enum(['dismiss','remove','reopen','superseded']),reason:z.string().trim().min(10).max(1000),reviewed:z.literal(true)}).strict();
 export function canFileCase(uid:string,kind:string,r:Record<string,unknown>|undefined){return !!r&&(kind==='report'?r.status==='approved'&&r.userId!==uid:r.userId===uid&&['rejected','hidden'].includes(String(r.status)));}
 export function caseAction(uid:string,c:Record<string,unknown>,r:Record<string,unknown>|undefined,decision:string){

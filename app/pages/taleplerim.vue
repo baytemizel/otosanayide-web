@@ -14,14 +14,17 @@ import {
   type MockOffer, type OfferMessage, type OfferStatus, type RequestStatus,
 } from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
-import {threadMessage, type OfferCardView, type RequestView} from '~/lib/v2/requests';
+import {cancelProblem, cancelReasons, threadMessage, type CancelReason, type OfferCardView, type RequestView} from '~/lib/v2/requests';
 
 // W15 · Taleplerim · Teklif ayrıntısı (Figma 126:734). The top part (header, Ön teklif, Mesajlar) is the
 // Figma frame; below it the request's incoming offers and the member's other requests.
 // ?talep=<id> selects a request, ?teklif=<id> one of its offers.
 // Demo: mock requests with several offers each. Live: GET /api/requests?v=2 — a request goes to one
 // business and carries at most one offer; accept/cancel use PATCH /api/requests, the thread uses
-// /api/requests/messages. The API has no "undo", so a declined offer stays declined.
+// /api/requests/messages. The API has no "undo", so a declined offer stays declined. v2-01: the
+// reference (R-YYYY-NNNNNN), created time, 48-hour answer deadline, "görüldü" state, contact
+// preference/time window, the reason code of a closed request and the `expired`/`no_show` statuses
+// are shown; cancel sends a reason code (found_other | price | timing | other; other needs a text).
 useMemberPage();
 const demo = demoMode();
 
@@ -90,7 +93,10 @@ const liveRequest = computed<RequestView | undefined>(() => {
 const thread = useRequestThread(() => (demo ? '' : liveRequest.value?.id ?? ''));
 const actionError = ref('');
 const cancelOpen = ref(false);
-const cancelReason = ref('');
+const cancelCode = ref<CancelReason | ''>('');
+const cancelText = ref('');
+const cancelTried = ref(false);
+const cancelError = computed(() => cancelProblem(cancelCode.value, cancelText.value));
 
 async function liveAccept() {
   const current = liveRequest.value;
@@ -104,15 +110,18 @@ async function liveAccept() {
   }
 }
 function openCancel() {
-  cancelReason.value = '';
+  cancelCode.value = '';
+  cancelText.value = '';
+  cancelTried.value = false;
   actionError.value = '';
   cancelOpen.value = true;
 }
 async function liveCancel() {
   const current = liveRequest.value;
-  if (!current || cancelReason.value.trim().length < 10) return;
+  cancelTried.value = true;
+  if (!current || !cancelCode.value || cancelError.value) return;
   try {
-    await live.cancel(current, cancelReason.value.trim());
+    await live.cancel(current, cancelCode.value, cancelText.value);
     cancelOpen.value = false;
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : 'İşlem tamamlanamadı.';
@@ -154,7 +163,26 @@ const rows = computed(() => (demo
     const state = requestState(item.id);
     return {id: item.id, meta: `#${item.id} · ${item.createdText}`, title: `${item.service} · ${item.vehicle}`, count: item.offers.length ? `${item.offers.length} teklif` : 'Teklif yok', label: requestStatusLabel[state], tone: stateTone(state)};
   })
-  : live.views.value.map((item) => ({id: item.id, meta: `${item.kindText} · ${item.businessName}`, title: `${item.service} · ${item.vehicle}`, count: item.offer ? '1 yanıt' : 'Yanıt yok', label: item.statusLabel, tone: item.tone}))));
+  : live.views.value.map((item) => ({
+    id: item.id, meta: [item.code, item.businessName, item.createdShort].filter(Boolean).join(' · '), title: `${item.service} · ${item.vehicle}`,
+    count: item.offer ? '1 yanıt' : item.status === 'requested' && item.seenText ? 'Görüldü' : 'Yanıt yok', label: item.statusLabel, tone: item.tone,
+  }))));
+const headTitle = computed(() => {
+  if (demo) return offer.value ? `Teklif #${offer.value.offer.code}` : `Talep #${requestId.value}`;
+  const code = liveRequest.value?.code ?? '';
+  return offer.value ? `Teklif ${code}` : `Talep ${code}`;
+});
+/** Live: the "görüldü" line while the business has not answered yet. */
+const seenLine = computed(() => {
+  const current = liveRequest.value;
+  if (!current || current.status !== 'requested' || current.seenText === null) return '';
+  return current.seenText ? `İşletme talebini gördü · ${current.seenText}` : 'İşletme talebini henüz görmedi.';
+});
+const respondLine = computed(() => {
+  const current = liveRequest.value;
+  if (!current?.respondByText) return '';
+  return current.respondByPassed ? 'Yanıt süresi geçti. İşletme yine de yanıt verebilir ya da talep kapanır.' : `İşletmenin yanıt süresi: ${current.respondByText}`;
+});
 const bookingTo = computed(() => {
   const current = liveRequest.value;
   return demo || !current ? undefined : current.kind === 'quotes' ? `/randevu?servis=${encodeURIComponent(current.businessId)}&talep=${encodeURIComponent(current.id)}` : null;
@@ -191,7 +219,7 @@ const bookingTo = computed(() => {
         <header class="head">
           <div class="titles">
             <p class="t-mono-md t-eyebrow">{{ offer ? 'TALEPLERİM · TEKLİF' : 'TALEPLERİM · TALEP' }}</p>
-            <h1 class="t-h2">{{ offer ? `Teklif #${offer.offer.code}` : `Talep #${requestId}` }}</h1>
+            <h1 class="t-h2">{{ headTitle }}</h1>
             <p class="t-body-md t-muted">{{ subtitle }}</p>
           </div>
           <span class="tag status" :class="`tag-${headStatus.tone}`"><span class="dot" :class="headStatus.tone" aria-hidden="true"/>{{ headStatus.label }}</span>
@@ -240,8 +268,10 @@ const bookingTo = computed(() => {
         <div v-else class="detail">
           <section class="empty surface grow">
             <span class="empty-icon" aria-hidden="true"><Inbox :size="26"/></span>
-            <h2 class="t-h4">{{ demo || liveRequest?.status === 'requested' ? 'Henüz teklif gelmedi' : 'Bu talep yanıtsız kapandı' }}</h2>
-            <p class="t-body-md t-muted">{{ demo || liveRequest?.status === 'requested' ? 'İşletmeler ön tekliflerini gönderdiğinde burada görünür. Teklif gelince bildirim alırsın.' : liveRequest?.resolution }}</p>
+            <h2 class="t-h4">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? 'Henüz teklif gelmedi' : 'Henüz yanıt gelmedi') : liveRequest?.status === 'expired' ? 'Yanıt süresi doldu' : 'Bu talep yanıtsız kapandı' }}</h2>
+            <p class="t-body-md t-muted">{{ demo || liveRequest?.status === 'requested' ? (demo || liveRequest?.kind === 'quotes' ? 'İşletmeler ön tekliflerini gönderdiğinde burada görünür. Teklif gelince bildirim alırsın.' : 'İşletme saati onayladığında ya da yeni saat önerdiğinde burada görünür.') : liveRequest?.status === 'expired' ? 'İşletme 48 saat içinde yanıt vermediği için talep kapandı. Aynı ya da başka bir işletmeden yeniden isteyebilirsin.' : liveRequest?.resolution }}</p>
+            <p v-if="respondLine" class="t-body-sm deadline" :class="{passed: liveRequest?.respondByPassed}">{{ respondLine }}</p>
+            <p v-if="seenLine" class="t-body-sm t-muted">{{ seenLine }}</p>
             <V2Button :to="demo ? '/talep' : '/ara'" variant="outline">Yeni talep oluştur</V2Button>
           </section>
           <OfferMessages
@@ -259,9 +289,13 @@ const bookingTo = computed(() => {
         </div>
 
         <section v-if="!demo && liveRequest" class="facts surface" aria-label="Talep ayrıntısı">
-          <p class="t-mono-sm t-muted">{{ liveRequest.kindText.toLocaleUpperCase('tr-TR') }}</p>
+          <p class="t-mono-sm t-muted">{{ [liveRequest.kindText.toLocaleUpperCase('tr-TR'), liveRequest.code, liveRequest.createdText].filter(Boolean).join(' · ') }}</p>
           <p class="t-body-md">{{ liveRequest.message }}</p>
           <p v-if="liveRequest.preferredText" class="t-body-sm t-muted">İstenen zaman: {{ liveRequest.preferredText }}</p>
+          <p v-else-if="liveRequest.windowText" class="t-body-sm t-muted">Tercih edilen zaman: {{ liveRequest.windowText }}</p>
+          <p v-if="liveRequest.contactText" class="t-body-sm t-muted">İletişim tercihi: {{ liveRequest.contactText }}</p>
+          <p v-if="offer && seenLine" class="t-body-sm t-muted">{{ seenLine }}</p>
+          <p v-if="liveRequest.resolutionLabel && !liveRequest.canCancel" class="t-body-sm t-muted">Kapanış nedeni: {{ liveRequest.resolutionLabel }}</p>
           <div v-if="liveRequest.canCancel && liveRequest.offerStatus !== 'pending'" class="facts-actions">
             <V2Button variant="ghost" size="sm" :disabled="live.acting.value" @click="openCancel">Talebi iptal et</V2Button>
           </div>
@@ -302,14 +336,22 @@ const bookingTo = computed(() => {
       </template>
     </div>
 
-    <V2Modal :open="cancelOpen" :title="liveRequest?.offerStatus === 'pending' ? 'Teklifi reddet' : 'Talebi iptal et'" subtitle="Talep kapanır ve işletme gerekçeni görür. Bu işlem geri alınamaz." :width="560" @close="cancelOpen = false">
+    <V2Modal :open="cancelOpen" :title="liveRequest?.offerStatus === 'pending' ? 'Teklifi reddet' : 'Talebi iptal et'" subtitle="Talep kapanır ve işletme nedenini görür. Bu işlem geri alınamaz." :width="560" @close="cancelOpen = false">
+      <fieldset class="reasons" :disabled="live.acting.value">
+        <legend class="field-label">Neden vazgeçiyorsun?</legend>
+        <label v-for="item in cancelReasons" :key="item.id" class="option">
+          <input v-model="cancelCode" type="radio" name="iptal-nedeni" :value="item.id" class="radio">
+          <span>{{ item.label }}</span>
+        </label>
+      </fieldset>
       <label class="field">
-        <span class="field-label">Gerekçe (en az 10 karakter)</span>
-        <textarea v-model="cancelReason" class="textarea" maxlength="1000" :disabled="live.acting.value"/>
+        <span class="field-label">{{ cancelCode === 'other' ? 'Açıklama (en az 10 karakter)' : 'Açıklama (isteğe bağlı)' }}</span>
+        <textarea v-model="cancelText" class="textarea" maxlength="1000" :disabled="live.acting.value" :placeholder="cancelCode === 'other' ? 'Nedenini kısaca yaz.' : 'Boş bırakırsan yalnız seçtiğin neden iletilir.'"/>
       </label>
+      <p v-if="cancelTried && cancelError" class="action-error t-body-sm" role="alert">{{ cancelError }}</p>
       <template #footer>
         <V2Button variant="outline" :disabled="live.acting.value" @click="cancelOpen = false">Vazgeç</V2Button>
-        <V2Button variant="dark" :disabled="live.acting.value || cancelReason.trim().length < 10" @click="liveCancel">{{ live.acting.value ? 'Gönderiliyor…' : 'Onayla' }}</V2Button>
+        <V2Button variant="dark" :disabled="live.acting.value" @click="liveCancel">{{ live.acting.value ? 'Gönderiliyor…' : 'Onayla' }}</V2Button>
       </template>
     </V2Modal>
   </div>
@@ -332,6 +374,10 @@ const bookingTo = computed(() => {
 .action-error{color:var(--red-500);font-weight:600}
 .facts{display:flex;flex-direction:column;gap:8px;padding:20px 24px}
 .facts-actions{display:flex;justify-content:flex-end}
+.deadline{color:var(--ink-700);font-weight:600}
+.deadline.passed{color:var(--ink-500);font-weight:400}
+.reasons{display:flex;flex-direction:column;gap:10px;border:0;margin:0 0 16px;padding:0;min-width:0}
+.reasons legend{padding:0;margin-bottom:10px}
 .block{display:flex;flex-direction:column;gap:14px;margin-top:16px}
 .block-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .offers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}

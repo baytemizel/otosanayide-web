@@ -33,6 +33,8 @@ export class SessionRequestError extends Error {
 }
 
 export type TotpEnrollment = {secret: string; otpauthUri: string};
+/** v2-04 sign-up extras: both optional; without them the API takes the old path. */
+export type RegisterDetails = {name?: string; consents?: {termsVersion?: string; kvkkVersion?: string; marketing?: boolean}};
 export type MfaStatus = {totp: {enabled: boolean; enabledAtMs: number | null}};
 
 const identity = z.object({uid: z.string().min(1), email: z.string().nullable().optional(), emailVerified: z.boolean()});
@@ -42,6 +44,8 @@ const enrollmentSchema = z.object({
   secret: z.string().regex(/^[A-Z2-7]{16,128}=*$/),
   otpauthUri: z.string().max(2048).refine(v => v.startsWith('otpauth://totp/')),
 });
+const forgotSchema = z.object({maskedEmail: z.string().min(3).max(260).optional()}).passthrough();
+const resetTokenSchema = z.object({resetToken: z.string().min(1).max(128)}).passthrough();
 const mfaStatusSchema = z.object({totp: z.object({enabled: z.boolean(), enabledAtMs: z.number().int().nonnegative().nullable()})});
 const shared = z.object({accessToken: z.string().min(1), expiresAt: z.number().int().positive(), user: identity});
 const message = z.discriminatedUnion('type', [
@@ -258,8 +262,10 @@ export function createSessionService(deps: SessionDeps) {
         return user!;
       });
     },
-    async register(email: string, password: string) {
-      await ensureOk(await post('/api/auth/register', {email, password}));
+    async register(email: string, password: string, details: RegisterDetails = {}) {
+      const name = details.name?.trim();
+      const consents = details.consents && Object.keys(details.consents).length ? details.consents : undefined;
+      await ensureOk(await post('/api/auth/register', {email, password, ...(name ? {name} : {}), ...(consents ? {consents} : {})}));
     },
     /** Memory and state first: a network failure must never keep the user signed in. */
     async logout() {
@@ -316,8 +322,22 @@ export function createSessionService(deps: SessionDeps) {
     async verifyEmail(token: string) {
       await ensureOk(await post('/api/auth/email/verify', {token}));
     },
-    async forgotPassword(email: string) {
-      await ensureOk(await post('/api/auth/password/forgot', {email}));
+    /** "link" (the default) mails a reset link; "code" (v2-04) mails a 6-digit code and answers the masked address. */
+    async forgotPassword(email: string, method: 'link' | 'code' = 'link'): Promise<{maskedEmail: string | null}> {
+      const response = await ensureOk(await post('/api/auth/password/forgot', method === 'code' ? {email, method} : {email}));
+      let raw: unknown = null;
+      try {
+        raw = await response.json();
+      } catch {
+        /* 202 without a body: nothing to show beyond "sent". */
+      }
+      const parsed = forgotSchema.safeParse(raw);
+      return {maskedEmail: parsed.success ? parsed.data.maskedEmail ?? null : null};
+    },
+    /** v2-04: the e-mailed code becomes a short-lived reset token for resetPassword. */
+    async verifyResetCode(email: string, code: string): Promise<string> {
+      const response = await ensureOk(await post('/api/auth/password/verify-code', {email, code}));
+      return resetTokenSchema.parse(await response.json()).resetToken;
     },
     async resetPassword(token: string, password: string) {
       await ensureOk(await post('/api/auth/password/reset', {token, password}));

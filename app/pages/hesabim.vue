@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import {computed, nextTick, onMounted, reactive, ref} from 'vue';
-import {ArrowRight, BadgeCheck, Check, Clock, Download, KeyRound, Mail, RotateCcw, ShieldCheck, TriangleExclamationPoint} from '@lucide/vue';
+import {computed, nextTick, onMounted, reactive, ref, watch} from 'vue';
+import {ArrowRight, BadgeCheck, Check, Clock, Download, KeyRound, Mail, RotateCcw, ShieldCheck, TriangleExclamationPoint, User} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Modal from '~/components/v2/V2Modal.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import AccountPrefsList from '~/components/v2/requests/AccountPrefsList.vue';
 import V2AccountMenu from '~/components/v2/V2AccountMenu.vue';
 import {useMemberPage} from '~/composables/useMemberPage';
-import {useSession} from '~/composables/useSession';
+import {useApp} from '~/composables/useApp';
+import {useClientEffect} from '~/composables/useClientEffect';
+import {useMemberProfile, useSession} from '~/composables/useSession';
 import {useAccountSecurity, useDataExports, usePrivacyRequest} from '~/composables/v2/useAccountData';
 import {privacyLabels, privacyReasonLabels, privacyScopeLabels} from '@otosanayide/core/privacy-requests';
 import {ACCOUNT_DELETE_GRACE_DAYS, mockDataExport} from '~/data/mock/requests';
 import {demoMode} from '~/lib/env';
+import {localeOptions, profileChanges, type ProfileLocale} from '~/lib/v2/account';
+import {NAME_MAX, nameError, normalizeName} from '~/lib/v2/auth';
 import {longDate} from '~/lib/v2/requests';
 
 // W18 · Hesabım · Gizlilik, veri talebi ve silme (Figma 127:1042). Deletion needs a confirmation modal.
 // Demo: the data copy request and the deletion request change local state; nothing is sent.
 // Live: preferences (web-09), data-copy requests (web-10, prepared by hand, no download), deletion
-// requests (/api/me/privacy; reviewed, not executed automatically) and, live only, the e-mail /
-// password change and two-step status from the session service.
+// requests (/api/me/privacy; reviewed, not executed automatically) and, live only, the profile card
+// (name and language, GET/PATCH /api/me/profile, v2-04), the e-mail / password change and two-step status.
 useMemberPage();
 const demo = demoMode();
 const session = useSession();
@@ -74,6 +79,24 @@ async function changeEmail() {
 async function changePassword() {
   if (await security.changePassword(passwordForm.current, passwordForm.next, passwordForm.code.trim())) Object.assign(passwordForm, {current: '', next: '', code: ''});
 }
+
+// Profile (v2-04): the form starts from the server's value and sends only what changed.
+const app = useApp();
+const profileApi = useMemberProfile();
+const profileForm = reactive<{displayName: string; locale: ProfileLocale | null}>({displayName: '', locale: null});
+const profileNameError = ref('');
+useClientEffect(() => [demo ? null : app.user?.uid], () => {
+  if (!demo && app.user) void profileApi.load();
+});
+watch(() => session.profile.value, (value) => {
+  if (value) Object.assign(profileForm, {displayName: value.displayName ?? '', locale: value.locale});
+}, {immediate: true});
+const pendingProfile = computed(() => (session.profile.value ? profileChanges(session.profile.value, {displayName: normalizeName(profileForm.displayName), locale: profileForm.locale}) : {}));
+async function saveProfile() {
+  profileNameError.value = nameError(profileForm.displayName, false);
+  if (profileNameError.value) return;
+  await profileApi.save(pendingProfile.value);
+}
 </script>
 
 <template>
@@ -85,6 +108,28 @@ async function changePassword() {
         <p class="t-mono-md t-eyebrow">HESABIM</p>
         <h1 class="t-h2">Gizlilik ve veri</h1>
       </header>
+
+      <section v-if="!demo" id="profil" class="card security" aria-labelledby="profile-title" :aria-busy="profileApi.loading.value || profileApi.busy.value">
+        <h2 id="profile-title" class="t-h4">Profil</h2>
+        <p v-if="profileApi.loading.value && !session.profile.value" class="t-body-sm t-muted" role="status">Profil bilgileri yükleniyor…</p>
+        <form v-else-if="session.profile.value" class="profile-form" novalidate @submit.prevent="saveProfile">
+          <label class="field">
+            <span class="field-label"><User :size="14" aria-hidden="true"/>Ad soyad</span>
+            <input v-model="profileForm.displayName" class="input" :class="{invalid: !!profileNameError}" type="text" autocomplete="name" :maxlength="NAME_MAX" placeholder="Deniz Kaya" :aria-invalid="!!profileNameError" :aria-describedby="profileNameError ? 'profile-name-err' : 'profile-name-hint'">
+            <span v-if="profileNameError" id="profile-name-err" class="t-body-sm err-text">{{ profileNameError }}</span>
+            <span v-else id="profile-name-hint" class="t-body-sm t-muted">Başkalarına kısaltılarak görünür (ör. “Deniz K.”). Boş bırakırsan adın kaldırılır.</span>
+          </label>
+          <div class="field">
+            <span id="profile-locale-label" class="field-label">Dil tercihi</span>
+            <V2Select v-model="profileForm.locale" :options="localeOptions" placeholder="Seçilmedi" aria-labelledby="profile-locale-label"/>
+            <span class="t-body-sm t-muted">Tercihin hesabına kaydedilir; e-postaların dili henüz buna göre seçilmez.</span>
+          </div>
+          <V2Button type="submit" variant="outline" size="sm" :disabled="profileApi.busy.value || !Object.keys(pendingProfile).length">{{ profileApi.busy.value ? 'Kaydediliyor…' : 'Kaydet' }}</V2Button>
+        </form>
+        <p v-if="profileApi.saved.value" class="sec-msg ok t-body-sm" role="status">{{ profileApi.saved.value }}</p>
+        <p v-if="profileApi.error.value" class="sec-msg err t-body-sm" role="alert">{{ profileApi.error.value }}</p>
+        <V2Button v-if="profileApi.error.value && !session.profile.value" variant="outline" size="sm" :disabled="profileApi.loading.value" @click="profileApi.load()">Tekrar dene</V2Button>
+      </section>
 
       <section v-if="!demo" id="guvenlik" class="card security" aria-labelledby="security-title" :aria-busy="!!security.busy.value">
         <h2 id="security-title" class="t-h4">Hesap ve güvenlik</h2>
@@ -256,6 +301,11 @@ async function changePassword() {
 .sec-msg{padding:12px 14px;border-radius:14px;background:var(--cream-50)}
 .sec-msg.err{color:var(--red-500);font-weight:600}
 .sec-msg.ok{color:var(--green-500);font-weight:600}
+.profile-form{display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:16px 20px}
+.profile-form .field{display:flex;flex-direction:column;gap:6px}
+.profile-form .field-label{display:inline-flex;align-items:center;gap:6px}
+.profile-form .input.invalid{border-color:var(--red-500)}
+.profile-form > :last-child{grid-column:1 / -1;justify-self:start}
 .sec-forms{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding-top:8px;border-top:1px solid var(--cream-200)}
 .sec-form{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding-top:12px}
 .sec-form h3{display:flex;align-items:center;gap:8px}
@@ -278,7 +328,7 @@ async function changePassword() {
   .card{padding:22px}
   .export{flex-direction:column;align-items:flex-start}
   .export-actions{align-items:flex-start}
-  .sec-forms{grid-template-columns:1fr}
+  .sec-forms,.profile-form{grid-template-columns:1fr}
   .warn{align-items:flex-start}
 }
 </style>

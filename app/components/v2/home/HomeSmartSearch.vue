@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import {computed, onMounted, ref, watch} from 'vue';
-import {ArrowRight, Car, Check, ChevronDown, Gauge, Locate, MapPin, Search, Wrench} from '@lucide/vue';
+import {ArrowRight, Car, Check, Gauge, Locate, MapPin, Search, Wrench} from '@lucide/vue';
 import {homeLocations, homeSearchTabs, homeVehicles, type HomeSearchTab} from '~/data/mock/home';
 import {demoMode} from '~/lib/env';
+import V2Select from '~/components/v2/V2Select.vue';
 
 // Figma 108:148 "Akıllı arama modülü": three tabs, remembered vehicle, one-click popular searches.
 const tab = ref<HomeSearchTab>('hizmet');
@@ -57,12 +58,7 @@ function pickPopular(term: string) {
         <span class="circle" aria-hidden="true"><Car :size="20"/></span>
         <span class="field-text">
           <span class="t-mono-sm t-muted">ARACIN</span>
-          <span class="select-wrap">
-            <select v-model="vehicle" class="t-label-md" aria-label="Aracın">
-              <option v-for="v in homeVehicles" :key="v" :value="v">{{ v }}</option>
-            </select>
-            <ChevronDown :size="16" aria-hidden="true"/>
-          </span>
+          <V2Select v-model="vehicle" :options="homeVehicles" variant="bare" anchor=".sfield" class="pick t-label-md" aria-label="Aracın"/>
         </span>
       </label>
       <span class="sep" aria-hidden="true"/>
@@ -78,12 +74,7 @@ function pickPopular(term: string) {
         <span class="circle" aria-hidden="true"><MapPin :size="20"/></span>
         <span class="field-text">
           <span class="t-mono-sm t-muted">NEREDE?</span>
-          <span class="select-wrap">
-            <select v-model="location" class="t-label-md" aria-label="Nerede?">
-              <option v-for="l in homeLocations" :key="l" :value="l">{{ l }}</option>
-            </select>
-            <ChevronDown :size="16" aria-hidden="true"/>
-          </span>
+          <V2Select v-model="location" :options="homeLocations" variant="bare" anchor=".sfield" class="pick t-label-md" aria-label="Nerede?"/>
         </span>
       </label>
       <button type="submit" class="btn btn-primary btn-lg submit">Servis bul<ArrowRight aria-hidden="true"/></button>
@@ -119,10 +110,7 @@ function pickPopular(term: string) {
 .sfield.focus .circle{border-color:var(--orange-500)}
 .field-text{display:flex;flex-direction:column;gap:3px;min-width:0}
 .field-text.grow{flex:1}
-.select-wrap{position:relative;display:flex;align-items:center;gap:6px;color:var(--ink-900)}
-.select-wrap select{appearance:none;border:0;background:transparent;padding:0 22px 0 0;margin-right:-22px;max-width:100%;color:var(--ink-900);cursor:pointer;text-overflow:ellipsis}
-.select-wrap select:focus{outline:none}
-.select-wrap :deep(svg){flex:none;pointer-events:none}
+.field-text :deep(.pick){color:var(--ink-900)}
 .query{width:100%;border:0;background:transparent;padding:0;font-size:15px;line-height:1.2;color:var(--ink-900)}
 .query::placeholder{color:var(--ink-500)}
 .query:focus{outline:none}

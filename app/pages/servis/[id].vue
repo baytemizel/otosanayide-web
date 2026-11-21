@@ -26,7 +26,8 @@ import {contactTargets, liveProfile, liveReportReasons, profileSeo, requestActio
 // Business profile (Figma W04 verified + photos, W05 unclaimed + no photo).
 // Demo: mock data (app/data/mock). Live: GET /api/businesses/{id}?v=2 on the server (404 for a missing
 // business, an error state when the API is unavailable), reviews, photos and the write actions in the browser.
-// Query: ?yorum=1 opens the review modal (W07) at step 1, ?yorum=2 at the Figma step-2 state; ?bildir=1 opens S08.
+// Query: ?yorum=1 opens the review modal (W07) at step 1, ?yorum=2 at the Figma step-2 state, ?yorum=duzenle
+// (live, from Yorumlarım) the member's own review in edit mode; ?bildir=1 opens S08.
 definePageMeta({key: (route) => String(route.params.id)});
 
 const route = useRoute();
@@ -86,7 +87,7 @@ const summary = computed(() => (live ? liveData.summary.value : view.value?.summ
 const targets = computed(() => (live && found.value ? contactTargets(found.value.business) : null));
 const actions = computed(() => (live && found.value ? requestActions(found.value.business) : null));
 const guestHref = computed(() => (live && app.ready && !app.member ? liveData.signInHref.value : null));
-const existingReview = computed(() => (live && liveData.own.value ? {status: liveData.own.value.status} : null));
+const existingReview = computed(() => (live ? liveData.own.value : null));
 
 onMounted(() => {
   if (found.value) liveData.start(found.value.business.name);
@@ -144,13 +145,14 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll));
 // --- Modals, also reachable from the URL ------------------------------------------------------------
 const reviewOpen = ref(false);
 const reviewDemo = ref(false);
+const reviewEdit = ref(false);
 const reportOpen = ref(false);
 const photosOpen = ref(false);
 const photoIndex = ref(0);
 const mapOpen = ref(false);
 
 watch(() => route.query, (query) => {
-  if (query.yorum) { reviewDemo.value = query.yorum === '2'; reviewOpen.value = true; }
+  if (query.yorum) { reviewDemo.value = query.yorum === '2'; reviewEdit.value = live && query.yorum === 'duzenle'; reviewOpen.value = true; }
   if (query.bildir) openReport();
 }, {immediate: true});
 
@@ -163,6 +165,7 @@ function dropQuery(key: string) {
 function closeReview() {
   reviewOpen.value = false;
   reviewDemo.value = false;
+  reviewEdit.value = false;
   dropQuery('yorum');
 }
 function openReport() {
@@ -180,6 +183,7 @@ function openPhotos(index: number) {
 const currentPhoto = computed(() => profile.value?.photos[photoIndex.value] ?? profile.value?.photos[0]);
 const reportReview = live ? liveData.reportReview : undefined;
 const submitReview = live ? liveData.submitReview : undefined;
+const editReview = live ? liveData.editReview : undefined;
 const submitReport = live ? (reason: string, note: string) => liveData.reportBusiness(reason as ReportReason, note) : undefined;
 </script>
 
@@ -217,7 +221,7 @@ const submitReport = live ? (reason: string, note: string) => liveData.reportBus
 
     <ProfileReviewModal
       :open="reviewOpen" :business="business" :profile="profile" :demo="reviewDemo"
-      :submit="submitReview" :sign-in-href="guestHref" :existing="existingReview"
+      :submit="submitReview" :edit="editReview" :sign-in-href="guestHref" :existing="existingReview" :start-edit="reviewEdit"
       @close="closeReview"/>
     <ProfileReportModal
       :open="reportOpen" :business-name="business.name"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {computed, ref, watch} from 'vue';
-import {ChevronDown, MapPin, Search, X} from '@lucide/vue';
+import {MapPin, Search, X} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import {allProvinces, districtsByProvince, type SearchFilters} from '~/data/mock/search';
 
 // "Arama şeridi" (Figma 119:68): natural-language search, province and district pickers, and the
@@ -20,11 +21,16 @@ const coveredSet = computed(() => new Set(props.covered ?? []));
 const inService = computed(() => provinces.value.filter((p) => coveredSet.value.has(p)));
 const outside = computed(() => provinces.value.filter((p) => !coveredSet.value.has(p)));
 
-function onProvince(event: Event) {
-  emit('place', (event.target as HTMLSelectElement).value, '');
+const provinceOptions = computed(() => (props.covered
+  ? [...inService.value.map((p) => ({value: p, group: 'Hizmet verilen iller'})), ...outside.value.map((p) => ({value: p, group: 'Henüz hizmet verilmeyen iller'}))]
+  : provinces.value));
+const districtOptions = computed(() => [{value: '', label: 'Tüm ilçeler'}, ...districts.value.map((d) => ({value: d}))]);
+
+function onProvince(value: string) {
+  emit('place', value, '');
 }
-function onDistrict(event: Event) {
-  emit('place', props.filters.il, (event.target as HTMLSelectElement).value);
+function onDistrict(value: string) {
+  emit('place', props.filters.il, value);
 }
 </script>
 
@@ -36,30 +42,11 @@ function onDistrict(event: Event) {
       <input id="search-text" v-model="text" class="query" type="search" placeholder="Örn. Kadıköy’de BMW için boyasız göçük" autocomplete="off">
       <span class="place">
         <MapPin :size="16" aria-hidden="true"/>
-        <span class="t-label-sm">{{ filters.il }}</span>
-        <ChevronDown :size="14" aria-hidden="true"/>
-        <select :value="filters.il" aria-label="İl" @change="onProvince">
-          <template v-if="covered">
-            <optgroup label="Hizmet verilen iller">
-              <option v-for="province in inService" :key="province" :value="province">{{ province }}</option>
-            </optgroup>
-            <optgroup label="Henüz hizmet verilmeyen iller">
-              <option v-for="province in outside" :key="province" :value="province">{{ province }}</option>
-            </optgroup>
-          </template>
-          <template v-else>
-            <option v-for="province in provinces" :key="province" :value="province">{{ province }}</option>
-          </template>
-        </select>
+        <V2Select :model-value="filters.il" :options="provinceOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" aria-label="İl" @change="onProvince"/>
       </span>
       <span class="place">
         <MapPin :size="16" aria-hidden="true"/>
-        <span class="t-label-sm">{{ filters.ilce || 'Tüm ilçeler' }}</span>
-        <ChevronDown :size="14" aria-hidden="true"/>
-        <select :value="filters.ilce" aria-label="İlçe" @change="onDistrict">
-          <option value="">Tüm ilçeler</option>
-          <option v-for="district in districts" :key="district" :value="district">{{ district }}</option>
-        </select>
+        <V2Select :model-value="filters.ilce" :options="districtOptions" variant="bare" anchor=".place" stretch :match-width="false" class="t-label-sm" aria-label="İlçe" @change="onDistrict"/>
       </span>
       <V2Button type="submit" arrow class="go">Servis bul</V2Button>
     </form>
@@ -86,7 +73,6 @@ function onDistrict(event: Event) {
 .query:focus{outline:none}
 .bar:focus-within{border-color:var(--ink-900)}
 .place{position:relative;flex:none;display:inline-flex;align-items:center;gap:8px;padding:10px 14px;background:var(--cream-50);border:1px solid var(--cream-200);border-radius:999px;color:var(--ink-900)}
-.place select{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer;font-size:16px}
 .place:focus-within{border-color:var(--ink-900);box-shadow:0 0 0 3px rgba(243,107,33,.18)}
 .go{flex:none}
 .read{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-left:24px}

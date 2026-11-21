@@ -4,7 +4,7 @@ import GarageRing from '~/components/v2/garage/GarageRing.vue';
 import type {GarageReminderView} from '~/lib/v2/garage';
 
 // Reminder list for the selected vehicle (replaces the old /hatirlatmalar page). Not a separate Figma
-// frame: built from the W11 ring cards and the W12 switches. Switch = reminder on/off (live: not completed / completed).
+// frame: built from the W11 ring cards and the W12 switches. Switch = reminder on/off (live: API v2 `enabled`).
 // `busy` disables the switches while a change is being saved; `note` is the live channel notice.
 defineProps<{reminders: GarageReminderView[]; status?: string; error?: string; busy?: boolean; note?: string}>();
 const emit = defineEmits<{add: []; toggle: [id: string, on: boolean]}>();

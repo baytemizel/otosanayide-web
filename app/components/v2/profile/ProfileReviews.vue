@@ -5,11 +5,12 @@ import V2Button from '~/components/v2/V2Button.vue';
 import ProfileReviewItem from './ProfileReviewItem.vue';
 import ProfileStars from './ProfileStars.vue';
 import {formatRating, type MockBusiness} from '~/data/mock/businesses';
-import type {ProfileView, ReviewSummaryView} from '~/lib/v2/profile';
+import type {ProfileView, ReviewReportReason, ReviewSummaryView} from '~/lib/v2/profile';
 
-// "Yorumlar ve puanlar": rating summary, review list and the empty state of W05.
+// "Yorumlar ve puanlar": rating summary, aspect bars, review list and the empty state of W05.
 // Demo: the mock list, two shown until expanded. Live (`live`): every loaded review (20 per page from
-// GET /api/reviews), "Daha fazla yorum" while the API has a next page, loading and error states.
+// GET /api/reviews?v=2), "Daha fazla yorum" while the API has a next page, loading and error states.
+// The bars come from `reviewSummary.aspects` of GET /api/businesses/{id}?v=2; an aspect nobody scored shows "—".
 const props = withDefaults(defineProps<{
   business: MockBusiness;
   profile: ProfileView;
@@ -19,7 +20,7 @@ const props = withDefaults(defineProps<{
   error?: string;
   hasMore?: boolean;
   loadingMore?: boolean;
-  report?: (id: string, text: string) => Promise<void>;
+  report?: (id: string, reason: ReviewReportReason, text: string) => Promise<void>;
   signInHref?: string | null;
 }>(), {live: false, state: 'ready', error: '', hasMore: false, loadingMore: false, report: undefined, signInHref: null});
 const emit = defineEmits<{review: []; retry: []; more: []}>();
@@ -54,10 +55,13 @@ const loading = computed(() => props.live && props.state === 'loading' && !props
           <p class="t-body-sm t-muted">{{ count }} yorum</p>
         </div>
         <dl v-if="profile.dimensions.length" class="bars">
-          <div v-for="dim in profile.dimensions" :key="dim.label" class="bar-row">
+          <div v-for="dim in profile.dimensions" :key="dim.label" class="bar-row" :title="dim.count !== undefined ? `${dim.count} değerlendirme` : undefined">
             <dt class="t-body-sm">{{ dim.label }}</dt>
-            <dd class="track" aria-hidden="true"><span :style="{width: `${(dim.score / 5) * 100}%`}"/></dd>
-            <dd class="t-label-sm value">{{ formatRating(dim.score) }}</dd>
+            <dd class="track" aria-hidden="true"><span :style="{width: `${((dim.score ?? 0) / 5) * 100}%`}"/></dd>
+            <dd class="t-label-sm value">
+              <template v-if="dim.score !== null">{{ formatRating(dim.score) }}</template>
+              <template v-else><span aria-hidden="true">—</span><span class="sr-only">henüz puan yok</span></template>
+            </dd>
           </div>
         </dl>
         <p v-else class="t-body-sm t-muted bars-note">Puanlar yalnız yayımlanmış değerlendirmelerden hesaplanır; reklam veya üyelik puanı etkilemez.</p>

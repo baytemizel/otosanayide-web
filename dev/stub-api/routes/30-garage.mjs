@@ -1,4 +1,4 @@
-// Garage group (/araclarim, /kaydedilenler, sign-in pages): seed data only.
+// Garage group (/araclarim, /kaydedilenler, sign-in pages): seed data only (incl. the API v2-02 garage fields).
 // Auth (00-auth), GET/POST/PATCH /api/me (01-me), GET /api/businesses/:id and /api/me/lists (10-search)
 // are already served; this file gives the seed member something to show on /kaydedilenler:
 // three saved synthetic businesses, one saved id that is no longer published (the "artık yayında değil"
@@ -13,6 +13,28 @@ export default (api) => {
   const ids = published().slice(0, 3);
   const account = api.account(seedUid);
   if (!account.favorites.length) account.favorites = [...ids, 'ornek-kapanan-servis'];
+
+  // API v2-02 fields on the seed garage (shown with ?v=2): a synthetic plate ("34 ABC 123" style, not a real
+  // registration) and transmission on the BMW, record types / service name / document label, reminder topic,
+  // several notice days and one switched-off reminder. The Togg stays without v2 fields (a v1-era vehicle).
+  const bmw = account.vehicles.find((v) => v.brand === 'BMW');
+  if (bmw && bmw.plate === undefined) Object.assign(bmw, {plate: '34 ORN 001', transmission: 'automatic'});
+  for (const record of account.maintenance) {
+    if (record.type !== undefined) continue;
+    if (record.title === 'Periyodik bakım') Object.assign(record, {type: 'periodic', providerName: record.note || 'Örnek Teknik Garaj', note: '', documentKind: 'invoice'});
+    if (record.title === 'Lastik değişimi') Object.assign(record, {type: 'tyre'});
+  }
+  if (bmw && !account.maintenance.some((r) => r.type === 'insurance')) {
+    account.maintenance.push({id: api.uuid(), vehicleId: bmw.id, title: 'Trafik sigortası', date: '2026-02-18', mileage: 79000, amount: 750, note: 'Poliçe yenileme', type: 'insurance', documentKind: 'policy'});
+  }
+  for (const reminder of account.reminders) {
+    if (reminder.enabled !== undefined) continue;
+    if (reminder.title === 'Muayene') Object.assign(reminder, {enabled: true, topic: 'inspection', advanceDays: 7, advanceDaysList: [0, 1, 7]});
+    if (reminder.title === 'Yağ değişimi') Object.assign(reminder, {enabled: true, topic: 'oil'});
+  }
+  if (bmw && !account.reminders.some((r) => r.enabled === false)) {
+    account.reminders.push({id: api.uuid(), vehicleId: bmw.id, title: 'Trafik sigortası', dueDate: '2027-02-18', channels: ['email'], advanceDays: 7, enabled: false, topic: 'insurance', advanceDaysList: [7]});
+  }
 
   state.lists ??= new Map();
   if (!state.lists.get(seedUid)?.length && ids.length >= 2) {

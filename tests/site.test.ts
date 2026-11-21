@@ -88,7 +88,7 @@ test('own review list (web-17) parses pages and maps 404 to "not available yet"'
   const {fetchOwnReviews} = await import('../app/lib/own-reviews');
   const review = {id: 'r1', text: 'İyi hizmet aldım, teşekkürler.', rating: 5, version: 1, status: 'published', reason: '', resolved: 'yes', wc: 'unknown', canEdit: true, canWithdraw: true};
   const ok = (async (path: string) => {
-    assert.equal(path, '/api/reviews/mine/all?after=c1');
+    assert.equal(path, '/api/reviews/mine/all?v=2&after=c1');
     return new Response(JSON.stringify({items: [{businessId: 'b1', businessName: 'Sentetik', review}], next: null}), {status: 200});
   }) as never;
   assert.equal((await fetchOwnReviews(async () => 't', 'c1', ok)).items[0]?.businessId, 'b1');

@@ -9,10 +9,13 @@ import {useApp} from '~/composables/useApp';
 import {useClientEffect} from '~/composables/useClientEffect';
 import {callApi, errorStatus} from '~/lib/api-read';
 import {demoMode} from '~/lib/env';
-import {availabilityApi, messagesApi, type Availability, type RequestMessage} from '~/lib/member-api';
+import {messagesApi, type RequestMessage} from '~/lib/member-api';
 import {readBusiness} from '~/lib/server-read';
 import {toCardBusiness, type CardBusiness} from '~/lib/v2/business-card';
-import {decodeRequestPage, liveErrorMessage, requestBody, requestView, type LiveRequest, type RequestDraft, type RequestView} from '~/lib/v2/requests';
+import {
+  cancelBody, decodeAvailability, decodeRequestPage, liveErrorMessage, requestBody, requestView,
+  type CancelReason, type LiveAvailability, type LiveRequest, type RequestDraft, type RequestView,
+} from '~/lib/v2/requests';
 
 /** Bearer token of the signed-in member; throws a readable message when the session is gone. */
 export function memberToken() {
@@ -60,6 +63,27 @@ export async function sendRequest(token: () => Promise<string>, draft: RequestDr
   return callApi('/api/requests', {method: 'POST', token: await token(), body}, raw => requestReceipt.parse(raw));
 }
 
+/**
+ * Idempotency key for POST /api/requests: kept while the member retries the same draft, renewed when
+ * the draft changed (the API answers 409 to a key reused with other content), cleared after success.
+ */
+export function requestKeyKeeper() {
+  let key = '';
+  let sent = '';
+  return {
+    for(draft: RequestDraft) {
+      const text = JSON.stringify(draft);
+      if (!key || text !== sent) key = crypto.randomUUID();
+      sent = text;
+      return key;
+    },
+    clear() {
+      key = '';
+      sent = '';
+    },
+  };
+}
+
 export function requestSendError(error: unknown, kind: 'quotes' | 'appointments') {
   return liveErrorMessage(error, 'Talep gönderilemedi. Tekrar dene.', {
     403: 'Talep göndermek için önce e-posta adresini doğrula (Hesabım sayfası).',
@@ -67,7 +91,7 @@ export function requestSendError(error: unknown, kind: 'quotes' | 'appointments'
   });
 }
 
-/** The member's requests (GET /api/requests?v=2) with accept/cancel (PATCH, customer actions only). */
+/** The member's requests (GET /api/requests?v=2) with accept/cancel (PATCH, customer actions only; cancel carries a v2-01 reason code). */
 export function useMemberRequests() {
   const app = useApp();
   const token = memberToken();
@@ -106,11 +130,12 @@ export function useMemberRequests() {
 
   const views = computed<RequestView[]>(() => items.value.map(item => requestView(item, now.value)));
 
-  async function act(view: RequestView, action: 'accept' | 'cancel', text?: string) {
+  async function act(view: RequestView, action: 'accept' | 'cancel', reason?: {code: CancelReason; text: string}) {
     if (acting.value) return;
     acting.value = true;
     try {
-      const body = requestAction.parse({id: view.id, version: view.version, action, ...(text ? {text} : {})});
+      // The core action schema is strict and has no reasonCode yet: the cancel body is built here.
+      const body = action === 'cancel' && reason ? cancelBody(view, reason.code, reason.text) : requestAction.parse({id: view.id, version: view.version, action});
       await callApi('/api/requests', {method: 'PATCH', token: await token(), body}, raw => z.object({ok: z.literal(true)}).passthrough().parse(raw));
       await load();
     } catch (e) {
@@ -120,7 +145,7 @@ export function useMemberRequests() {
     }
   }
 
-  return {items, views, next, loading, loaded, error, acting, load, accept: (v: RequestView) => act(v, 'accept'), cancel: (v: RequestView, reason: string) => act(v, 'cancel', reason)};
+  return {items, views, next, loading, loaded, error, acting, load, accept: (v: RequestView) => act(v, 'accept'), cancel: (v: RequestView, code: CancelReason, text: string) => act(v, 'cancel', {code, text})};
 }
 
 /** Messages of one request (web-15 (2)). No notification is sent to the business. */
@@ -176,9 +201,9 @@ export function useRequestThread(requestId: () => string) {
   return {items, next, loading, error, load, send};
 }
 
-/** Public availability for a week (web-15 (3)). */
+/** Public availability for a week (web-15 (3); v2-01: free and full slots, 30-minute slots). */
 export function useAvailability(businessId: () => string, from: Ref<string>, enabled: () => boolean) {
-  const data = shallowRef<Availability | null>(null);
+  const data = shallowRef<LiveAvailability | null>(null);
   const loading = ref(false);
   const error = ref('');
   const reload = ref(0);
@@ -187,7 +212,7 @@ export function useAvailability(businessId: () => string, from: Ref<string>, ena
     let cancelled = false;
     loading.value = true;
     error.value = '';
-    availabilityApi.read(businessId(), from.value, 7).then(value => {
+    callApi(`/api/businesses/${encodeURIComponent(businessId())}/availability?from=${from.value}&days=7&v=2`, {}, decodeAvailability).then(value => {
       if (!cancelled) data.value = value;
     }).catch(e => {
       if (!cancelled) error.value = liveErrorMessage(e, 'Uygun saatler yüklenemedi.');

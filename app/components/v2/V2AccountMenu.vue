@@ -2,11 +2,16 @@
 import {onMounted, ref} from 'vue';
 import {Bell, Calendar, File, Heart, Lock, MessageSquare, ShieldCheck, User} from '@lucide/vue';
 import {useSession} from '~/composables/useSession';
+import {useUnreadCount} from '~/composables/v2/useUnreadCount';
+import {unreadBadge} from '~/lib/v2/account';
 
 // "Hesap menüsü" (W13, W15, W17, W18): member head + account links, the current page is the dark row.
+// Live: the head shows the profile name (e-mail-based label without one); "Bildirimler" carries the unread
+// count the navbar and /bildirimler read from GET /api/notifications?v=2 (null in demo, nothing shown).
 defineProps<{active: 'hatirlatmalar' | 'kaydedilenler' | 'taleplerim' | 'yorumlarim' | 'bildirimler' | 'basvurularim' | 'hesabim' | 'gizlilik'}>();
 
 const {label} = useSession();
+const {value: unreadCount} = useUnreadCount();
 const items = [
   {key: 'hatirlatmalar', label: 'Hatırlatmalar', to: '/hatirlatmalar', icon: Calendar},
   {key: 'kaydedilenler', label: 'Kaydedilenler', to: '/kaydedilenler', icon: Heart},
@@ -40,6 +45,7 @@ onMounted(() => {
       <li v-for="item in items" :key="item.key">
         <NuxtLink :to="item.to" class="link" :class="{on: item.key === active}" :aria-current="item.key === active ? 'page' : undefined">
           <component :is="item.icon" :size="18" aria-hidden="true"/>{{ item.label }}
+          <span v-if="item.key === 'bildirimler' && unreadCount" class="count">{{ unreadBadge(unreadCount) }}<span class="sr-only"> okunmamış</span></span>
         </NuxtLink>
       </li>
     </ul>
@@ -57,6 +63,8 @@ onMounted(() => {
 .link:hover{background:var(--cream-50)}
 .link.on{background:var(--ink-900);color:var(--white)}
 .link.on svg{color:var(--lime-400)}
+.count{margin-left:auto;display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--orange-500);color:var(--white);font-size:12px;font-weight:700}
+.link.on .count{background:var(--lime-400);color:var(--ink-900)}
 @media (max-width:1000px){
   .acc-menu{width:100%;padding:10px;border-radius:24px}
   .who{display:none}

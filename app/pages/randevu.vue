@@ -2,10 +2,11 @@
 import {computed, reactive, ref, watch} from 'vue';
 import {ArrowRight, Bell, ChevronLeft, ChevronRight, Info} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
+import V2Select from '~/components/v2/V2Select.vue';
 import RequestBusinessHead from '~/components/v2/requests/RequestBusinessHead.vue';
 import RequestSuccessCard from '~/components/v2/requests/RequestSuccessCard.vue';
 import {useMemberPage} from '~/composables/useMemberPage';
-import {memberToken, requestSendError, sendRequest, useAvailability, useMemberRequests, useRequestBusiness} from '~/composables/v2/useRequests';
+import {memberToken, requestKeyKeeper, requestSendError, sendRequest, useAvailability, useMemberRequests, useRequestBusiness} from '~/composables/v2/useRequests';
 import {
   DEFAULT_REQUEST_BUSINESS_ID, appointmentClosedWeekdays, appointmentDefault, appointmentFirstWeek, appointmentSlotTimes,
   appointmentTaken, appointmentWeekCount, formatTry, mockOfferById, mockRequests, offerTotal, requestBusiness, requestServices,
@@ -18,9 +19,10 @@ import {
 // W16 · Randevu · Zaman seçimi (Figma 126:951). Week strip + time grid.
 // Demo: ?servis=<id> picks the mock business, ?teklif=<id> fills service, vehicle and amount; sending
 // shows a mock success state. Live: the business and its open hours come from the API
-// (GET /api/businesses/{id}/availability); sending is an appointment request
-// (POST /api/requests, kind=appointments, preferredDate + preferredSlot) that the business still
-// has to accept. ?talep=<id> (an accepted quote) fills service, vehicle and amount.
+// (GET /api/businesses/{id}/availability?v=2: free and full slots, 30-minute slots possible; a full
+// slot is drawn as taken like in demo); sending is an appointment request (POST /api/requests,
+// kind=appointments, preferredDate + preferredSlot, vehicleId for a garage vehicle) that the
+// business still has to accept. ?talep=<id> (an accepted quote) fills service, vehicle and amount.
 const app = useMemberPage();
 const demo = demoMode();
 
@@ -82,7 +84,7 @@ const liveDays = computed(() => calendarDays(weekStart.value, availability.data.
 const noOnlineSlots = computed(() => availability.data.value?.slotMinutes === null);
 watch(() => availability.data.value, (value) => {
   if (!value || selectedDate.value) return;
-  const first = liveDays.value.find((day) => !day.closed);
+  const first = liveDays.value.find((day) => day.free > 0) ?? liveDays.value.find((day) => !day.closed);
   if (first) selectedDate.value = first.date;
 });
 
@@ -106,7 +108,7 @@ const vehicleText = computed(() => (liveContext.value?.vehicle
 const business = computed(() => (demo ? mockBiz.value : liveBiz.business.value));
 const days = computed<Day[]>(() => (demo ? mockDays.value : liveDays.value));
 const slotTimes = computed(() => (demo ? appointmentSlotTimes : liveDays.value.find((day) => day.date === selectedDate.value)?.slots ?? []));
-const taken = computed(() => new Set(demo ? appointmentTaken(selectedDate.value) : []));
+const taken = computed(() => new Set(demo ? appointmentTaken(selectedDate.value) : liveDays.value.find((day) => day.date === selectedDate.value)?.taken ?? []));
 const monthTitle = computed(() => {
   if (!demo) return monthOf(days.value[3]?.date ?? weekStart.value);
   const middle = days.value[2]!.date;
@@ -126,7 +128,7 @@ const canNext = computed(() => (demo ? weekIndex.value < appointmentWeekCount - 
 function pickDay(day: Day) {
   if (day.closed) return;
   selectedDate.value = day.date;
-  if (selectedTime.value && (demo ? appointmentTaken(day.date).includes(selectedTime.value) : !slotTimes.value.includes(selectedTime.value))) selectedTime.value = null;
+  if (selectedTime.value && (!slotTimes.value.includes(selectedTime.value) || taken.value.has(selectedTime.value))) selectedTime.value = null;
 }
 function moveWeek(delta: number) {
   if (demo) {
@@ -148,7 +150,9 @@ const token = memberToken();
 const sending = ref(false);
 const sendError = ref('');
 const manualDate = ref('');
-let requestKey = '';
+const requestKey = requestKeyKeeper();
+/** v2-01: the garage vehicle's id (picked here, or the one the accepted quote was sent with). */
+const vehicleId = computed(() => (liveContext.value ? liveContext.value.vehicleId ?? undefined : form.vehicleId && form.vehicleId !== 'diger' ? form.vehicleId : undefined));
 const canSend = computed(() => (demo ? !!selectedTime.value : noOnlineSlots.value ? !!manualDate.value : !!selectedTime.value));
 async function submit() {
   if (demo) {
@@ -162,21 +166,21 @@ async function submit() {
     businessId: business.value.id, kind: 'appointments' as const, service: form.service, vehicle: vehicleText.value, message: form.message.trim(),
     preferredDate: noOnlineSlots.value ? manualDate.value || undefined : selectedDate.value || undefined,
     preferredSlot: noOnlineSlots.value ? undefined : selectedTime.value ?? undefined,
+    ...(vehicleId.value ? {vehicleId: vehicleId.value} : {}),
   };
   sendError.value = requestDraftProblem(draft) || (draft.preferredDate ? '' : 'Bir gün ve saat seç.');
   if (sendError.value) return;
   sending.value = true;
-  requestKey ||= crypto.randomUUID();
   try {
-    await sendRequest(token, draft, requestKey);
-    requestKey = '';
+    await sendRequest(token, draft, requestKey.for(draft));
+    requestKey.clear();
     if (noOnlineSlots.value) selectedDate.value = manualDate.value;
     submitted.value = true;
     if (import.meta.client) window.scrollTo({top: 0, behavior: 'smooth'});
   } catch (error) {
     sendError.value = requestSendError(error, 'appointments');
     if (/uygun değil/.test(sendError.value)) {
-      requestKey = '';
+      requestKey.clear();
       selectedTime.value = null;
       availability.refresh();
     }
@@ -260,7 +264,7 @@ async function submit() {
           >
             <span class="day-short">{{ day.short }}</span>
             <span class="day-num">{{ day.num }}</span>
-            <span class="day-sub">{{ day.closed ? (demo ? 'Kapalı' : 'Uygun saat yok') : day.date === selectedDate ? `${day.free} saat` : day.free ? 'Uygun' : 'Dolu' }}</span>
+            <span class="day-sub">{{ day.closed ? (demo ? 'Kapalı' : 'Uygun saat yok') : !day.free ? 'Dolu' : day.date === selectedDate ? `${day.free} saat` : 'Uygun' }}</span>
           </button>
         </div>
 
@@ -275,7 +279,7 @@ async function submit() {
             :class="{on: time === selectedTime, taken: taken.has(time)}"
             :disabled="taken.has(time)"
             :aria-pressed="time === selectedTime"
-            :aria-label="taken.has(time) ? `${time}, dolu` : demo ? time : slotLabel(time)"
+            :aria-label="taken.has(time) ? `${demo ? time : slotLabel(time)}, dolu` : demo ? time : slotLabel(time)"
             @click="selectedTime = time"
           >{{ demo ? time : slotLabel(time) }}</button>
         </div>
@@ -283,7 +287,7 @@ async function submit() {
         <ul class="legend t-body-sm t-muted" aria-hidden="true">
           <li><span class="swatch on"/>Seçili</li>
           <li><span class="swatch free"/>Uygun</li>
-          <li v-if="demo"><span class="swatch taken"/>Dolu</li>
+          <li><span class="swatch taken"/>Dolu</li>
         </ul>
         </template>
 
@@ -291,19 +295,12 @@ async function submit() {
           <label class="field">
             <span class="field-label">Hizmet</span>
             <input v-if="liveContext" class="input" :value="form.service" readonly>
-            <select v-else v-model="form.service" class="select">
-              <option value="" disabled>Hizmet seç</option>
-              <option v-for="item in serviceChoices" :key="item" :value="item">{{ item }}</option>
-            </select>
+            <V2Select v-else v-model="form.service" :options="serviceChoices" placeholder="Hizmet seç" aria-label="Hizmet"/>
           </label>
           <label class="field">
             <span class="field-label">Araç</span>
             <input v-if="liveContext" class="input" :value="liveContext.vehicle" readonly>
-            <select v-else v-model="form.vehicleId" class="select">
-              <option value="" disabled>Araç seç</option>
-              <option v-for="item in vehicles" :key="item.id" :value="item.id">{{ item.label }}</option>
-              <option value="diger">Başka bir araç</option>
-            </select>
+            <V2Select v-else v-model="form.vehicleId" :options="[...vehicles.map((item) => ({value: item.id, label: item.label})), {value: 'diger', label: 'Başka bir araç'}]" placeholder="Araç seç" aria-label="Araç"/>
           </label>
           <div v-if="!liveContext && form.vehicleId === 'diger'" class="other">
             <label class="field"><span class="field-label">Marka</span><input v-model="form.otherBrand" class="input" placeholder="Örn. Toyota" autocomplete="off"></label>

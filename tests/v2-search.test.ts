@@ -4,6 +4,7 @@ import {cities, type Business} from '@otosanayide/core';
 import {emptyFilters, nearbyProvince, searchBusinesses, type SearchFilters} from '../app/data/mock/search';
 import {decodeSearchPage, type SearchPage} from '../app/lib/search-response';
 import {compareFromLive, compareFromMock, comparisonName} from '../app/lib/v2/compare';
+import {bundledCoverage, coverageCenter, coverageDistricts, decodeCoverage} from '../app/lib/v2/coverage';
 import {
   appendCards, categoryId, coveredName, isCovered, liveDistricts, liveSearchParams, nearbyCovered, openLabel, pageCards, readLiveQuery, resultCount,
   searchCenter, searchErrorText, serviceCategory, splitPinned, v1Params,
@@ -212,4 +213,45 @@ test('the stub search answers what the live decoder accepts (shapes, paging, tot
   assert.equal(profile.status, 200);
   assert.ok((profile.body as {reviewSummary?: unknown}).reviewSummary);
   assert.equal(call('/api/businesses/:id', '', {id: 'yok'}).status, 404);
+});
+
+/* ------------------------------------------------------------------ coverage (GET /api/coverage, v2-05) */
+
+const apiCoverage = () => decodeCoverage({
+  cityCount: 2, categoryCount: 21, extra: true,
+  cities: [
+    {city: 'İstanbul', districts: [{name: 'Kadıköy', center: {lat: 40.99, lng: 29.03}}, {name: 'Yeni İlçe', center: {lat: 41.1, lng: 29.1}}]},
+    {city: 'Hakkâri', districts: [{name: 'Merkez', center: {lat: 99, lng: 43.7}}]},
+  ],
+});
+
+test('the bundled coverage is the fallback and matches packages/core', () => {
+  assert.equal(bundledCoverage.source, 'bundled');
+  assert.equal(bundledCoverage.cityCount, cities.length);
+  assert.deepEqual(bundledCoverage.cities, cities);
+  assert.equal(bundledCoverage.categoryCount, 20);
+  assert.ok(coverageDistricts(bundledCoverage, 'istanbul').includes('Kadıköy'));
+});
+
+test('GET /api/coverage decodes counts, provinces and district centres; a centre outside Turkey is dropped', () => {
+  const c = apiCoverage();
+  assert.equal(c.source, 'api');
+  assert.deepEqual([c.cityCount, c.categoryCount, c.cities], [2, 21, ['İstanbul', 'Hakkâri']]);
+  assert.deepEqual(c.districts['İstanbul']![0], {name: 'Kadıköy', center: {latitude: 40.99, longitude: 29.03}});
+  assert.equal(c.districts['Hakkâri']![0]!.center, null);
+  assert.throws(() => decodeCoverage({cityCount: 'x', categoryCount: 1, cities: []}));
+});
+
+test('coverage helpers follow the live coverage when given, the bundled list otherwise', () => {
+  const c = apiCoverage();
+  assert.equal(isCovered('Ankara'), true);
+  assert.equal(isCovered('Ankara', c), false, 'not in the API list');
+  assert.equal(coveredName('hakkari', c), 'Hakkâri');
+  assert.equal(nearbyCovered('Ankara', c), 'İstanbul');
+  assert.deepEqual(liveDistricts('İstanbul', ['Ataşehir'], c), ['Ataşehir', 'Kadıköy', 'Yeni İlçe']);
+  assert.equal(readLiveQuery('yeni ilçe kaporta', filters(), c).ilce, 'Yeni İlçe');
+  assert.deepEqual(searchCenter(filters({area: 'cevre', ilce: 'Yeni İlçe'}), null, c), {latitude: 41.1, longitude: 29.1});
+  // No API centre: bundled district reference, then the bundled province centre.
+  assert.deepEqual(coverageCenter(c, 'Hakkâri', 'Merkez'), coverageCenter(bundledCoverage, 'Hakkâri', 'Merkez'));
+  assert.ok(coverageCenter(c, 'İstanbul'));
 });
