@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import type {Component} from 'vue';
+import V2Doodle from '~/components/v2/V2Doodle.vue';
+import type {DoodleSlug} from '~/data/doodles';
 
 // "Durum" block of S02 (Kapsam dışı il, Figma 128:189) and S03 (Sonuç bulunamadı, 128:312):
-// icon in a lime ring, eyebrow, H2, text, optional chips, actions and a footnote.
-defineProps<{icon: Component; eyebrow: string; title: string; text: string}>();
+// the 320 × 240 scene doodle, eyebrow, H2, text, optional chips, actions and a footnote.
+// Screens without a doodle in Figma (compare) pass an icon, shown in a lime ring.
+defineProps<{doodle?: DoodleSlug; icon?: Component; eyebrow: string; title: string; text: string}>();
 </script>
 
 <template>
   <section class="state v2-wrap" aria-live="polite">
-    <div class="visual" aria-hidden="true">
+    <V2Doodle v-if="doodle" :name="doodle" :size="320" class="art" eager/>
+    <div v-else-if="icon" class="visual" aria-hidden="true">
       <span class="inner"><component :is="icon" :size="46" :stroke-width="2"/></span>
     </div>
     <p class="t-mono-md t-eyebrow">{{ eyebrow }}</p>
@@ -29,6 +33,7 @@ defineProps<{icon: Component; eyebrow: string; title: string; text: string}>();
 .actions{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;padding-top:8px}
 @media (max-width:760px){
   .state{padding-top:48px;padding-bottom:72px}
+  .art{width:min(100%,260px)}
   .visual{width:140px;height:140px}
   .inner{width:92px;height:92px}
 }

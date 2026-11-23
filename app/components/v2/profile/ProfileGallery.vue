@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import {LayoutGrid, ShieldCheck} from '@lucide/vue';
+import {LayoutGrid} from '@lucide/vue';
+import V2Doodle from '~/components/v2/V2Doodle.vue';
 import type {ProfilePhoto} from '~/data/mock/profile';
 import {useLocale} from '~/composables/useLocale';
 
-// Gallery strip of W04 (photo profile) and the photo-less cover of W05.
+// Gallery strip of W04 (photo profile) and the photo-less cover of W05 (110 px "Fotoğraf yok" doodle).
 defineProps<{photos: ProfilePhoto[]; photoCount: number; category: string}>();
 const emit = defineEmits<{'open-all': [index: number]}>();
 // `category` arrives in the page language; photo alt texts are translated here (demo alts are Turkish source texts).
@@ -29,7 +30,7 @@ const {t, localeTag} = useLocale();
       </div>
     </div>
     <div v-else class="cover">
-      <span class="cover-icon"><ShieldCheck :size="28" aria-hidden="true"/></span>
+      <V2Doodle name="bos-foto" :size="110"/>
       <p class="t-mono-md">{{ t('{category} · Fotoğraf henüz eklenmedi', {category}).toLocaleUpperCase(localeTag) }}</p>
     </div>
   </section>
@@ -47,7 +48,6 @@ button.photo:hover img{transform:scale(1.02)}
 .all{position:absolute;right:16px;bottom:16px;display:inline-flex;align-items:center;gap:8px;padding:10px 16px 10px 12px;border-radius:999px;background:var(--white);box-shadow:0 8px 10px rgba(10,20,36,.2);font-weight:600;font-size:13px;line-height:1.2;color:var(--ink-900);white-space:nowrap}
 .short{display:none}
 .cover{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;height:220px;background:var(--cream-100);border:1px solid var(--cream-200);border-radius:28px;padding:20px;text-align:center}
-.cover-icon{display:grid;place-items:center;width:64px;height:64px;border-radius:999px;background:var(--white);color:var(--ink-300)}
 .cover .t-mono-md{color:var(--ink-500);letter-spacing:.04em}
 @media (max-width:900px){
   .grid{flex-direction:column;height:auto}
@@ -61,6 +61,6 @@ button.photo:hover img{transform:scale(1.02)}
   .side{height:120px}
   .long{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
   .short{display:inline}
-  .cover{height:180px}
+  .cover{height:200px}
 }
 </style>

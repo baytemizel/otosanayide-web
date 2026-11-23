@@ -3,6 +3,7 @@
 // UI labels here are Turkish source text that the home components translate at render (English in
 // app/locales/v2-shell.json); business names, people, places, vehicles and review texts stay as they are.
 import type {MockReview} from '~/components/v2/V2ReviewCard.vue';
+import type {DoodleSlug} from '~/data/doodles';
 
 /* Hero + smart search (108:42) */
 export const homeHeroTrust = ['Üyelik yok', 'Arama ve yol tarifi ücretsiz', 'Sponsorlu içerik etiketli'];
@@ -32,15 +33,14 @@ export const homeCounters: HomeCounter[] = [
 ];
 
 /* Categories bento (109:30) */
-export type HomeCategoryIcon = 'wrench' | 'sparkles' | 'brush' | 'tyre' | 'zap' | 'bike';
-export interface HomeCategory {name: string; text: string; icon: HomeCategoryIcon; tone: 'sky' | 'lime' | 'orange'}
-export const homeFeaturedCategory = {name: 'Mekanik Servis', text: 'Periyodik bakım, motor, fren, şanzıman', badge: 'En çok aranan', photo: '/v2/home/cat-mechanic.jpg'};
+export interface HomeCategory {name: string; text: string; doodle: DoodleSlug}
+export const homeFeaturedCategory = {name: 'Mekanik Servis', text: 'Periyodik bakım, motor, fren, şanzıman', badge: 'En çok aranan', photo: '/v2/home/cat-mechanic.jpg', doodle: 'kat-mekanik' as DoodleSlug};
 export const homeCategories: HomeCategory[] = [
-  {name: 'Oto Kuaför', text: 'Yıkama, pasta cila, seramik kaplama', icon: 'sparkles', tone: 'sky'},
-  {name: 'Kaporta & Boya', text: 'Göçük, boyasız düzeltme, lokal boya', icon: 'brush', tone: 'orange'},
-  {name: 'Lastik & Jant', text: 'Değişim, balans, rot ayarı', icon: 'tyre', tone: 'lime'},
-  {name: 'Elektrik & Elektronik', text: 'Akü, arıza tespit, hibrit ve EV', icon: 'zap', tone: 'orange'},
-  {name: 'Motosiklet', text: 'Bakım, lastik, aksesuar montajı', icon: 'bike', tone: 'sky'},
+  {name: 'Oto Kuaför', text: 'Yıkama, pasta cila, seramik kaplama', doodle: 'kat-kuafor'},
+  {name: 'Kaporta & Boya', text: 'Göçük, boyasız düzeltme, lokal boya', doodle: 'kat-boya'},
+  {name: 'Lastik & Jant', text: 'Değişim, balans, rot ayarı', doodle: 'kat-lastik'},
+  {name: 'Elektrik & Elektronik', text: 'Akü, arıza tespit, hibrit ve EV', doodle: 'kat-elektrik'},
+  {name: 'Motosiklet', text: 'Bakım, lastik, aksesuar montajı', doodle: 'kat-moto'},
 ];
 export const homeMoreCategories = {count: 14, title: 'kategori daha', text: 'Cam, film, klima, ekspertiz ve diğerleri'};
 

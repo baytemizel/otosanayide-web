@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, nextTick, reactive, ref, watch} from 'vue';
 import type {LocationQuery} from 'vue-router';
-import {Info, ListFilter, MapPin, Search, SlidersHorizontal, X} from '@lucide/vue';
+import {Info, ListFilter, SlidersHorizontal, X} from '@lucide/vue';
 import {cities} from '@otosanayide/core';
 import type {AreaPoint} from '@otosanayide/core/coverage';
 import V2Button from '~/components/v2/V2Button.vue';
@@ -377,7 +377,7 @@ async function leaveWaitlist() {
 
 <template>
   <div class="search-page">
-    <SearchState v-if="outOfScope" :icon="MapPin" :eyebrow="t('Kapsam dışı')" :title="t('Bu ilde henüz yokuz.')"
+    <SearchState v-if="outOfScope" doodle="sys-kapsam" :eyebrow="t('Kapsam dışı')" :title="t('Bu ilde henüz yokuz.')"
                  :text="t('Şimdilik {count} ilde hizmet veriyoruz. Seçtiğin il kapsama girdiğinde sana haber verebiliriz.', {count: coverage.cityCount})">
       <V2Button size="lg" arrow @click="patch({il: nearby, ilce: '', area: 'ilce'})">{{ t('Yakındaki ili gör') }}</V2Button>
       <V2Button v-if="demo" variant="outline" :disabled="notified" @click="notifyMe">{{ notified ? t('Haber vereceğiz') : t('Haber ver') }}</V2Button>
@@ -393,7 +393,7 @@ async function leaveWaitlist() {
       </template>
     </SearchState>
 
-    <SearchState v-else-if="noResults" :icon="Search" :eyebrow="t('Sonuç yok')" :title="t('Bu filtrelerle sonuç çıkmadı.')"
+    <SearchState v-else-if="noResults" doodle="sys-sonuc" :eyebrow="t('Sonuç yok')" :title="t('Bu filtrelerle sonuç çıkmadı.')"
                  :text="t('Filtreleri gevşetmeyi ya da aramayı genişletmeyi dene.')">
       <template #chips>
         <ul v-if="emptyChips.length" class="empty-chips">

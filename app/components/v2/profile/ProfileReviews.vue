@@ -2,13 +2,14 @@
 import {computed, ref} from 'vue';
 import {MessageSquare} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
+import V2Doodle from '~/components/v2/V2Doodle.vue';
 import ProfileReviewItem from './ProfileReviewItem.vue';
 import ProfileStars from './ProfileStars.vue';
 import {formatRating, type MockBusiness} from '~/data/mock/businesses';
 import type {ProfileView, ReviewReportReason, ReviewSummaryView} from '~/lib/v2/profile';
 import {useLocale} from '~/composables/useLocale';
 
-// "Yorumlar ve puanlar": rating summary, aspect bars, review list and the empty state of W05.
+// "Yorumlar ve puanlar": rating summary, aspect bars, review list and the empty state of W05 (120 px "Henüz yorum yok" doodle).
 // Demo: the mock list, two shown until expanded. Live (`live`): every loaded review (20 per page from
 // GET /api/reviews?v=2), "Daha fazla yorum" while the API has a next page, loading and error states.
 // The bars come from `reviewSummary.aspects` of GET /api/businesses/{id}?v=2; an aspect nobody scored shows "—".
@@ -81,7 +82,7 @@ const loading = computed(() => props.live && props.state === 'loading' && !props
     </template>
 
     <div v-else class="empty">
-      <span class="empty-icon"><MessageSquare :size="26" aria-hidden="true"/></span>
+      <V2Doodle name="bos-yorum" :size="120"/>
       <p class="t-h4">{{ t('Bu işletme için henüz yorum yok') }}</p>
       <p class="t-body-sm t-muted">{{ t('“Henüz yorum yok” sıfır puan demek değildir.') }}</p>
       <V2Button variant="dark" arrow @click="emit('review')">{{ t('İlk yorumu yaz') }}</V2Button>

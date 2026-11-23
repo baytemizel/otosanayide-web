@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import {WifiOff} from '@lucide/vue';
 import V2Button from '~/components/v2/V2Button.vue';
 import SystemStateView from '~/components/v2/system/SystemStateView.vue';
 import {useLocale} from '~/composables/useLocale';
@@ -10,7 +9,7 @@ const {t} = useLocale();
 </script>
 
 <template>
-  <SystemStateView :icon="WifiOff" :eyebrow="t('Çevrimdışı')" :title="t('Bağlantı kesildi.')" :text="t('İnternet bağlantını kontrol et. Son baktığın işletmeleri çevrimdışıyken de görebilirsin.')">
+  <SystemStateView doodle="sys-baglanti" :eyebrow="t('Çevrimdışı')" :title="t('Bağlantı kesildi.')" :text="t('İnternet bağlantını kontrol et. Son baktığın işletmeleri çevrimdışıyken de görebilirsin.')">
     <V2Button size="lg" arrow @click="emit('retry')">{{ t('Tekrar dene') }}</V2Button>
     <V2Button variant="outline" @click="emit('browse')">{{ t('Son görüntülenenler') }}</V2Button>
   </SystemStateView>

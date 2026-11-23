@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import {ArrowRight, ArrowUpRight, Bike, Brush, LifeBuoy, Sparkles, Wrench, Zap} from '@lucide/vue';
+import {ArrowRight, ArrowUpRight} from '@lucide/vue';
+import V2Doodle from '~/components/v2/V2Doodle.vue';
 import HomeSectionHead from '~/components/v2/home/HomeSectionHead.vue';
-import {homeCategories, homeFeaturedCategory, homeMoreCategories, type HomeCategoryIcon} from '~/data/mock/home';
+import {homeCategories, homeFeaturedCategory, homeMoreCategories} from '~/data/mock/home';
 import {useLocale} from '~/composables/useLocale';
 import {useCoverage} from '~/composables/v2/useSearch';
 import {demoMode} from '~/lib/env';
 
-// Figma 109:30 "Kategoriler · bento". Cards lift and turn orange on hover (the Figma "Kaporta & Boya" card shows that state).
+// Figma 109:30 "Kategoriler · bento". Each card shows its 96 px category doodle (Figma page 19). Cards lift and turn orange on hover (the Figma "Kaporta & Boya" card shows that state).
 // Category names and texts are Turkish source text, translated at render; the link keeps the Turkish name.
 const {t} = useLocale();
-const icons: Record<HomeCategoryIcon, unknown> = {wrench: Wrench, sparkles: Sparkles, brush: Brush, tyre: LifeBuoy, zap: Zap, bike: Bike};
 const categoryLink = (name: string) => ({path: '/ara', query: {kategori: name}});
 const [first, second, ...rest] = homeCategories;
 const topRow = [first, second].filter((c) => c !== undefined);
@@ -28,7 +28,7 @@ const coverage = useCoverage();
       <div class="row top">
         <NuxtLink :to="categoryLink(homeFeaturedCategory.name)" class="card featured">
           <span class="featured-body">
-            <span class="icon lime" aria-hidden="true"><Wrench :size="23"/></span>
+            <V2Doodle :name="homeFeaturedCategory.doodle" :size="96"/>
             <span class="featured-text">
               <span class="t-h3 name">{{ t(homeFeaturedCategory.name) }}</span>
               <span class="t-body-sm desc">{{ t(homeFeaturedCategory.text) }}</span>
@@ -39,7 +39,7 @@ const coverage = useCoverage();
         </NuxtLink>
         <NuxtLink v-for="cat in topRow" :key="cat.name" :to="categoryLink(cat.name)" class="card plain">
           <span class="card-top">
-            <span class="icon" :class="cat.tone" aria-hidden="true"><component :is="icons[cat.icon]" :size="23" :class="{tyre: cat.icon === 'tyre'}"/></span>
+            <V2Doodle :name="cat.doodle" :size="96"/>
             <span class="go" aria-hidden="true"><ArrowUpRight :size="16"/></span>
           </span>
           <span class="card-text">
@@ -51,7 +51,7 @@ const coverage = useCoverage();
       <div class="row bottom">
         <NuxtLink v-for="cat in rest" :key="cat.name" :to="categoryLink(cat.name)" class="card plain">
           <span class="card-top">
-            <span class="icon" :class="cat.tone" aria-hidden="true"><component :is="icons[cat.icon]" :size="23" :class="{tyre: cat.icon === 'tyre'}"/></span>
+            <V2Doodle :name="cat.doodle" :size="96"/>
             <span class="go" aria-hidden="true"><ArrowUpRight :size="16"/></span>
           </span>
           <span class="card-text">
@@ -96,7 +96,6 @@ const coverage = useCoverage();
 .plain{background:var(--white);border:1px solid var(--cream-200);padding:24px}
 .top .plain{flex:295 1 0;min-width:0}
 .plain:hover,.plain:focus-visible{background:var(--orange-500);border-color:var(--orange-500);box-shadow:0 22px 22px rgba(10,20,36,.2)}
-.plain:hover .icon,.plain:focus-visible .icon{background:var(--ink-900);color:var(--lime-400)}
 .plain:hover .go,.plain:focus-visible .go{background:var(--ink-900);color:var(--white)}
 .plain:hover .desc,.plain:focus-visible .desc{color:rgba(10,21,36,.8)}
 
@@ -104,12 +103,6 @@ const coverage = useCoverage();
 .card-text{display:flex;flex-direction:column;gap:6px}
 .card-text .t-h4{color:var(--ink-900)}
 .plain .desc{color:var(--ink-500)}
-.icon{display:grid;place-items:center;width:52px;height:52px;border-radius:999px;color:var(--ink-900);transition:background-color .2s ease,color .2s ease}
-.icon.lime{background:var(--lime-400)}
-.plain .icon.lime{background:var(--lime-100)}
-.icon.sky{background:var(--sky-200)}
-.icon.orange{background:var(--orange-100)}
-.tyre{transform:rotate(45deg)}
 .go{display:grid;place-items:center;width:36px;height:36px;border-radius:999px;background:var(--cream-100);color:var(--ink-900);transition:background-color .2s ease,color .2s ease}
 .go.dark{background:var(--ink-900);color:var(--lime-400)}
 
@@ -129,6 +122,6 @@ const coverage = useCoverage();
   .featured{flex-direction:column;height:auto!important}
   .featured-body{gap:40px}
   .featured-photo{width:100%;height:180px}
-  .top .plain,.bottom .card{flex:1 1 100%;height:200px}
+  .top .plain,.bottom .card{flex:1 1 100%;height:220px}
 }
 </style>

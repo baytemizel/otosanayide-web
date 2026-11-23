@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {Check} from '@lucide/vue';
+import V2Doodle from '~/components/v2/V2Doodle.vue';
 import V2Logo from '~/components/v2/V2Logo.vue';
 import {useLocale} from '~/composables/useLocale';
 
 // W10 "Giriş kartı" (Figma 123:69): dark promo panel on the left, white form panel (slot) on the right.
+// Under the list the "Usta ve sürücü" doodle sits in a cream card (doodles go in a light card on dark grounds).
 // Also used by the e-mail verification and password reset pages so all auth screens share one card.
 // The list keeps the Turkish source; each item is translated at render.
 const {t} = useLocale();
@@ -29,6 +31,7 @@ const features = [
               <span class="tick" aria-hidden="true"><Check :size="14" :stroke-width="2.5"/></span>{{ t(item) }}
             </li>
           </ul>
+          <div class="art-card"><V2Doodle name="oz-hero" :size="248" eager/></div>
         </div>
         <p class="t-body-sm promo-note">{{ t('Keşif, arama ve yol tarifi için hesap gerekmez.') }}</p>
       </aside>
@@ -51,6 +54,7 @@ const features = [
 .features{display:flex;flex-direction:column;gap:14px}
 .features li{display:flex;align-items:center;gap:12px;color:var(--white)}
 .tick{flex:none;width:26px;height:26px;border-radius:999px;background:var(--lime-400);color:var(--ink-900);display:grid;place-items:center}
+.art-card{margin-top:-4px;padding:12px;border-radius:24px;background:var(--cream-50)}
 .promo-note{position:relative;color:var(--ink-300)}
 .panel{flex:none;width:580px;display:flex;flex-direction:column;gap:20px;padding:56px;background:var(--white)}
 @media (max-width:1100px){
@@ -65,5 +69,5 @@ const features = [
   .features{gap:10px}
   .panel{width:auto;padding:32px 24px}
 }
-@media (max-width:600px){.features{display:none}.promo-title{font-size:30px}}
+@media (max-width:600px){.features,.art-card{display:none}.promo-title{font-size:30px}}
 </style>

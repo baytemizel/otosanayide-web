@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {Lock, TriangleAlert} from '@lucide/vue';
 import type {NuxtError} from '#app';
 import V2Button from '~/components/v2/V2Button.vue';
 import V2Footer from '~/components/v2/V2Footer.vue';
@@ -24,15 +23,15 @@ const home = () => clearError({redirect: '/'});
   <div class="v2-app">
     <V2Navbar/>
     <main id="icerik">
-      <SystemStateView v-if="status === 404" code="404" :eyebrow="t('Sayfa bulunamadı')" :title="t('Bu sayfa servisten çıkmış.')" :text="t('Aradığın sayfa taşınmış ya da hiç var olmamış olabilir. Aramaya ana sayfadan devam edebilirsin.')">
+      <SystemStateView v-if="status === 404" doodle="sys-404" :doodle-size="360" :eyebrow="t('Sayfa bulunamadı')" :title="t('Bu sayfa servisten çıkmış.')" :text="t('Aradığın sayfa taşınmış ya da hiç var olmamış olabilir. Aramaya ana sayfadan devam edebilirsin.')">
         <V2Button size="lg" arrow @click="home">{{ t('Ana sayfaya dön') }}</V2Button>
         <V2Button variant="outline" @click="clearError({redirect: '/ara'})">{{ t('Servis ara') }}</V2Button>
       </SystemStateView>
-      <SystemStateView v-else-if="status === 401 || status === 403" :icon="Lock" :eyebrow="t('Yetki gerekli')" :title="t('Bu sayfa için yetkin yok.')" :text="t('Bu alan yalnızca işletme yöneticilerine açık. İşletme seninse sahiplik başvurusu yapabilirsin.')">
+      <SystemStateView v-else-if="status === 401 || status === 403" doodle="sys-403" :eyebrow="t('Yetki gerekli')" :title="t('Bu sayfa için yetkin yok.')" :text="t('Bu alan yalnızca işletme yöneticilerine açık. İşletme seninse sahiplik başvurusu yapabilirsin.')">
         <V2Button size="lg" arrow :href="claimHref">{{ t('Sahiplik başvurusu') }}</V2Button>
         <V2Button variant="outline" @click="home">{{ t('Ana sayfaya dön') }}</V2Button>
       </SystemStateView>
-      <SystemStateView v-else :icon="TriangleAlert" :eyebrow="t('Hata')" :title="t('Bir şeyler ters gitti.')" :text="t('Sayfa şu an yüklenemedi. Birazdan tekrar dene; sorun sürerse ana sayfadan devam edebilirsin.')">
+      <SystemStateView v-else doodle="sys-500" :eyebrow="t('Hata')" :title="t('Bir şeyler ters gitti.')" :text="t('Sayfa şu an yüklenemedi. Birazdan tekrar dene; sorun sürerse ana sayfadan devam edebilirsin.')">
         <V2Button size="lg" arrow @click="home">{{ t('Ana sayfaya dön') }}</V2Button>
       </SystemStateView>
     </main>
