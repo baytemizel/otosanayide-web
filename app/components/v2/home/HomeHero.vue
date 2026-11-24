@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {ArrowRight, Check, Navigation, Phone, ShieldCheck, Star} from '@lucide/vue';
+import {Check, Navigation, Phone, ShieldCheck, Star} from '@lucide/vue';
 import HomeCounterStrip from '~/components/v2/home/HomeCounterStrip.vue';
 import HomeSmartSearch from '~/components/v2/home/HomeSmartSearch.vue';
 import {mockBusiness} from '~/data/mock/businesses';
@@ -49,11 +49,6 @@ const categoryCount = computed(() => (demo ? 20 : coverage.value.categoryCount))
             <div class="photo">
               <img src="/v2/workshop.jpg" :alt="t('Serviste lifte alınmış bir aracın altında çalışan usta')" width="1200" height="675">
             </div>
-            <NuxtLink to="/ara" class="badge">
-              <span class="t-mono-sm">{{ t('ÜYELİKSİZ') }}</span>
-              <span class="t-mono-sm">{{ t('KEŞİF') }}</span>
-              <ArrowRight :size="18" aria-hidden="true"/>
-            </NuxtLink>
             <div class="reminder" aria-hidden="true">
               <img src="/v2/home/hero-ring.svg" alt="" width="42" height="42">
               <span class="reminder-text">
@@ -113,9 +108,6 @@ h1 em{font-style:normal;color:var(--orange-500)}
 .photo{position:absolute;left:70px;top:36px;width:420px;height:500px;border-radius:36px;overflow:hidden}
 .photo img{width:100%;height:100%;object-fit:cover}
 .photo::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,20,36,0) 45%,rgba(10,20,36,.62) 100%)}
-.badge{position:absolute;left:14px;top:64px;width:116px;height:116px;border-radius:999px;background:var(--lime-400);color:var(--ink-900);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 10px 12px rgba(10,20,36,.16);transition:transform .2s ease}
-.badge .t-mono-sm{font-weight:700}
-.badge:hover{transform:rotate(-6deg) scale(1.03)}
 .reminder{position:absolute;left:318px;top:96px;display:flex;align-items:center;gap:12px;padding:14px 18px 14px 14px;border-radius:20px;background:var(--ink-900);box-shadow:0 16px 18px rgba(10,20,36,.25)}
 .reminder-text{display:flex;flex-direction:column;gap:3px;white-space:nowrap}
 .reminder .t-mono-sm{color:var(--lime-400)}

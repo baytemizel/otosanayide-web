@@ -24,7 +24,6 @@ const bellLabel = computed(() => (unreadCount.value ? t('Bildirimler, {badge} ok
 const links = [
   {label: 'Keşfet', to: '/ara', match: ['/ara', '/servis', '/karsilastir']},
   {label: 'Belirti Bulucu', to: '/#belirti-bulucu', match: []},
-  {label: 'Teklif Al', to: '/talep', match: ['/talep', '/taleplerim', '/randevu']},
   {label: 'Garajım', to: '/araclarim', match: ['/araclarim', '/hatirlatmalar']},
   {label: 'Rehber', to: '/#rehber', match: []},
 ];
